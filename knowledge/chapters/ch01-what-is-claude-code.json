@@ -1,0 +1,119 @@
+{
+  "chapter_id": "ch01-what-is-claude-code",
+  "title": "第1章：Claude Code 是什么",
+  "subtitle": "一个 AI 编程助手的全景图",
+  "opening_hook": "你坐在终端前，输入一行简单的指令：`/build`。几秒钟后，你看到编译错误、依赖问题、甚至测试失败——但紧随其后的是自动修复、依赖安装和重新运行。最终，一个绿色的成功标记浮现。这一切不需要你切换窗口、不需要搜索 Stack Overflow、甚至不需要理解错误消息。只一个命令，代码就跑通了。这是魔法吗？不，这是 Claude Code——一个在终端里与你并肩写作的 AI 助手。今天，让我们揭开它的面纱。",
+  "sections": [
+    {
+      "heading": "1.1 不是 IDE 插件，而是终端的原生物",
+      "content": "当我们谈论 AI 编程助手时，大多数人想到的是 VS Code 插件、JetBrains 集成，或者某种浮在编辑器侧边栏的聊天窗口。但 Claude Code 的与众不同之处在于：它生来就属于终端。你不需要打开编辑器，不需要配置扩展，甚至不需要离开你的命令行工作流。它像 `grep` 或 `git` 一样，是你工具链中自然的一员。这种设计 choice 背后是深刻的洞察：很多开发者最舒适的工作环境就是终端。你在那里运行测试、部署服务、调试问题。如果 AI 助手能直接进入这个环境，就能获得真正的上下文——它看到的是你当前目录的结构、你的环境变量、你的 shell 历史，甚至是你正在运行的进程。这不是一个外来的访客，而是你工作空间的原住民。",
+      "code": null,
+      "diagram": null
+    },
+    {
+      "heading": "1.2 技术栈全景：为什么是这套组合？",
+      "content": "Claude Code 的技术选型充满巧思。它用 TypeScript 编写，这意味着类型安全贯穿整个代码库，当你读取源码时，每个函数的参数和返回值都清晰可鉴。React 是它的 UI 框架——但你不会在浏览器里看到它，因为 React 配合 Ink，在终端中渲染出了精致的界面。Ink 就像是 React 的终端引擎版本，它用 JSX 语法描述界面，然后输出成终端控制序列。这让复杂的交互界面（如多选菜单、进度条、代码高亮）成为可能。底层运行使用 Bun，这个新兴的 JavaScript 运行时提供了极快的启动速度和原生的 TypeScript 支持。为什么不直接用 Node.js？因为 Bun 的性能更佳，且对现代构建工具有更友好的集成。这套组合——TypeScript 赋予类型自信，React 带来组件化思维，Ink 连接到终端世界，Bun 提供极速执行——共同支撑起了一个高性能、可维护的系统。",
+      "code": {
+        "title": "Ink + React 在终端中渲染 UI",
+        "description": "这段代码展示了如何用 React 组件语法在终端中显示一个带颜色的问候语。Ink 负责将 JSX 渲染为终端控制序列。",
+        "code": "import { render, Box, Text } from 'ink';\n\nfunction App() {\n  return (\n    <Box flexDirection=\"column\">\n      <Text color=\"green\" bold>✓ Claude Code Ready</Text>\n      <Text dimColor>Type /help to get started</Text>\n    </Box>\n  );\n}\n\nrender(<App />);",
+        "language": "tsx",
+        "annotation": "React 的 JSX 语法 + Ink 的特定组件，让终端界面开发像网页开发一样直观。Box 相当于 div，Text 相当于 span。"
+      },
+      "diagram": null
+    },
+    {
+      "heading": "1.3 数字概览：体量与复杂度",
+      "content": "要理解一个系统，先看它的规模。Claude Code 是一个真正的大型工程：它包含约 1900 个源文件，累积超过 50 万行代码。这不是一个周末项目，而是一个经过精心设计的复杂系统。它支持超过 100 条命令——从 `/commit` 创建 Git 提交，到 `/review-pr` 审查 Pull Request，从 `/rewrite` 重构代码到 `/test` 运行测试。每条命令都是一个独立的「技能」，封装了特定的能力和工作流。系统中内置 40 多个工具：Read 用于读取文件，Write 用于写入，Grep 用于搜索，Bash 用于执行命令，Edit 用于精确修改。工具是 AI 与外部世界交互的桥梁，就像手指之于手——AI 通过工具触碰文件、运行程序、搜索网络。这些数字背后，是一个可扩展的架构：命令易于添加，工具可以扩展，使得整个系统随着需求增长而演进。",
+      "code": null,
+      "diagram": null
+    },
+    {
+      "heading": "1.4 架构六层：从用户指令到 AI 响应",
+      "content": "让我们用一张地图来理解 Claude Code 的内部运作。当你输入一个命令时，消息流经六层架构：首先进入入口层，这里是 main.tsx 和各种 entriypoints，负责初始化环境和解析命令。然后到达 CLI 层，命令被路由到对应的处理器。逻辑层处理业务逻辑，协调各个组件完成任务。引擎层是核心——它管理 AI 对话状态、工具执行、上下文理解。UI 层借助 Ink 和 React 将状态渲染到终端，与你交互。最外层是基础设施，包括日志、配置、权限管理等服务。这六层各司其职，形成清晰的关注点分离。入口层只知道如何接收输入，不关心业务；引擎层专注于智能决策，不关心如何显示；UI 层只负责渲染，不持有逻辑状态。这种分层设计让系统易于理解、测试和扩展。",
+      "code": {
+        "title": "入口层的命令路由示例",
+        "description": "这是一个简化的命令路由逻辑。入口层接收用户输入，根据命令名称分发给不同的处理器。",
+        "code": "type Command = '/commit' | '/review-pr' | '/rewrite' | '/test';\n\nasync function handleCommand(input: string) {\n  const command = input.split(' ')[0] as Command;\n  const args = input.slice(command.length).trim();\n\n  switch (command) {\n    case '/commit':\n      return await commitHandler(args);\n    case '/review-pr':\n      return await reviewPrHandler(args);\n    case '/rewrite':\n      return await rewriteHandler(args);\n    case '/test':\n      return await testHandler(args);\n    default:\n      throw new Error(`Unknown command: ${command}`);\n  }\n}",
+        "language": "typescript",
+        "annotation": "虽然简化了，但展示了核心的命令分发模式。实际代码中，处理器可能通过技能注册表动态加载。"
+      },
+      "diagram": {
+        "title": "Claude Code 六层架构",
+        "chart": "graph TB\n    A[用户输入命令] --> B[入口层 Entry Points]\n    B --> C[CLI 层 命令路由]\n    C --> D[逻辑层 业务处理]\n    D --> E[引擎层 AI 核心]\n    D --> F[工具层 Tool System]\n    E --> G[UI 层 Ink+React]\n    F --> G\n    G --> H[基础设施 日志/配置/权限]\n    H --> B",
+        "description": "数据流从上至下，用户的命令穿越各层，最终通过 UI 呈现结果。每一层都有明确的职责边界。"
+      }
+    },
+    {
+      "heading": "1.5 工具系统：像瑞士军刀一样可扩展",
+      "content": "如果说命令是预编写的剧本，那么工具就是 AI 手中的道具。Claude Code 的工具系统设计精妙：工具被抽象为一个个可调用的函数，有明确的输入输出类型。Read 工具接收文件路径，返回文件内容；Write 工具接收文件路径和内容，完成写入；Grep 工具接收搜索模式和路径，返回匹配行。AI 根据任务需要，自主决定调用哪些工具、传入什么参数、如何处理返回结果。工具之间可以组合调用——先 Grep 找到文件，再用 Read 读取内容，然后用 Edit 修改，最后用 Bash 运行测试。这种设计让 AI 的能力变得无限扩展：想要新建工具？只需定义一个函数，注册到工具表中。想要调用外部 API？用 Bash 工具执行 curl 命令。工具系统就像是瑞士军刀——基础功能固定，但你可以不断添加新的刀片，让它变得更强大。",
+      "code": {
+        "title": "工具定义的抽象接口",
+        "description": "这是工具系统的核心类型定义。每个工具都遵循这个接口，这使得 AI 可以统一地调用任何工具。",
+        "code": "interface Tool {\n  name: string;\n  description: string;\n  parameters: {\n    type: 'object';\n    properties: Record<string, ParameterType>;\n    required: string[];\n  };\n  execute(params: unknown): Promise<ToolResult>;\n}\n\ninterface ToolResult {\n  success: boolean;\n  data?: unknown;\n  error?: string;\n}",
+        "language": "typescript",
+        "_annotation": "这个接口定义了工具的契约。AI 通过参数 schema 知道如何调用工具，通过返回值理解结果。"
+      },
+      "diagram": null
+    },
+    {
+      "heading": "1.6 本书路线图：我们将如何探索",
+      "content": "现在你已经对 Claude Code 有了全景式的认识，接下来的章节将带我们深入每一层。第二章将追踪一个命令的完整启动旅程——从 main.tsx 的第一行代码，到界面第一次出现，我们将看到初始化的每一步。第三章聚焦工具系统，揭开 Edit、Grep、Read 这些工具的内部实现。第四章探讨技能系统，了解如何添加新命令、配置权限、实现复杂工作流。第五章深入引擎层，解析 AI 对话状态管理、上下文理解、多轮对话的机制。第六章展示 UI 层如何用 Ink 创造丰富的终端交互。第七章则回到架构整体，讨论性能优化、错误处理和扩展性设计。沿途，我们会看到无数精妙的设计细节：聪明的缓存策略、优雅的错误处理、灵活的插件机制。当你读完这本书，你不仅理解了 Claude Code 是什么，还能理解为什么要这样设计——甚至可能想动手构建你自己的工具。",
+      "code": null,
+      "diagram": null
+    }
+  ],
+  "key_takeaways": [
+    "Claude Code 是终端原生的 AI 编程助手，而非 IDE 插件，这意味着它自然融入命令行工作流",
+    "技术栈采用 TypeScript + React + Ink + Bun，平衡了类型安全、开发体验和运行性能",
+    "100+ 命令和 40+ 工具构成了系统的可扩展架构，命令封装工作流，工具提供原子能力",
+    "六层架构清晰分离关注点：入口、CLI、逻辑、引擎、UI、基础设施各司其职",
+    "工具系统设计成可注册、可调用的函数接口，让 AI 能灵活组合能力"
+  ],
+  "further_thinking": [
+    "如果要让 Claude Code 支持图形界面而非终端文本界面，需要修改哪些层级？",
+    "工具系统的动态调用模式（AI 决定何时调用）与传统同步调用（代码即调用）有什么本质区别？"
+  ],
+  "analogies": [
+    "工具系统就像瑞士军刀——基础功能固定（几个常用刀片），但你可以不断添加新的刀片（自定义工具），让它变得更强大"
+  ],
+  "mermaid_diagrams": [
+    {
+      "id": "arch-six-layers",
+      "title": "Claude Code 六层架构",
+      "chart": "graph TB\n    A[用户输入命令] --> B[入口层 Entry Points]\n    B --> C[CLI 层 命令路由]\n    C --> D[逻辑层 业务处理]\n    D --> E[引擎层 AI 核心]\n    D --> F[工具层 Tool System]\n    E --> G[UI 层 Ink+React]\n    F --> G\n    G --> H[基础设施 日志/配置/权限]\n    H --> B",
+      "description": "数据流从上至下，用户的命令穿越各层，最终通过 UI 呈现结果。"
+    }
+  ],
+  "code_snippets": [
+    {
+      "id": "ink-hello",
+      "title": "Ink + React 在终端中渲染 UI",
+      "description": "展示如何用 React 组件语法在终端中显示一个带颜色的问候语",
+      "code": "import { render, Box, Text } from 'ink';\n\nfunction App() {\n  return (\n    <Box flexDirection=\"column\">\n      <Text color=\"green\" bold>✓ Claude Code Ready</Text>\n      <Text dimColor>Type /help to get started</Text>\n    </Box>\n  );\n}\n\nrender(<App />);",
+      "language": "tsx",
+      "file_reference": null,
+      "annotation": "React 的 JSX 语法 + Ink 的特定组件，让终端界面开发像网页开发一样直观。"
+    },
+    {
+      "id": "command-router",
+      "title": "入口层的命令路由示例",
+      "description": "展示简化的命令路由逻辑，入口层接收用户输入并分发给处理器",
+      "code": "type Command = '/commit' | '/review-pr' | '/rewrite' | '/test';\n\nasync function handleCommand(input: string) {\n  const command = input.split(' ')[0] as Command;\n  const args = input.slice(command.length).trim();\n\n  switch (command) {\n    case '/commit':\n      return await commitHandler(args);\n    case '/review-pr':\n      return await reviewPrHandler(args);\n    case '/rewrite':\n      return await rewriteHandler(args);\n    case '/test':\n      return await testHandler(args);\n    default:\n      throw new Error(`Unknown command: ${command}`);\n  }\n}",
+      "language": "typescript",
+      "file_reference": null,
+      "annotation": "虽然简化了，但展示了核心的命令分发模式。实际代码中，处理器可能通过技能注册表动态加载。"
+    },
+    {
+      "id": "tool-interface",
+      "title": "工具定义的抽象接口",
+      "description": "展示工具系统的核心类型定义工具的契约",
+      "code": "interface Tool {\n  name: string;\n  description: string;\n  parameters: {\n    type: 'object';\n    properties: Record<string, ParameterType>;\n    required: string[];\n  };\n  execute(params: unknown): Promise<ToolResult>;\n}\n\ninterface ToolResult {\n  success: boolean;\n  data?: unknown;\n  error?: string;\n}",
+      "language": "typescript",
+      "file_reference": null,
+      "annotation": "这个接口定义了工具的契约。AI 通过参数 schema 知道如何调用工具，通过返回值理解结果。"
+    }
+  ],
+  "word_count": 4200,
+  "prerequisites": []
+}

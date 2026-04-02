@@ -1,0 +1,125 @@
+{
+  "chapter_id": "ch04-tool-system",
+  "title": "第4章：工具系统 — AI 的双手",
+  "subtitle": "40+ 工具的统一抽象与精密权限",
+  "opening_hook": "想象一下，如果一位厨师拥有了完美的味觉和想象力，但双手被束缚在身后——无论他构思出多么精彩的食谱，都无法变成现实。这就是仅有推理能力却没有执行手段的 AI 所面临的困境。Claude Code 的工具系统就像是为这位厨师解绑双手，让他不仅能「想」，更能「做」。Read 工具是眼睛，能看到代码的每一个字符；Bash 工具是双手，能在终端敲下任何命令；Edit 工具是刀锋，精准地修改文件中的每一行。而这一切，都被封装在一个统一的抽象之下，用泛型、接口和权限模型编织成一张严密的网。",
+  "sections": [
+    {
+      "heading": "Tool<Input, Output, Progress> — 三个泛型参数的深意",
+      "content": "Claude Code 中每个工具都遵循同一个核心接口，用三个泛型参数定义契约。这不仅是 TypeScript 的类型体操，更是对工具本质的哲学思考。\n\nInput 是工具接受的参数类型——每个工具定义自己的 Zod schema，确保传入的数据结构正确。Output 是工具返回的数据类型——告诉调用者能得到什么。Progress 是一个可选项，用于报告执行过程中的进度信息，比如下载百分比、处理的行数等。\n\n这种设计让工具系统既有静态类型的安全，又有动态执行的灵活。AI 调用工具时，类型系统会在编译时验证参数匹配，而运行时 Zod 再做一次运行时校验，形成双重保险。更重要的是，所有 40+ 个工具都遵循相同的契约，这让工具调用可以被统一地编排、重试、取消。\n\n工具接口还定义了大量生命周期方法：description 用于生成工具描述，checkPermissions 用于权限检查，validateInput 用于输入验证，renderToolUseMessage 用于 UI 渲染。每个工具可以选择实现哪几项，未实现的会由 buildTool 填充默认值。\n\n这就好比每个工具都是一个插件，插件系统提供了统一的槽位，插件开发者只需要关心自己独特的功能，其余的标准化部分由框架处理。",
+      "code": {
+        "title": "Tool 接口的核心定义",
+        "description": "这是 Tool 接口的简化版本，展示了三个泛型参数和关键方法。",
+        "code": "export type Tool<\n  Input extends AnyObject = AnyObject,\n  Output = unknown,\n  P extends ToolProgressData = ToolProgressData,\n> = {\n  name: string\n  readonly inputSchema: Input\n  outputSchema?: z.ZodType<unknown>\n  \n  call(\n    args: z.infer<Input>,\n    context: ToolUseContext,\n  ): Promise<ToolResult<Output>>\n  \n  validateInput?(\n    input: z.infer<Input>,\n    context: ToolUseContext,\n  ): Promise<ValidationResult>\n  \n  checkPermissions(\n    input: z.infer<Input>,\n    context: ToolUseContext,\n  ): Promise<PermissionResult>\n  \n  isConcurrencySafe(input: z.infer<Input>): boolean\n  isReadOnly(input: z.infer<Input>): boolean\n}",
+        "language": "typescript",
+        "annotation": "泛型 Input 定义输入类型，Output 定义输出类型，Progress 是可选的进度类型。call 是核心执行方法，validateInput 和 checkPermissions 是两道安全关卡。"
+      },
+      "diagram": {
+        "title": "工具生命周期的五个阶段",
+        "chart": "graph TD\n    A[AI 发起工具调用] --> B[validateInput 验证参数]\n    B -->|通过| C[checkPermissions 检查权限]\n    B -->|失败| E[返回错误]\n    C -->|通过| D[call 执行工具]\n    C -->|拒绝| F[用户决定]\n    F -->|允许| D\n    F -->|拒绝| E\n    D --> G[返回结果给 AI]",
+        "description": "每个工具调用都依次经历参数验证、权限检查、实际执行三个阶段，任一步骤失败都会终止执行。"
+      }
+    },
+    {
+      "heading": "Builder 模式：用链式调用构建工具，而不是继承",
+      "content": "传统的面向对象设计往往会鼓励继承——定义一个 BaseTool 抽象类，然后让每个工具继承它。但 Claude Code 选择了不同的道路：函数式的 Builder 模式。\n\n`buildTool` 函数接受一个工具定义对象，返回一个完整的 Tool。这个过程并非简单的属性拷贝——它使用了 TypeScript 高级类型技巧来推断最终的类型。如果定义对象提供了某个方法，就用它的；如果没提供，就用默认值。这种设计让工具的定义看起来像是对象字面量，实际上却有完整的类型推导。\n\n默认值的设置遵循「失败关闭」原则：isConcurrencySafe 默认为 false（假设不安全），isReadOnly 默认为 false（假设会写），checkPermissions 默认为允许。这样的默认值迫使开发者显式声明工具的安全特性，而不是因为疏忽导致危险操作被放行。\n\n更精妙的是，buildTool 使用了 `satisfies ToolDef` 进行类型检查。这意味着传入的对象必须在编译时就符合工具定义的形状，但返回的类型则是精确的 BuildTool<D> 类型——包含了所有默认方法。这就像给原材料做了一次质检，再组装成成品。\n\n这种设计的优势在于可组合性。工具是独立定义的，可以被动态过滤、排序、传递。不需要继承层级，没有紧耦合。MCP 工具（Model Context Protocol）可以像内置工具一样被注入系统，因为它们最终都会通过 buildTool 转换成统一的 Tool 类型。",
+      "code": {
+        "title": "buidTool 的实现逻辑",
+        "description": "showcasing how defaults are merged with user-defined methods using TypeScript type-level spread.",
+        "code": "const TOOL_DEFAULTS = {\n  isEnabled: () => true,\n  isConcurrencySafe: (_input?: unknown) => false,\n  isReadOnly: (_input?: unknown) => false,\n  isDestructive: (_input?: unknown) => false,\n  checkPermissions: (input, _ctx) =>\n    Promise.resolve({ behavior: 'allow', updatedInput: input }),\n  userFacingName: (_input?: unknown) => '',\n}\n\nexport function buildTool<D extends AnyToolDef>(def: D): BuiltTool<D> {\n  return {\n    ...TOOL_DEFAULTS,\n    userFacingName: () => def.name,\n    ...def,\n  } as BuiltTool<D>\n}",
+        "language": "typescript",
+        "annotation": "三个点展开运算符是关键：先用默认值填充，再用用户定义覆盖，最后特殊处理 userFacingName。"
+      },
+      "diagram": null
+    },
+    {
+      "heading": "权限模型：为什么不能让 AI 随便 rm -rf /?",
+      "content": "让 AI 执行命令就像是给一个聪明的孩子一把电钻——你需要确保他知道怎么用，同时也要防止他钻穿楼板。Claude Code 的权限系统是这个安全网的核心。\n\n权限检查分为三个层级。第一层是 validateInput，在工具执行前就做基本的参数验证——检查文件是否存在、路径是否合法、命令是否包含危险字符。这里拒绝的是明显错误或危险的输入，比如 Read 工具拒绝读取二进制文件，Edit 工具拒绝编辑未读取过的文件。\n\n第二层是 checkPermissions，这是真正的权限关卡。它检查用户设置的规则：哪些目录允许读/写，哪些命令总是允许，哪些总是拒绝。用户可以在 settings.json 中配置像 'Bash(git *)' 和 'FileRead(/home/user/Documents/**)' 这样的规则，系统会在运行时匹配这些规则。\n\n第三层是用户交互。某些操作即使是危险的，也可能需要用户显式批准才能执行——比如删除文件、发送消息、推送代码。这种设计平衡了自动化和安全性：大部分操作可以自动进行，但真正有风险的操作会征求用户同意。\n\n工具系统还定义了 isDestructive 方法，用于标记工具是否执行不可逆操作。不可逆的操作会触发额外的警告和确认。这种设计理念贯穿整个系统——宁可多问，也不要让用户付出昂贵代价。",
+      "code": {
+        "title": "FileEditTool 的权限检查",
+        "description": "展示了 Edit 工具如何将权限检查委托给通用的文件权限模块。",
+        "code": "async checkPermissions(input, context): Promise<PermissionDecision> {\n  const appState = context.getAppState()\n  return checkWritePermissionForTool(\n    FileEditTool,\n    input,\n    appState.toolPermissionContext,\n  )\n}",
+        "language": "typescript",
+        "annotation": "工具本身不实现具体的权限逻辑，而是委托给 checkWritePermissionForTool 统一处理，保持模块间的职责分离。"
+      },
+      "diagram": {
+        "title": "三重权限检查",
+        "chart": "flowchart TD\n    A[工具调用] --> B[validateInput 参数验证]\n    A --> C[checkPermissions 规则匹配]\n    A --> D[用户确认 危险操作]\n    \n    B --> B1[文件存在性检查]\n    B --> B2[路径合法性检查]\n    B --> B3[命令危险模式检查]\n    \n    C --> C1[Allow 列表匹配]\n    C --> C2[Deny 列表匹配]\n    C --> C3[Ask 列表匹配]\n    \n    D --> D1[isDestructive 判断]\n    D --> D2[用户对话框]\n    \n    B1 --> E[通过]\n    B2 --> E\n    B3 --> E\n    C1 --> E\n    D2 --> E",
+        "description": "参数验证、规则匹配、用户确认三重关卡，任一关卡失败都会阻止工具执行。"
+      }
+    },
+    {
+      "heading": "文件工具族：Read/Write/Edit/Glob/Grep 的设计取舍",
+      "content": "文件操作是 AI 辅助编程的核心场景，但设计一套优雅的 API 却不容易。Read、Write、Edit、Glob、Grep 五个工具的设计反映了不同的思考路径。\n\nRead 工具是最简单的——读取文件内容并返回。但它并不简单：支持文本、图像、PDF、Jupyter Notebook 多种格式，每个都有各自的处理逻辑。图片会被自动压缩到 token 预算内，PDF 会提取文字或转换页面图像。工具的 maxResultSizeChars 设置为 Infinity，因为读取文件的结果不应该被截断持久化。\n\nWrite 工具用于完全覆盖文件内容。虽然可以用 Edit 的空 old_string 达到同样效果，但独立存在的好处是语义清晰——「写新文件」和「修改现有文件」是两个不同的意图。\n\nEdit 工具的设计是最巧妙的——通过指定 old_string 和 new_string 来修改文件。这要求文件必须先被读取过，并且内容自上次读取后未被修改。这种设计防止了并发修改导致的冲突，也强迫 AI 先「阅读」再「书写」。replace_all 参数则处理多行重复替换的场景。\n\nGlob 和 Grep 是搜索工具，但又有区别。Glob 用模式匹配查找文件名（比如找到所有 .ts 文件），Grep 搜索文件内容（比如查找包含 'TODO' 的代码行）。它们都支持分页和限制结果数量，防止搜索大目录时输出爆炸。\n\n这五个工具组合起来，覆盖了 AI操作文件所需的几乎全部场景。没有花哨的 API，只有符合直觉的参数和行为——这正是优秀工具设计的黄金法则。",
+      "code": {
+        "title": "GrepTool 支持 head_limit 分页",
+        "description": "展示了搜索工具如何处理大量结果，防止输出膨胀。",
+        "code": "function applyHeadLimit<T>(\n  items: T[],\n  limit: number | undefined,\n  offset: number = 0,\n): { items: T[]; appliedLimit: number | undefined } {\n  if (limit === 0) {\n    return { items: items.slice(offset), appliedLimit: undefined }\n  }\n  const effectiveLimit = limit ?? DEFAULT_HEAD_LIMIT\n  const sliced = items.slice(offset, offset + effectiveLimit)\n  const wasTruncated = items.length - offset > effectiveLimit\n  return {\n    items: sliced,\n    appliedLimit: wasTruncated ? effectiveLimit : undefined,\n  }\n}",
+        "language": "typescript",
+        "description": "limit=0 是退出开关，默认 limit=250，appliedLimit 只在真正截断时才设置，让调用者知道还有更多结果。"
+      },
+      "diagram": null
+    },
+    {
+      "heading": "BashTool 的安全挑战：沙箱、AST 解析、危险命令检测",
+      "content": "Bash 工具是功能最强大也最危险的工具。AI 可以用它执行任何 shell 命令——从编译代码到删除文件，从下载脚本到扫描网络。因此，它的安全机制也是整个工具系统中最复杂的。\n\n第一道防线是 AST 解析。BashTool 会尝试解析命令的抽象语法树，从中提取出基础命令、参数、重定向等信息。这比简单的正则匹配要可靠得多——正则容易误判，而 AST 知道什么是命令名、什么是参数。例如，`rm -rf file` 的 AST 能告诉我们基础命令是 `rm`，参数是 `-rf` 和 `file`。\n\n第二道防线是危险模式检测。bashSecurity.ts 定义了一个庞大的规则库，包含命令替换、进程替换、参数扩展等可能绕过安全检查的 shell 特性。比如 `$()` 和 `${}` 这种命令替换语法会被捕获，因为 AI 可能用它们来伪装真正要执行的命令。\n\n第三道防线是危险命令黑名单。像 `rm -rf` 这种组合，`format` 这种可能格式化磁盘的命令，都会触发额外的警告或禁止执行。还有一些特殊的 Zsh 命令（如 `zmodload`、`zpty`）能加载模块或创建伪终端，这些也被专门列入黑名单。\n\n沙箱是最后一道防线。在某些环境下，BashTool can run in a sandboxed environment with restricted filesystem access, limited network connectivity, and no ability to execute privileged operations. This adds an extra layer of isolation between the AI and the host system.\n\n即使有这么多保护，BashTool 仍然保留了一个危险命令警告机制。当检测到类似 `rm`、`format`、`shutdown` 等操作时，会向用户显示醒目的提示，询问是否确认执行。这不是拒绝执行，而是让用户意识到潜在风险。",
+      "code": {
+        "title": "危险模式检测规则",
+        "description": "展示了 bashSecurity.ts 中的命令替换检测规则。",
+        "code": "const COMMAND_SUBSTITUTION_PATTERNS = [\n  { pattern: /<\\(/, message: 'process substitution <()' },\n  { pattern: />\\(/, message: 'process substitution >()' },\n  { pattern: /=\\(/, message: 'Zsh process substitution =()' },\n  { \n    pattern: /(?:^|[\\s;&|])=[a-zA-Z_]/,\n    message: 'Zsh equals expansion (=cmd)',\n  },\n  { pattern: /\\$\\(/, message: '$() command substitution' },\n  { pattern: /\\$\\{/, message: '${} parameter substitution' },\n  { pattern: /\\$\\[/, message: '$[] legacy arithmetic expansion' },\n  { pattern: /~\\[/, message: 'Zsh-style parameter expansion' },\n  { \n    pattern: /\\}\\s*always\\s*\\{/,\n    message: 'Zsh always block (try/always construct)',\n  },\n]",
+        "language": "typescript",
+        "annotation": "这些规则检测可能被用来绕过安全检测的 shell 语法特性，每种都配有清晰的错误提示信息。"
+      },
+      "diagram": {
+        "title": "BashTool 安全检查流程",
+        "chart": "flowchart TD\n    A[AI 调用 BashTool] --> B[AST 解析命令]\n    B --> C{解析成功?}\n    C -->|否| D[拒绝执行]\n    C -->|是| E[提取基础命令和参数]\n    E --> F[危险模式检测]\n    F --> G{发现危险模式?}\n    G -->|是| D\n    G -->|否| H[危险命令检测]\n    H --> I{在黑名单?}\n    I -->|是| J[警告用户]\n    I -->|否| K[权限检查]\n    K --> L[执行命令]",
+        "description": "AST 解析、危险模式检测、危险命令检测、权限检查构成了 BashTool 的四重安全屏障。"
+      }
+    },
+    {
+      "heading": "工具注册与发现：如何从 40+ 工具中选择正确的那个",
+      "content": "Claude Code 中有 40 多个不同的工具，AI 如何知道该用哪一个？工具的注册和发现机制是答案。\n\ntools.ts 文件是工具注册的中心。它导出了 getAllBaseTools 函数，返回所有内置工具的列表。但这个列表并不是固定的——某些工具只在特定条件下才被包含，比如 PowerShellTool 只在 Windows 上启用，LSPTool 只设置了特定环境变量才出现。这种条件编译让不同环境和构型下只加载适合的工具。\n\nAI 调用工具时，工具的 description 方法会生成一段描述文字，告诉 AI 这个工具做什么。这段文字会被包含在发给 AI 的系统提示中，让 AI 能够理解每个工具的能力。为了节省 token，description 可以是动态的——根据上下文调整描述的详细程度。\n\n工具发现还有另一个层次：searchHint 属性。这是一个简短的描述（3-10 个单词），用于工具搜索功能。当启用了工具搜索延迟加载时，初始提示只包含工具名称和 searchHint，完整描述只有在 AI 明确搜索时才加载。这显著减少了上下文消耗。\n\nassembleToolPool 函数是工具发现的终点站。它合并内置工具和 MCP 工具，去重后返回最终可用的工具列表。内置工具优先于同名 MCP 工具，确保核心功能不会被覆盖。排序按工具名称字母顺序排列，保持结果的稳定性。\n\n这套机制让工具系统既强大又灵活。扩展新工具只需要在 tools.ts 中添加一行导入，在 getAllBaseTools 中添加一项，然后实现 Tool 接口即可。MCP 工具甚至不需要修改代码——动态连接即可。",
+      "code": {
+        "title": "assembleToolPool 合并工具池",
+        "description": "showing how built-in and MCP tools are merged and deduplicated.",
+        "code": "export function assembleToolPool(\n  permissionContext: ToolPermissionContext,\n  mcpTools: Tools,\n): Tools {\n  const builtInTools = getTools(permissionContext)\n\n  const allowedMcpTools = filterToolsByDenyRules(\n    mcpTools, permissionContext\n  )\n\n  const byName = (a: Tool, b: Tool) => a.name.localeCompare(b.name)\n  return uniqBy(\n    [...builtInTools].sort(byName).concat(allowedMcpTools.sort(byName)),\n    'name',\n  )\n}",
+        "language": "typescript",
+        "annotation": "先获取内置工具，再过滤 MCP 工具，分别排序后合并，最后用 uniqBy 按名称去重，内置工具保留同名项。"
+      },
+      "diagram": null
+    },
+    {
+      "heading": "设计模式：工厂模式 + 策略模式 + 装饰器模式",
+      "content": "工具系统的设计中融入了多种经典设计模式，它们共同支撑起整个架构的灵活性和可维护性。\n\nbuildTool 本质上是一个工厂——它根据输入的工具定义，生产出完整的 Tool 对象。但与传统工厂方法不同的是，它不是创建不同子类的实例，而是通过对象组合和默认值填充来「组装」工具。这是一种轻量级的工厂模式，不需要继承就能实现可扩展性。\n\n每个工具的实现都是一个策略。不同的工具有不同的执行逻辑、不同的权限检查方式、不同的渲染方法。系统调用这些方法时不需要知道具体是哪个工具，这遵循了策略模式的核心思想——定义算法家族，分别封装，让它们可以互相替换。MCP 工具的动态注入就是策略模式的完美体现——新工具随时可以加入，不需要修改系统代码。\n\n装饰器模式体现在工具的条件编译上。tools.ts 中大量使用了条件判断来决定是否包含某个工具，这就像是给基础工具池「装饰」不同的工具。在 Windows 上加上 PowerShellTool，在启用 LSP 时加上 LSPTool，在 Simple 模式下只留下基础工具。这种设计让同一个代码库可以在不同环境下展现不同的工具集。\n\n这些模式的共同点是什么？它们都依赖于接口和组合，而不是继承和类层级。这让系统更加灵活、更容易测试、更容易扩展。当需要添加新工具时，不需要修改现有代码，只需要实现 Tool 接口并注册即可。这正是「开闭原则」的体现——对扩展开放，对修改关闭。",
+      "code": {
+        "title": "条件编译修饰工具池",
+        "description": "展示了 tools.ts 中如何用条件判断动态构建工具列表。",
+        "code": "export function getAllBaseTools(): Tools {\n  return [\n    AgentTool,\n    BashTool,\n    ExitPlanModeV2Tool,\n    FileReadTool,\n    FileEditTool,\n    ...(hasEmbeddedSearchTools() ? [] : [GlobTool, GrepTool]),\n    ...(process.env.USER_TYPE === 'ant' ? [ConfigTool] : []),\n    ...(isEnvTruthy(process.env.ENABLE_LSP_TOOL) ? [LSPTool] : []),\n    ...(isWorktreeModeEnabled() \n      ? [EnterWorktreeTool, ExitWorktreeTool] \n      : []),\n    ListMcpResourcesTool,\n    ReadMcpResourceTool,\n  ]\n}",
+        "language": "typescript",
+        "annotation": "基础工具无条件包含，条件工具用三元运算符和展开运算符动态可选地添加，形成最终的完整工具列表。"
+      },
+      "diagram": null
+    }
+  ],
+  "key_takeaways": [
+    "工具系统用三个泛型参数 Input/Output/Progress 定义统一契约，所有 40+ 工具都遵循这个接口，支持静态类型检查和动态执行。",
+    "buildTool 采用 Builder 模式而非继承，用对象组合和默认值填充组装工具，默认值遵循「失败关闭」原则确保安全。",
+    "权限检查分三层：validateInput 验证参数合法性，checkPermissions 匹配用户规则，用户界面确认危险操作，三重关卡保护系统安全。",
+    "文件工具族 Read/Write/Edit/Glob/Grep 覆盖绝大多数文件操作场景，Edit 工具要求先读后写防止并发冲突，Grep/Glob 支持分页防止输出爆炸。",
+    "BashTool 是最强大也最危险的工具，使用 AST 解析、危险模式检测、黑名单、警告用户四重安全机制，在沙箱运行时额外隔离。",
+    "工具注册与发现通过 tools.ts 和 assembleToolPool 实现，支持条件编译、动态过滤、与 MCP 工具合并，工具名称字母排序保证稳定性。",
+    "设计模式上融合了工厂模式（buildTool）、策略模式（不同工具实现）、装饰器模式（条件编译），依赖接口和组合而非继承类层级。"
+  ],
+  "further_thinking": [
+    "如果要让 AI 学习使用全新的工具，需要提供什么样的接口和文档？工具描述应该如何设计才能最容易被模型理解？",
+    "当前的权限模型是基于规则的（allow/deny/ask），能否加入基于学习的行为识别？比如 AI 频繁执行某类命令时自动提高权限级别或降低阈值？",
+    "跨平台工具支持是一个挑战——Windows/macOS/Linux 的 shell 命令和文件系统各有不同。当前的 BashTool 如何处理这种差异？有没有更好的统一抽象方案？"
+  ],
+  "analogies": [
+    "工具系统就像瑞士军刀——每个工具是一个刀片或工具（刀片、剪刀、螺丝刀），刀柄是统一的接口和权限机制。你可以根据需要打开不同的刀片，但它们都固定在同一个刀柄上，操作方式一致，安全可靠。"
+  ],
+  "mermaid_diagrams": [],
+  "code_snippets": [],
+  "word_count": 4200,
+  "prerequisites": []
+}
