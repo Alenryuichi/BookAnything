@@ -2,79 +2,75 @@
   "chapter_id": "ch02-startup-journey",
   "title": "第2章：一次启动的旅程",
   "subtitle": "从敲下 claude 到看见光标闪烁",
-  "opening_hook": "打开终端，输入 `claude`，按下回车。接下来的 500 毫秒里到底发生了什么？\n\n你可能感觉到终端闪烁了一下，然后光标出现在一个新的位置，等待你的输入。但在这看似瞬间的背后，一段精心编排的序曲正在上演。就像一场交响乐演出，指挥家刚刚挥下指挥棒，各个乐器组正按照复杂的总谱依次加入——先是弦乐部的低鸣，然后是木管器的试探，最后是整个乐队的齐奏。\n\nClaude Code 的启动过程也是如此。它不是简单的一行代码调用，而是四个精心设计的阶段：入口分发决定该走哪条路、Bootstrap 准备基础设施、Setup 检测环境并加载资源、最后 React 接管终端进入 REPL 循环。在这个过程中，配置被读取、网络连接被预热、各种后台任务被并行触发——一切都是为了在你看到那条闪烁的命令提示符之前，系统已经就绪待命。",
+  "opening_hook": "当你打开终端，输入 `claude` 然后按下回车键，接下来的500毫秒里究竟发生了什么？这看似简单的命令背后，隐藏着一个精心设计的四阶段启动流程。就像火箭发射需要经过点火、助推、分离、入轨一样，Claude Code 的启动过程也遵循着类似的精密逻辑。让我们一同揭开这个技术魔术的面纱，看看从命令行到交互式界面的完整旅程。",
   "sections": [
     {
-      "heading": "Phase 1: 入口分发——路口的选择",
-      "content": "当你输入 `claude` 命令时，入口脚本首先需要决定：这次运行是什么模式？是交互式的 REPL 会话，是无头模式（headless），还是特殊的 MCP 服务器模式？\n\n这个决定在 `main.tsx` 的 `initializeEntrypoint` 函数中完成。它检查命令行参数和环境变量，通过几层判断来确定运行模式。比如，如果参数中包含 `mcp serve`，就会被识别为 MCP 服务器模式；如果有 `-p` 或 `--print` 标志，就是非交互模式；如果是在 GitHub Actions 环境中运行，会被标记为 `github-action` 客户端类型。\n\n入口分发的核心意义在于：不同的模式需要不同的初始化路径。交互模式需要加载完整的 UI 组件和 hooks 系统，而 headless 模式只需要核心的查询执行能力。早期的模式判断可以避免不必要的开销——就像机场的快速通道，商务舱旅客不需要在普通队伍里浪费时间。\n\n这个阶段还会设置 `clientType`，它决定了后续的行为差异。比如 `cli`、`sdk-cli`、`claude-vscode`、`local-agent` 等不同的入口，会有不同的信任模型、权限处理方式和可用功能。所有这些信息最终都存储在 `src/bootstrap/state.ts` 的全局状态中，供整个应用访问。",
+      "heading": "Phase 1: 入口分发 - 智能路由的起点",
+      "content": "启动过程的第一站是入口分发，这就像机场的登机口调度系统。当你在终端输入 `claude` 时，系统首先会分析你附加的参数，决定要走哪条路径。\n\nClaude Code 支持多种运行模式：REPL（交互式会话）、headless（无界面模式）、server（服务器模式）等。入口点代码就像一个智能路由器，根据不同的参数快速判断应该加载哪个模块。\n\n这种设计的好处是显而易见的：对于简单的查询（如 `claude --version`），系统可以走快速路径，几乎不加载任何额外模块就返回结果；而对于复杂的交互式会话，则会加载完整的 CLI 系统。这种按需加载的策略确保了启动速度的最优化。",
+      "code": {
+        "title": "cli.tsx 中的快速路径判断",
+        "description": "这是入口分发逻辑的核心代码片段",
+        "code": "// Fast-path for --version/-v: zero module loading needed\nif (args.length === 1 && (args[0] === '--version' || args[0] === '-v' || args[0] === '-V')) {\n  console.log(`${MACRO.VERSION} (Claude Code)`);\n  return;\n}\n\n// Fast-path for template job commands\nif (feature('TEMPLATES') && (args[0] === 'new' || args[0] === 'list' || args[0] === 'reply')) {\n  const { templatesMain } = await import('../cli/handlers/templateJobs.js');\n  await templatesMain(args);\n  process.exit(0);\n}",
+        "language": "typescript",
+        "annotation": "这段代码展示了 Claude Code 的智能路由机制。对于版本查询这种简单任务，直接输出结果并返回；对于模板操作，则动态导入专门的处理器模块。这种设计避免了不必要的模块加载，提升了启动效率。"
+      },
       "diagram": {
-        "title": "入口分发流程",
-        "chart": "graph TD;\n  A[用户输入 claude] --> B{检查命令行参数};\n  B -->|mcp serve| C[MCP 服务器模式];\n  B -->|-p/--print| D[非交互模式 headless];\n  B -->|普通参数| E{检查环境变量};\n  E -->|GITHUB_ACTIONS| F[GitHub Action 模式];\n  E -->|CLAUDE_CODE_ENTRYPOINT| G[指定入口模式];\n  E -->|默认| H[交互式 REPL 模式];\n  C --> I[设置 clientType='mcp'];\n  D --> J[设置 clientType='sdk-cli'];\n  F --> K[设置 clientType='github-action'];\n  H --> L[设置 clientType='cli'];\n  I --> M[进入后续启动流程];\n  J --> M;\n  K --> M;\n  L --> M;",
-        "description": "入口分发根据命令行参数和环境变量决定运行模式和客户端类型"
+        "title": "入口分发流程图",
+        "chart": "graph TD\n  A[用户输入 claude] --> B{参数分析}\n  B -->|--version/-v| C[快速路径: 直接输出版本]\n  B -->|new/list/reply| D[模板路径: 加载模板处理器]\n  B -->|--worktree| E[工作树路径: 准备隔离环境]\n  B -->|其他参数| F[完整路径: 加载主CLI系统]\n  C --> G[立即退出]\n  D --> G\n  E --> H[进入第二阶段]\n  F --> H",
+        "description": "这个流程图展示了 Claude Code 如何根据不同的命令行参数选择不同的启动路径，体现了系统的智能路由能力。"
       }
     },
     {
-      "heading": "Phase 2: Bootstrap——基础设施的搭建",
-      "content": "确定运行模式后，系统进入 Bootstrap 阶段。这一阶段的目标是建立运行所需的基础设施，相当于建造房屋的地基和框架。从 `src/entrypoints/init.ts` 开始，一系列关键初始化工作在并行执行。\n\n首先是配置系统的启用。`enableConfigs()` 函数会读取用户的全局设置、项目设置和工作目录设置，合并成一个完整的配置对象。这个过程包含一个微妙的设计细节：在用户确认信任之前，只应用"安全"的环境变量，像 `PATH` 等可能引起安全问题的关键变量要等到信任确认后才生效。\n\n接下来是网络配置。`configureGlobalAgents()` 和 `configureGlobalMTLS()` 设置 HTTP 代理和 mTLS（双向 TLS）连接，这涉及到证书加载、代理服务器发现等操作。配置完成后，系统会立即调用 `preconnectAnthropicApi()` 预热到 Anthropic API 的连接。这是一个典型的性能优化：TCP 和 TLS 握手总共需要 100-200 毫秒，通过提前发起这个连接，可以让第一次 API 调用直接复用已建立的连接，显著减少等待时间。\n\nBootstrap 阶段还启动了多个后台任务，它们使用 `void` 前缀声明为"发起后不等待"的异步操作。OAuth 账户信息被填充，JetBrains IDE 检测被异步初始化，GitHub 仓库被后台检测。这些操作的结果会被缓存，供后续调用直接使用，避免了重复的开销。",
+      "heading": "Phase 2: Bootstrap - 并行预取的智慧",
+      "content": "一旦确定了要走完整路径，系统就进入了 Bootstrap 阶段。这个阶段的核心思想是『并行预取』——同时准备多个关键资源，而不是按顺序一个个加载。\n\n想象一下餐厅的准备工作：优秀的厨师会同时准备食材、预热烤箱、摆放餐具，而不是等客人点完菜才开始切菜。Claude Code 的 Bootstrap 阶段也是如此：\n\n- 并行加载配置系统\n- 预取认证密钥（如果安全）\n- 初始化分析工具\n- 设置权限检查\n- 准备插件系统\n\n这种并行化的设计大大缩短了启动时间。更重要的是，它采用了『惰性加载』策略：只有当真正需要某个功能时，相关的模块才会被完整加载。这种设计哲学确保了系统既快速又资源高效。",
       "code": {
-        "title": "并行预取模式",
-        "description": "setup.ts 中使用 void 前缀触发多个不阻塞启动流程的异步任务",
-        "code": "// 并行触发多个预取任务，不阻塞启动流程\nvoid getCommands(getProjectRoot())\nvoid import('./utils/plugins/loadPluginHooks.js').then(m => {\n  void m.loadPluginHooks()\n  m.setupPluginHookHotReload()\n})\n// 这些任务在后台继续执行，主流程继续",
+        "title": "setup.ts 中的并行初始化",
+        "description": "展示并行预取的关键代码模式",
+        "code": "// Pre-fetch promises - only items needed before render\nconst skipPluginPrefetch = getIsNonInteractiveSession() || isBareMode()\nif (!skipPluginPrefetch) {\n  void getCommands(getProjectRoot()) // 并行预取命令\n}\n\nvoid import('./utils/plugins/loadPluginHooks.js').then(m => {\n  if (!skipPluginPrefetch) {\n    void m.loadPluginHooks() // 预加载插件钩子\n    m.setupPluginHookHotReload() // 设置热重载\n  }\n})",
         "language": "typescript",
-        "annotation": "void 前缀表示"发起但不等待"，让这些 I/O 密集型操作在后台运行，同时主启动流程继续执行"
+        "annotation": "这段代码体现了并行预取的智慧：通过 Promise 和动态导入，系统可以同时准备多个资源。skipPluginPrefetch 条件确保了在简单模式下跳过不必要的预取，进一步优化性能。"
       }
     },
     {
-      "heading": "Phase 3: Setup——环境的检测与准备",
-      "content": "Bootstrap 完成后，Setup 阶段负责检测当前环境并准备会话所需的资源。从 `src/setup.ts` 开始，代码会检查一系列环境条件并执行相应的准备工作。\n\n首先是环境检测。Setup 会检查 Node.js 版本是否满足要求（18 或更高），检测当前目录是否是 Git 仓库，设置工作目录（`setCwd`），这些都是后续操作的基础。如果指定了 `--worktree` 参数，Setup 会调用 `createWorktreeForSession()` 创建独立的 Git 工作树，并可选地创建 tmux 会话。工作树是一种高级工作模式，它允许你在同一仓库的不同分支上同时工作，而不会相互干扰。\n\n接下来是 hooks 系统的初始化。`captureHooksConfigSnapshot()` 会在设置工作目录后立即执行，它捕获当前目录下所有 hooks 的配置快照，避免后续过程中 hooks 被意外修改。然后 `initializeFileChangedWatcher()` 启动文件变更监视器，当配置文件修改时自动热重载 hooks。\n\nSetup 阶段的另一个重要任务是并行预取。代码中多处使用了 `void` 前缀来触发不阻塞的异步操作：`getCommands()` 预加载命令列表，`loadPluginHooks()` 预加载插件 hooks，`initSessionMemory()` 初始化会话记忆系统。这些任务在后台继续执行，而主流程可以继续进行，最终在某个点通过 `await` 等待它们完成。\n\n这个阶段还会处理一些特殊场景，比如终端备份的恢复。如果之前的会话因为某些原因中断了，Setup 会尝试恢复 iTerm2 或 Terminal.app 的原始设置，确保用户的终端环境不会被损坏。",
+      "heading": "Phase 3: Setup - 环境检测与钩子加载",
+      "content": "Setup 阶段是启动过程中最复杂的部分，它负责环境检测、钩子加载和工作树管理。这个阶段就像飞船发射前的最终检查：确保所有系统都处于就绪状态。\n\n环境检测是这一阶段的关键任务。系统会检查：\n- 当前是否在 Git 仓库中\n- 终端类型和配置\n- 权限设置和安全策略\n- 网络连接状态\n\n钩子（Hooks）系统是 Claude Code 的另一个亮点。它允许用户在特定事件发生时执行自定义脚本，比如在文件更改时自动运行测试，或在提交代码前进行格式检查。Setup 阶段会加载并初始化所有这些钩子。\n\n工作树管理则提供了代码隔离的能力。就像软件开发中的『特性分支』，工作树让用户可以在不影响主代码库的情况下进行实验和开发。",
+      "code": {
+        "title": "环境检测与工作树创建",
+        "description": "展示环境检测和工作树管理的核心逻辑",
+        "code": "// Check for Node.js version < 18\nconst nodeVersion = process.version.match(/^v(\\d+)\\./)?.[1]\nif (!nodeVersion || parseInt(nodeVersion) < 18) {\n  console.error('Error: Claude Code requires Node.js version 18 or higher.')\n  process.exit(1)\n}\n\n// Handle worktree creation if requested\nif (worktreeEnabled) {\n  const worktreeSession = await createWorktreeForSession(\n    getSessionId(),\n    slug,\n    tmuxSessionName,\n    worktreePRNumber ? { prNumber: worktreePRNumber } : undefined\n  )\n  process.chdir(worktreeSession.worktreePath)\n}",
+        "language": "typescript",
+        "annotation": "这段代码展示了 Claude Code 如何严格检查运行环境（Node.js 版本），以及如何智能地创建工作树环境。错误处理机制确保了用户体验的稳定性。"
+      }
+    },
+    {
+      "heading": "Phase 4: 进入 REPL 循环 - React 接管终端",
+      "content": "最后的阶段是进入 REPL（Read-Eval-Print Loop）循环，这是 Claude Code 与用户交互的核心。令人惊讶的是，这个在终端中运行的交互式界面实际上是由 React 驱动的。\n\n是的，你没有看错：一个终端应用使用了现代前端框架。这种设计带来了几个重要优势：\n\n1. **组件化架构**：界面元素可以像乐高积木一样组合和重用\n2. **状态管理**：复杂的交互状态可以被高效管理\n3. **热重载**：开发过程中可以实时看到更改效果\n4. **丰富的生态系统**：可以利用 React 庞大的插件和工具生态\n\n当 React 组件树渲染完成后，终端光标开始闪烁，等待用户输入。这时，启动过程正式结束，Claude Code 进入了它的『工作状态』。",
       "diagram": {
-        "title": "Setup 阶段流程",
-        "chart": "graph TD;\n  A[Setup 开始] --> B[环境检测];\n  B --> B1[Node 版本检查];\n  B --> B2[Git 仓库检测];\n  B --> B3[设置工作目录];\n  A --> C[Worktree 处理];\n  C -->|--worktree 指定| C1[创建工作树];\n  C1 --> C2{tmux 指定?};\n  C2 -->|是| C3[创建 tmux 会话];\n  A --> D[Hooks 初始化];\n  D --> D1[配置快照捕获];\n  D --> D2[文件监视器启动];\n  A --> E[并行预取];\n  E --> E1[getCommands];\n  E --> E2[loadPluginHooks];\n  E --> E3[会话记忆初始化];\n  A --> F[特殊场景处理];\n  F --> F1[终端备份恢复];\n  F --> F2[权限模式验证];",
-        "description": "Setup 阶段执行环境检测、worktree 处理、hooks 初始化和并行预取等任务"
+        "title": "四阶段启动架构图",
+        "chart": "graph TB\n  A[命令行输入] --> B[Phase 1: 入口分发]\n  B --> C[Phase 2: Bootstrap]\n  C --> D[Phase 3: Setup]\n  D --> E[Phase 4: REPL循环]\n  \n  B --> B1[快速路径]\n  B --> B2[模板路径]\n  B --> B3[完整路径]\n  \n  C --> C1[并行预取配置]\n  C --> C2[密钥管理]\n  C --> C3[插件系统]\n  \n  D --> D1[环境检测]\n  D --> D2[钩子加载]\n  D --> D3[工作树管理]\n  \n  E --> E1[React组件渲染]\n  E --> E2[状态管理初始化]\n  E --> E3[交互循环开始]",
+        "description": "这个架构图清晰地展示了 Claude Code 启动的四个阶段及其子任务，体现了系统的模块化设计和职责分离原则。"
       }
     },
     {
-      "heading": "Phase 4: 进入 REPL 循环——React 接管终端",
-      "content": "当所有准备工作完成后，系统进入最后阶段：启动 REPL 循环。这个阶段通过 `launchRepl()` 函数完成，它标志着 React 开始接管终端控制。\n\nREPL（Read-Eval-Print Loop）是交互式编程环境的核心模式，它读取用户输入、执行操作、显示结果，然后循环等待下一次输入。Claude Code 使用 Ink 库来实现终端界的 React 渲染。这是一个巧妙的设计选择——它让开发者可以用熟悉的 React 组件模型来构建终端界面，而不是直接操作 ANSI 转义序列。\n\n`launchRepl()` 函数从 `replLauncher.tsx` 中可以看到，它动态导入 `App` 和 `REPL` 组件（使用动态导入是为了延迟加载这些较大的模块），然后调用 `renderAndRun()` 将它们渲染到终端的 root 容器中。`renderAndRun()` 定义在 `interactiveHelpers.tsx` 中，它的逻辑很简单：调用 `root.render()` 开始渲染，启动后台预取任务，然后调用 `root.waitUntilExit()` 进入等待循环。\n\n这个等待循环是 REPL 的核心——它会监听用户输入、处理事件、更新状态，直到用户退出或会话结束。整个过程中，React 的渲染机制将组件树转换为终端输出的字符序列，通过 ANSI 转义序列实现颜色、光标移动等效果。\n\n当你看到那条闪烁的命令提示符时，整个旅程已经完成了。从模式的确定、基础设施的搭建、环境的检测，到最终的 React 渲染，四个阶段在不到半秒的时间里依次完成。而这个看似简单的启动过程，背后隐藏着并行化、延迟加载、预连接等大量性能优化，以及精心设计的容错机制。就像一家五星级酒店的厨房，在你点单之前，食材已经备好，设备已经预热，厨师已经就位——只等你下达指令。",
-      "code": {
-        "title": "REPL 启动",
-        "description": "replLauncher.tsx 中的 launchRepl 函数将 React 组件渲染到终端",
-        "code": "export async function launchRepl(\n  root: Root, \n  appProps: AppWrapperProps, \n  replProps: REPLProps,\n  renderAndRun: (root: Root, element: React.ReactNode) => Promise<void>\n): Promise<void> {\n  const { App } = await import('./components/App.js')\n  const { REPL } = await import('./screens/REPL.js')\n  await renderAndRun(\n    root, \n    <App {...appProps}>\n      <REPL {...replProps} />\n    </App>\n  )\n}",
-        "language": "typescript",
-        "annotation": "动态导入延迟了大型组件的加载，直到真正需要时才加载，减少内存占用和启动时间"
-      }
-    },
-    {
-      "heading": "设计哲学：为什么是四阶段？",
-      "content": "将启动过程分成四个阶段不是随意的决定，而是基于几个重要的设计原则：懒加载、容错和速度。\n\n懒加载原则体现在多个地方。`App` 和 `REPL` 组件使用动态导入，意味着它们的代码在 REPL 启动前不会被加载；OpenTelemetry 遥测模块延迟导入，节省了约 400KB 的模块大小；只有在真正需要时才加载 MCP 相关代码。这些设计让常见路径的启动更快，同时不损害功能的完整性。\n\n容错原则确保单个任务的失败不会拖垮整个启动过程。比如远程管理设置的加载有超时保护，防止因网络问题无限等待；API 密钥的预取在安全的前提下进行，不会因为密钥问题阻塞启动。代码中多处使用 `.catch()` 来处理可能失败的异步操作，即使失败也允许流程继续。\n\n速度优化是启动设计最突出的特点。预连接 API、并行预取命令和插件、使用 memoize 缓存结果、提前启动后台进程——这些技巧共同将启动时间压缩到用户几乎感觉不到的程度。代码中甚至有一个专门的启动性能分析器（`startupProfiler.ts`），它会为被抽样的用户记录各个阶段的耗时，为持续优化提供数据支持。\n\n四阶段的设计还带来另一个好处：清晰的责任划分。入口分发决定"做什么"，Bootstrap 准备"怎么做"的基础设施，Setup 执行具体的环境检测和资源准备，REPL 循环处理"一直做"的交互逻辑。每个阶段都有明确的边界和职责，让代码更容易理解和维护。这种清晰性在大型项目中尤为重要——当新功能需要启动时，开发者可以很快确定应该修改哪个阶段的代码。",
-      "code": {
-        "title": "启动性能分析",
-        "description": "startupProfiler.ts 通过性能钩子 API 记录各阶段耗时",
-        "code": "export function profileCheckpoint(name: string): void {\n  if (!SHOULD_PROFILE) return\n  const perf = getPerformance()\n  perf.mark(name)  // 使用 Node.js 性能钩子 API\n}\n\n// 后续可以通过性能标记计算阶段耗时\nconst phaseDuration = endTime - startTime",
-        "language": "typescript",
-        "annotation": "使用 Node.js 内置的性能钩子 API（performance.mark）记录检查点，后续可以通过 getEntriesByType 计算各阶段耗时"
-      }
+      "heading": "设计哲学：为什么是四阶段启动？",
+      "content": "Claude Code 选择四阶段启动架构并非偶然，这背后有着深刻的设计哲学考量。\n\n**懒加载（Lazy Loading）原则**是核心指导思想。系统不会一次性加载所有功能，而是按需加载。这就像聪明的图书馆员不会把整个图书馆的书都摆出来，而是根据读者的需求提供特定的书籍。\n\n**容错性（Fault Tolerance）**是另一个重要考量。每个阶段都有独立的错误处理机制，如果一个阶段失败，不会影响其他阶段的执行。这种『隔离舱』设计确保了系统的稳定性。\n\n**速度优化**通过并行化实现。就像现代CPU的多核架构，Claude Code 的启动过程充分利用了 JavaScript 的异步特性，让多个任务可以同时进行。\n\n最后，**可扩展性**为未来功能留下了空间。四阶段架构就像城市规划，为新的『建筑』（功能模块）预留了合适的『地块』（集成点）。",
+      "analogies": ["Claude Code 的启动过程就像火箭发射：入口分发是点火阶段，Bootstrap 是助推阶段，Setup 是分离阶段，REPL 循环是入轨阶段。每个阶段都有明确的目标和严格的质量控制。"]
     }
   ],
   "key_takeaways": [
-    "Claude Code 的启动分为四个阶段：入口分发决定运行模式、Bootstrap 建立基础设施、Setup 检测环境并准备资源、REPL 循环处理交互。每个阶段有明确的职责，形成清晰的流水线。",
-    "启动过程中的性能优化包括：API 预连接（提前建立 TCP/TLS 连接）、并行预取（多个异步任务并行执行）、动态导入（延迟加载大型模块）、缓存机制（memoize 缓存计算结果）等。",
-    "代码中使用 void 前缀声明"发起但不等待"的异步操作，这是一种常见的性能优化模式，让 I/O 密集型操作在后台执行而不阻塞主流程。",
-    "终端界面使用 Ink 库实现，它将 React 组件转换为终端输出的字符序列，让开发者可以用熟悉的 React 模型构建 TUI（终端用户界面）。",
-    "启动性能分析器（startupProfiler.ts）使用 Node.js 内置的性能钩子 API 记录各阶段耗时，为持续优化提供数据支持。"
+    "四阶段启动架构确保了 Claude Code 的快速启动和稳定运行",
+    "智能路由机制根据参数选择最优路径，避免不必要的资源加载",
+    "并行预取策略大幅提升了启动效率",
+    "React 驱动的终端界面提供了现代、可维护的交互体验",
+    "模块化设计为系统扩展留下了充分空间"
   ],
   "further_thinking": [
-    "如果需要支持新的运行模式（比如一个专用的调试模式），你需要在入口分发的哪个位置添加判断？是否需要修改四个阶段中的其他代码？",
-    "当前启动流程中有多个并行预取操作，如果其中某个操作失败会影响后续使用吗？代码是如何处理这种潜在故障的？",
-    "动态导入虽然延迟了模块加载，但首次渲染 React 组件时仍然需要等待模块加载完成。有没有办法进一步优化这种延迟？"
+    "如果 Claude Code 要支持云端部署，启动流程需要做哪些调整？",
+    "如何在不牺牲启动速度的前提下，增加更多的安全检查？"
   ],
-  "analogies": [
-    "启动过程的四阶段设计就像机场的值机流程：入口分发决定你是国内航线还是国际航线（决定走哪个值机柜台），Bootstrap 是安检和行李托运（建立基础设施），Setup 是登机前的最后检查（检测环境），REPL 循环则是飞行过程（持续的交互）。每个阶段都有明确的边界和职责，共同构成一个高效的系统。",
-    "API 预连接就像餐厅提前预热烤箱——当你点餐时，烤箱已经达到工作温度，食材可以直接放入烘烤，而不需要额外等待升温时间。这个简单的优化减少了约 100-200 毫秒的等待时间。",
-    "并行预取操作就像外卖骑手同时接多个订单——虽然每个订单的配送时间是固定的，但通过并行处理可以让所有订单更早完成，而不是一个一个串行处理。"
-  ],
+  "analogies": ["Claude Code 的启动过程就像精心编排的交响乐：每个乐器（模块）在指挥（调度系统）的引导下，在正确的时机加入演奏，最终形成和谐的整体。"],
   "mermaid_diagrams": [],
   "code_snippets": [],
-  "word_count": 3800,
+  "word_count": 3850,
   "prerequisites": []
 }
