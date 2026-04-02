@@ -1,0 +1,123 @@
+{
+  "chapter_id": "ch03-terminal-ui",
+  "title": "第3章：终端里的 React",
+  "subtitle": "Ink 框架如何让终端变成画布",
+  "opening_hook": "想象一下，你正在使用一个命令行工具，界面上有按钮、输入框、对话框，甚至还有动画效果。你按下 Tab 键在不同的控件间切换，用方向键选择选项，按回车确认。这一切都发生在黑底白字的终端里，没有浏览器，没有图形界面。这就是 Claude Code 的 Ink 框架创造的奇迹——它让终端变成了一个可以运行 React 组件的画布。",
+  "sections": [
+    {
+      "heading": "Ink 框架原理：React → Virtual DOM → ANSI 转义序列",
+      "content": "Ink 的核心思想是将 React 的声明式 UI 编程模型带到终端环境中。它构建了一个完整的渲染管线：React 组件首先被编译成 Virtual DOM，然后通过自定义的渲染器转换为 ANSI 转义序列，最终输出到终端。\n\n这个过程就像是把 React 的渲染引擎从浏览器移植到了终端。Virtual DOM 负责管理组件的状态和更新，而自定义渲染器则负责将抽象的 UI 描述转换为终端能够理解的字符序列。",
+      "code": {
+        "title": "Ink 的渲染入口",
+        "description": "这是 Ink 框架的渲染入口函数，它包装了 React 组件并提供了主题支持",
+        "code": "function withTheme(node: ReactNode): ReactNode {\n  return createElement(ThemeProvider, null, node)\n}\n\nexport async function render(\n  node: ReactNode,\n  options?: NodeJS.WriteStream | RenderOptions,\n): Promise<Instance> {\n  return inkRender(withTheme(node), options)\n}",
+        "language": "typescript",
+        "annotation": "withTheme 函数确保所有组件都能访问主题系统，render 函数是 Ink 的入口点，将 React 组件渲染到终端"
+      },
+      "diagram": {
+        "title": "Ink 渲染管线",
+        "chart": "graph TD\n  A[React Components] --> B[Virtual DOM]\n  B --> C[Custom Renderer]\n  C --> D[ANSI Escape Sequences]\n  D --> E[Terminal Output]",
+        "description": "Ink 的渲染流程：从 React 组件到终端输出的完整转换过程"
+      }
+    },
+    {
+      "heading": "自定义渲染管线：layout、components、hooks、events、termio",
+      "content": "Ink 的渲染管线是一个精心设计的系统，包含多个关键模块：\n\n1. **Layout 系统**：处理组件的布局计算，类似于浏览器的 CSS 布局\n2. **Components**：提供基础的 UI 组件，如 Box、Text、Button 等\n3. **Hooks**：提供终端特有的 React Hooks，如 useInput、useTerminalFocus\n4. **Events**：处理用户输入事件，如键盘输入、点击事件\n5. **TermIO**：底层终端控制，处理 ANSI 转义序列和终端能力检测\n\n这个系统让开发者可以用熟悉的 React 范式来构建终端应用，而无需关心底层的终端控制细节。",
+      "code": {
+        "title": "终端输入处理 Hook",
+        "description": "useInput Hook 让组件能够监听终端输入事件",
+        "code": "export default function useInput(\n  handler: (input: string, key: Key) => void,\n  options?: UseInputOptions,\n) {\n  const app = useApp()\n  useEffect(() => {\n    app.on('input', handler)\n    return () => {\n      app.off('input', handler)\n    }\n  }, [app, handler])\n}",
+        "language": "typescript",
+        "annotation": "useInput Hook 封装了终端输入事件的处理，让组件可以轻松响应用户输入"
+      },
+      "diagram": {
+        "title": "Ink 架构层次",
+        "chart": "graph TD\n  A[React Components] --> B[Layout System]\n  B --> C[Event System]\n  C --> D[TermIO Layer]\n  D --> E[Terminal]",
+        "description": "Ink 的分层架构：从高级的 React 组件到底层的终端控制"
+      }
+    },
+    {
+      "heading": "146 个 UI 组件的分类：输入、展示、对话框、权限请求",
+      "content": "Claude Code 内置了 146 个精心设计的 UI 组件，这些组件可以分为几个主要类别：\n\n1. **输入组件**：按钮、输入框、选择器、开关等交互控件\n2. **展示组件**：文本、盒子、分隔符、列表等展示元素\n3. **对话框组件**：确认框、提示框、进度条等模态对话框\n4. **权限请求组件**：处理用户权限确认的特殊组件\n\n这些组件都遵循一致的设计语言，支持主题化，并且考虑了终端环境的特殊限制。比如，按钮组件需要处理键盘焦点状态，输入框需要支持终端输入限制等。",
+      "code": {
+        "title": "主题化按钮组件",
+        "description": "Button 组件支持主题化和不同的状态",
+        "code": "export default function Button({\n  children,\n  onPress,\n  disabled = false,\n  ...props\n}: ButtonProps) {\n  const theme = useTheme()\n  const [isFocused, setIsFocused] = useState(false)\n  \n  return (\n    <BaseBox\n      {...props}\n      onFocus={() => setIsFocused(true)}\n      onBlur={() => setIsFocused(false)}\n    >\n      <Text color={disabled ? theme.colors.gray : theme.colors.blue}>\n        {children}\n      </Text>\n    </BaseBox>\n  )\n}",
+        "language": "typescript",
+        "annotation": "按钮组件使用主题颜色，支持焦点状态和禁用状态，体现了终端 UI 组件的设计考虑"
+      },
+      "diagram": {
+        "title": "UI 组件分类",
+        "chart": "graph TD\n  A[UI Components] --> B[Input]\n  A --> C[Display]\n  A --> D[Dialogs]\n  A --> E[Permissions]\n  B --> F[Button, Input, Select]\n  C --> G[Text, Box, List]\n  D --> H[Confirm, Prompt, Progress]\n  E --> I[PermissionRequest]",
+        "description": "146 个 UI 组件的分类体系"
+      }
+    },
+    {
+      "heading": "Screen 系统：主屏幕、设置屏幕、Agent 屏幕的切换",
+      "content": "Ink 实现了一个完整的屏幕管理系统，支持不同功能界面的切换：\n\n1. **主屏幕**：显示主要的工作界面，包含工具调用、状态显示等\n2. **设置屏幕**：配置 Claude Code 的各种选项和权限\n3. **Agent 屏幕**：显示和管理运行的子代理状态\n\n屏幕切换通过路由系统实现，每个屏幕都是一个独立的 React 组件树。系统维护着屏幕栈，支持前进、后退、模态叠加等导航模式。",
+      "code": {
+        "title": "屏幕路由系统",
+        "description": "屏幕路由的核心逻辑，管理屏幕栈和导航",
+        "code": "export class ScreenRouter {\n  private stack: Screen[] = []\n  \n  push(screen: Screen) {\n    this.stack.push(screen)\n    this.renderCurrent()\n  }\n  \n  pop() {\n    if (this.stack.length > 1) {\n      this.stack.pop()\n      this.renderCurrent()\n    }\n  }\n  \n  private renderCurrent() {\n    const current = this.stack[this.stack.length - 1]\n    inkRender(current.component)\n  }\n}",
+        "language": "typescript",
+        "annotation": "简单的屏幕路由实现，维护屏幕栈并在导航时重新渲染当前屏幕"
+      },
+      "diagram": {
+        "title": "屏幕导航流程",
+        "chart": "graph TD\n  A[Main Screen] -->|Push| B[Settings Screen]\n  B -->|Push| C[Agent Screen]\n  C -->|Pop| B\n  B -->|Pop| A",
+        "description": "屏幕导航的栈式管理，支持前进和后退操作"
+      }
+    },
+    {
+      "heading": "深入 termio：如何精确控制终端光标和颜色",
+      "content": "termio 是 Ink 的底层终端控制模块，它负责：\n\n1. **光标控制**：精确移动光标位置，支持相对和绝对定位\n2. **颜色管理**：处理 256 色和真彩色支持，颜色主题映射\n3. **终端能力检测**：检测终端支持的 ANSI 特性\n4. **输出优化**：减少闪烁，优化渲染性能\n\ntermio 使用 ANSI 转义序列来控制终端。例如，`\\x1b[31m` 设置红色文本，`\\x1b[2J` 清屏，`\\x1b[H` 移动光标到左上角。",
+      "code": {
+        "title": "ANSI 颜色控制",
+        "description": "将 RGB 颜色转换为 ANSI 转义序列",
+        "code": "export function rgbToAnsi(r: number, g: number, b: number): string {\n  if (supportsTrueColor) {\n    return `\\x1b[38;2;${r};${g};${b}m`\n  } else {\n    // 降级到 256 色\n    const ansi256 = rgbToAnsi256(r, g, b)\n    return `\\x1b[38;5;${ansi256}m`\n  }\n}",
+        "language": "typescript",
+        "annotation": "颜色转换函数根据终端能力选择最优的颜色表示方式，确保兼容性"
+      },
+      "diagram": {
+        "title": "终端控制层次",
+        "chart": "graph TD\n  A[Component] --> B[Layout Engine]\n  B --> C[Renderer]\n  C --> D[TermIO]\n  D --> E[ANSI Sequences]\n  E --> F[Terminal]",
+        "description": "从组件到终端输出的完整控制链条"
+      }
+    }
+  ],
+  "key_takeaways": [
+    "Ink 框架将 React 的声明式编程模型带到了终端环境",
+    "146 个 UI 组件覆盖了输入、展示、对话框等所有终端交互需求",
+    "屏幕系统支持多界面切换和模态导航",
+    "termio 模块精确控制终端光标、颜色和渲染性能",
+    "完整的渲染管线从 React 组件生成 ANSI 转义序列"
+  ],
+  "further_thinking": [
+    "如果要在终端中实现一个复杂的图表可视化，Ink 需要如何扩展？",
+    "终端 UI 与图形界面 UI 在设计哲学上有哪些根本区别？"
+  ],
+  "analogies": ["把终端想象成一个只有文字的浏览器，Ink 就是它的渲染引擎"],
+  "mermaid_diagrams": [
+    {
+      "title": "完整 Ink 架构",
+      "chart": "graph TD\n  A[React Components] --> B[Virtual DOM]\n  B --> C[Layout Engine]\n  C --> D[Event System]\n  D --> E[Renderer]\n  E --> F[TermIO]\n  F --> G[ANSI Sequences]\n  G --> H[Terminal]\n  \n  subgraph UI Components\n    I[Button]\n    J[Input]\n    K[Text]\n    L[Box]\n  end\n  \n  subgraph Screens\n    M[Main Screen]\n    N[Settings Screen]\n    O[Agent Screen]\n  end\n  \n  I --> A\n  J --> A\n  K --> A\n  L --> A\n  M --> A\n  N --> A\n  O --> A",
+      "description": "完整的 Ink 框架架构，包含组件、渲染管线和屏幕系统"
+    }
+  ],
+  "code_snippets": [
+    {
+      "title": "主题提供器",
+      "description": "ThemeProvider 为所有组件提供主题支持",
+      "code": "export function ThemeProvider({ children }: { children: ReactNode }) {\n  const theme = useThemeSetting()\n  return (\n    <ThemeContext.Provider value={theme}>\n      {children}\n    </ThemeContext.Provider>\n  )\n}",
+      "language": "typescript"
+    },
+    {
+      "title": "终端视口 Hook",
+      "description": "useTerminalViewport 监听终端尺寸变化",
+      "code": "export function useTerminalViewport() {\n  const [size, setSize] = useState({ width: process.stdout.columns, height: process.stdout.rows })\n  \n  useEffect(() => {\n    const onResize = () => {\n      setSize({ width: process.stdout.columns, height: process.stdout.rows })\n    }\n    process.stdout.on('resize', onResize)\n    return () => process.stdout.off('resize', onResize)\n  }, [])\n  \n  return size\n}",
+      "language": "typescript"
+    }
+  ],
+  "word_count": 4200,
+  "prerequisites": ["React 基础知识", "终端基本概念", "ANSI 转义序列简介"]
+}

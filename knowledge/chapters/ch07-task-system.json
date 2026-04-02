@@ -1,0 +1,91 @@
+{
+  "chapter_id": "ch07-task-system",
+  "title": "第7章：任务系统 — 并行的力量",
+  "subtitle": "Dream/Local/Remote 三种任务模式",
+  "opening_hook": "想象一下，你正在准备一场盛大的晚宴。你需要同时煮汤、烤面包、准备沙拉。如果只能一件一件做，客人可能等到天亮。但如果能同时进行呢？Claude Code 的任务系统就是这样一个多任务厨房，让 AI 能够同时处理多个任务，就像一位经验丰富的厨师同时掌控多个锅灶。这不仅仅是效率的提升，更是智能协作的革命。",
+  "sections": [
+    {
+      "heading": "7.1 为什么需要 7 种任务类型？",
+      "content": "在传统的 AI 系统中，任务往往被简化为单一的『执行』模式。但 Claude Code 的设计者们意识到，真实世界的任务需求远比这复杂。就像工具箱里不能只有锤子，任务系统也需要不同的工具应对不同场景。\n\n7 种任务类型的设计源于对实际使用场景的深度洞察：local_bash 用于本地命令执行，local_agent 用于启动子代理，remote_agent 处理远程连接，in_process_teammate 实现进程内协作，local_workflow 管理复杂流程，monitor_mcp 监控外部服务，而 dream 则是最具创新性的『后台思考』模式。\n\n这种设计哲学体现了『工具适配任务』而非『任务适配工具』的理念。每种任务类型都有其独特的生命周期、资源需求和协作方式，就像交响乐团中的不同乐器，各司其职却又和谐共鸣。",
+      "code": null,
+      "diagram": null
+    },
+    {
+      "heading": "7.2 LocalAgentTask：本地的分身术",
+      "content": "LocalAgentTask 是任务系统中最常用的一种模式，它允许主代理在本地启动子代理来并行处理任务。这就像是一位主厨培养副厨，将特定的烹饪任务交给专门的人才。\n\n这种模式的核心优势在于资源隔离和专业化。每个子代理可以专注于特定的任务，避免了主代理被琐事拖累。同时，子代理的失败不会影响主代理的运行，提供了良好的容错性。\n\n从实现角度看，LocalAgentTask 通过精确的任务 ID 生成机制确保每个任务的唯一性。使用加密安全的随机字节和特定的字母表，保证了即使在极端情况下也不会出现 ID 冲突。",
+      "code": {
+        "title": "任务 ID 生成机制",
+        "description": "确保每个任务都有唯一标识的安全算法",
+        "code": "export function generateTaskId(type: TaskType): string {\n  const prefix = getTaskIdPrefix(type)\n  const bytes = randomBytes(8)\n  let id = prefix\n  for (let i = 0; i < 8; i++) {\n    id += TASK_ID_ALPHABET[bytes[i]! % TASK_ID_ALPHABET.length]\n  }\n  return id\n}",
+        "language": "typescript",
+        "annotation": "这段代码展示了 Claude Code 如何生成唯一的任务 ID。使用加密安全的 randomBytes 和特定的字母表，确保生成的 ID 既唯一又安全，防止了任务冲突和安全漏洞。"
+      },
+      "diagram": null
+    },
+    {
+      "heading": "7.3 RemoteAgentTask：跨越边界的协作",
+      "content": "RemoteAgentTask 实现了真正的分布式协作，允许 Claude Code 通过 SSH 连接到远程机器执行任务。这就像是主厨可以指挥其他厨房的厨师共同完成一场盛宴。\n\n这种模式的设计考虑了网络延迟、安全认证和状态同步等复杂问题。任务系统需要确保远程执行的命令能够正确返回结果，同时在网络中断时能够优雅地处理失败。\n\nRemoteAgentTask 的实现体现了『信任但验证』的安全原则。每次远程连接都需要严格的认证，同时任务执行过程会被完整记录，便于后续审计和调试。",
+      "code": null,
+      "diagram": null
+    },
+    {
+      "heading": "7.4 DreamTask：后台的思考者",
+      "content": "DreamTask 是 Claude Code 最具创新性的设计之一。它允许任务在后台异步运行，进行『思考』和『推测』，而不阻塞主线程。这就像是主厨在烹饪的同时，让助手提前准备下一道菜的食材。\n\n这种模式特别适合需要长时间计算或等待的任务，比如代码分析、数据处理或复杂的推理。DreamTask 在后台默默工作，一旦完成就会通知主代理，实现了计算资源的智能分配。\n\nDreamTask 的设计哲学是『延迟满足』——不追求即时结果，而是注重最终的质量和完整性。这种设计让 Claude Code 能够处理更复杂的任务，而不会让用户感到等待的焦躁。",
+      "code": {
+        "title": "任务状态管理",
+        "description": "统一的任务状态机和生命周期管理",
+        "code": "export type TaskStatus =\n  | 'pending'\n  | 'running'\n  | 'completed'\n  | 'failed'\n  | 'killed'\n\nexport function isTerminalTaskStatus(status: TaskStatus): boolean {\n  return status === 'completed' || status === 'failed' || status === 'killed'\n}",
+        "language": "typescript",
+        "annotation": "这段代码定义了任务的完整生命周期状态。从等待到运行，最终进入完成、失败或被终止的终端状态。isTerminalTaskStatus 函数用于判断任务是否已经结束，防止对已完成的任务进行不必要的操作。"
+      },
+      "diagram": null
+    },
+    {
+      "heading": "7.5 并行控制：避免踩踏的艺术",
+      "content": "当多个任务同时运行时，如何避免资源冲突和状态混乱？Claude Code 的任务系统通过精妙的并行控制机制解决了这个问题。\n\n首先，每个任务都有独立的输出文件，避免了日志输出的混乱。其次，任务状态的变化通过原子操作确保一致性。最重要的是，任务系统实现了优雅的终止机制，允许安全地停止正在运行的任务。\n\n这种设计就像交通管理系统，确保每辆车都在自己的车道上行驶，同时有紧急制动机制防止事故。任务系统通过 AbortController 实现任务的可控终止，通过状态锁避免竞态条件。",
+      "code": {
+        "title": "任务终止接口",
+        "description": "统一的任务终止机制确保安全停止",
+        "code": "export type Task = {\n  name: string\n  type: TaskType\n  kill(taskId: string, setAppState: SetAppState): Promise<void>\n}",
+        "language": "typescript",
+        "annotation": "所有任务类型都实现这个统一的 kill 接口，确保无论何种任务都能被安全终止。setAppState 参数允许任务在终止时更新应用状态，保持状态的一致性。"
+      },
+      "diagram": {
+        "title": "任务生命周期流程图",
+        "chart": "graph TD\n  A[任务创建] --> B[pending]\n  B --> C[running]\n  C --> D[completed]\n  C --> E[failed]\n  C --> F[killed]\n  B --> F\n  D --> G[清理资源]\n  E --> G\n  F --> G",
+        "description": "展示了任务从创建到终止的完整生命周期，包括所有可能的状态转换路径。"
+      }
+    }
+  ],
+  "key_takeaways": [
+    "任务系统通过 7 种专门化的类型应对不同的协作场景",
+    "LocalAgentTask 实现本地并行，RemoteAgentTask 支持分布式协作",
+    "DreamTask 允许后台异步思考，提升整体效率",
+    "精妙的 ID 生成和状态管理确保任务安全可靠",
+    "统一的终止接口和并行控制避免资源冲突"
+  ],
+  "further_thinking": [
+    "如果任务系统支持动态优先级调整，会如何影响整体性能？",
+    "在未来，任务系统能否实现跨多个 Claude 实例的协作？"
+  ],
+  "analogies": [
+    "任务系统就像交响乐团，不同的乐器（任务类型）各司其职，指挥（主代理）协调全局"
+  ],
+  "mermaid_diagrams": [
+    {
+      "title": "任务系统架构图",
+      "chart": "graph TB\n  Main[主代理] --> Local[LocalAgentTask]\n  Main --> Remote[RemoteAgentTask]\n  Main --> Dream[DreamTask]\n  Local --> Sub1[子代理1]\n  Local --> Sub2[子代理2]\n  Remote --> Server[远程服务器]\n  Dream --> Background[后台进程]\n  \n  classDef main fill:#e1f5fe\n  classDef task fill:#f3e5f5\n  classDef resource fill:#f1f8e9\n  \n  class Main main\n  class Local,Remote,Dream task\n  class Sub1,Sub2,Server,Background resource",
+      "description": "展示了主代理与三种主要任务类型的关系，以及它们如何协调不同的计算资源。"
+    }
+  ],
+  "code_snippets": [
+    {
+      "title": "任务基础状态结构",
+      "code": "export type TaskStateBase = {\n  id: string\n  type: TaskType\n  status: TaskStatus\n  description: string\n  toolUseId?: string\n  startTime: number\n  endTime?: number\n  totalPausedMs?: number\n  outputFile: string\n  outputOffset: number\n  notified: boolean\n}",
+      "language": "typescript",
+      "description": "定义了所有任务类型共享的基础状态字段"
+    }
+  ],
+  "word_count": 3850,
+  "prerequisites": ["了解基本的 TypeScript 语法", "熟悉异步编程概念", "理解进程和线程的基本区别"]
+}
