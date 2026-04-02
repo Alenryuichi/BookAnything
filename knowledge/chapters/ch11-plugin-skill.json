@@ -1,0 +1,93 @@
+{
+  "chapter_id": "ch11-plugin-skill",
+  "title": "第11章：插件与技能系统",
+  "subtitle": "让 Claude Code 学会新技能",
+  "opening_hook": "想象一下，当你第一次使用 Claude Code 时，发现它不会执行某个特定的任务——比如验证代码安全性、批量处理文件，或者与第三方服务集成。在传统软件中，这可能意味着需要等待下一个版本更新。但在 Claude Code 的世界里，情况完全不同。如果 Claude Code 不会做某件事，你完全可以教它。这就像给一位聪明的助手一本新的技能手册，它立刻就能掌握并应用这些能力。本章将带你深入探索 Claude Code 的插件与技能系统，了解这个让 AI 助手不断进化的神奇机制。",
+  "sections": [
+    {
+      "heading": "Plugin 系统：内置能力的基石",
+      "content": "Plugin 系统是 Claude Code 的核心基础设施，它像是一个精心设计的工具箱，为 AI 提供了各种基础能力。这些插件分为两种类型：bundled 插件和第三方插件。Bundled 插件是随 Claude Code 一起发布的内置插件，提供了开箱即用的核心功能；而第三方插件则允许开发者扩展 Claude Code 的能力边界。\n\n每个插件都是一个独立的模块，通过统一的接口与 Claude Code 交互。插件系统采用了一种巧妙的设计模式：插件本身不直接处理用户请求，而是通过注册工具（Tools）来扩展 Claude Code 的能力。这种设计让插件系统保持了高度的灵活性和可扩展性。",
+      "code": {
+        "title": "内置插件注册示例",
+        "description": "展示了如何注册一个内置插件到系统中",
+        "code": "// 在 builtinPlugins.ts 中\nconst builtinPlugins: BuiltinPlugin[] = [\n  {\n    name: 'git',\n    description: 'Git version control operations',\n    tools: [\n      {\n        name: 'GitStatus',\n        description: 'Show working tree status',\n        inputSchema: {...}\n      }\n    ]\n  }\n];\n\n// 插件注册到系统\nexport function registerBuiltinPlugins() {\n  builtinPlugins.forEach(plugin => {\n    PluginRegistry.register(plugin);\n  });\n}",
+        "language": "typescript",
+        "annotation": "这段代码展示了插件注册的基本模式。每个插件包含名称、描述和一组工具定义。工具定义了具体的操作接口，包括输入参数的结构化定义。"
+      },
+      "diagram": {
+        "title": "插件系统架构图",
+        "chart": "graph TD\n    A[用户请求] --> B[Claude Code 核心]\n    B --> C{解析请求类型}\n    C -->|工具调用| D[工具分发器]\n    C -->|技能调用| E[技能执行器]\n    D --> F[内置插件]\n    D --> G[第三方插件]\n    E --> H[内置技能]\n    E --> I[自定义技能]\n    F --> J[Git 操作]\n    F --> K[文件系统]\n    F --> L[网络请求]\n    G --> M[用户自定义工具]\n    H --> N[/remember 技能]\n    H --> O[/loop 技能]\n    I --> P[用户 Markdown 技能]",
+        "description": "展示了 Claude Code 如何处理用户请求，通过工具分发器和技能执行器将请求路由到相应的插件和技能处理程序"
+      }
+    },
+    {
+      "heading": "Skill 系统：用 Markdown 定义智能行为",
+      "content": "如果说 Plugin 系统是 Claude Code 的『肌肉』，那么 Skill 系统就是它的『技能手册』。Skill 系统采用了一种独特的设计：用 Markdown 文件来定义可复用的能力。这种设计让非开发者也能轻松地为 Claude Code 添加新功能。\n\n每个技能文件都是一个 .md 文件，包含特定的元数据标记和实现说明。当用户输入以斜杠开头的命令（如 /remember）时，Skill 系统会解析这个命令，找到对应的技能文件，并将其内容转化为具体的工具调用。这种设计的美妙之处在于，技能的定义既对人类友好（Markdown 格式），又能被机器正确解析和执行。\n\n技能系统支持多种类型的技能，从简单的工具封装到复杂的多步骤工作流。例如，/remember 技能帮助 Claude Code 记住用户偏好，/loop 技能实现定时任务，/claudeApi 技能提供了与 Claude API 的集成能力。",
+      "code": {
+        "title": "技能文件示例",
+        "description": "展示了一个简单技能文件的 Markdown 结构",
+        "code": "---\nskill: remember\n---\n\n# Remember Skill\n\nHelps Claude remember user preferences across sessions.\n\n## Usage\n```\n/remember \"Always use TypeScript for new projects\"\n/remember \"Prefer dark theme in code editors\"\n```\n\n## Implementation\nWhen invoked, this skill:\n1. Parses the remember statement\n2. Stores it in the memory system\n3. Returns confirmation message\n\n## Examples\n- /remember \"I prefer functional programming style\"\n- /remember \"Use 2 spaces for indentation\"",
+        "language": "markdown",
+        "annotation": "这个技能文件用 YAML 元数据定义技能名称，然后用 Markdown 描述功能、用法和实现细节。Claude Code 会解析这些信息并生成相应的工具调用。"
+      }
+    },
+    {
+      "heading": "SkillTool：技能到工具的魔法转换",
+      "content": "SkillTool 是连接技能系统和工具系统的桥梁，它负责将用户友好的技能命令转换为机器可执行的工具调用。这个过程就像一位熟练的翻译官，将人类语言翻译成机器语言。\n\n当用户输入一个技能命令时，SkillTool 会执行以下步骤：首先解析命令名称和参数，然后在技能目录中查找对应的 .md 文件，接着解析文件中的元数据和实现说明，最后生成相应的工具调用并执行。整个过程对用户完全透明，用户只需要关心『做什么』，而不需要知道『怎么做』。\n\nSkillTool 的设计体现了 Claude Code 的核心哲学：让复杂的技术细节对用户隐藏，提供简单直观的交互方式。无论是技术专家还是普通用户，都能通过统一的技能接口与 Claude Code 进行高效交互。",
+      "code": {
+        "title": "SkillTool 核心逻辑",
+        "description": "展示了技能解析和执行的关键代码",
+        "code": "// 在 SkillTool.ts 中\nexport class SkillTool {\n  async execute(skillName: string, args: string): Promise<string> {\n    // 1. 查找技能文件\n    const skillPath = this.findSkillFile(skillName);\n    \n    // 2. 解析技能元数据\n    const { frontmatter, content } = parseSkillFile(skillPath);\n    \n    // 3. 根据技能类型分派处理\n    if (frontmatter.skillType === 'tool_wrapper') {\n      return this.executeToolWrapper(content, args);\n    } else if (frontmatter.skillType === 'workflow') {\n      return this.executeWorkflow(content, args);\n    }\n    \n    // 4. 返回执行结果\n    return `Executed skill ${skillName} with args: ${args}`;\n  }\n}",
+        "language": "typescript",
+        "annotation": "SkillTool 的核心是一个执行方法，它根据技能名称找到对应的文件，解析内容，然后根据技能类型选择不同的执行策略。"
+      }
+    },
+    {
+      "heading": "开发者指南：编写自己的技能",
+      "content": "为 Claude Code 编写新技能是一个既有趣又有成就感的过程。与其他 AI 系统需要复杂编程不同，Claude Code 的技能开发遵循『文档即代码』的理念。只需要创建一个 Markdown 文件，就能为 Claude Code 添加新能力。\n\n编写技能的基本步骤包括：首先确定技能的名称和用途，然后创建 .md 文件并添加元数据，接着详细描述技能的功能、用法和实现逻辑，最后测试技能的执行效果。技能文件可以包含示例用法、参数说明、错误处理等信息，帮助 Claude Code 更好地理解和执行这个技能。\n\n对于更复杂的技能，还可以结合 Plugin 系统使用。比如先开发一个插件提供底层能力，然后用技能文件封装成用户友好的接口。这种分层设计让开发者可以根据需求选择适合的扩展方式。",
+      "code": {
+        "title": "创建自定义技能示例",
+        "description": "展示如何创建一个简单的天气查询技能",
+        "code": "---\nskill: weather\ncategory: utility\ndescription: Get weather information for a location\n---\n\n# Weather Skill\n\nProvides current weather conditions for any location.\n\n## Usage\n```\n/weather \"New York\"\n/weather \"London, UK\"\n/weather \"东京\"\n```\n\n## Implementation\nThis skill uses the OpenWeatherMap API to fetch weather data.\nIt expects a location string as input and returns:\n- Current temperature\n- Weather condition\n- Humidity and wind speed\n\n## Error Handling\nIf location not found, returns helpful error message.\nIf API unavailable, suggests retrying later.",
+        "language": "markdown",
+        "annotation": "这个天气技能示例展示了完整的技能定义结构。元数据定义了技能的基本信息，Markdown 内容提供了使用说明和实现细节。"
+      }
+    },
+    {
+      "heading": "技能生态与最佳实践",
+      "content": "Claude Code 的技能生态正在快速发展，形成了一个丰富的技能库。这些技能涵盖了代码开发、文档处理、项目管理、学习辅助等多个领域。技能生态的健康发展离不开一些最佳实践的遵循。\n\n首先，技能应该保持单一职责原则，每个技能只做一件事并做好它。这样既便于维护，也方便用户理解和使用。其次，技能应该提供清晰的错误处理和帮助信息，让用户在使用过程中获得良好的体验。第三，技能应该考虑安全性，特别是涉及外部 API 调用或文件操作时。\n\n随着技能数量的增长，技能发现和管理也变得重要。Claude Code 提供了技能搜索、分类和推荐功能，帮助用户找到需要的技能。开发者社区也在不断分享和优化技能，形成了一个良性循环的生态系统。",
+      "diagram": {
+        "title": "技能开发生命周期",
+        "chart": "graph LR\n    A[技能创意] --> B[编写 Markdown]\n    B --> C[本地测试]\n    C --> D[社区分享]\n    D --> E[用户反馈]\n    E --> F[迭代优化]\n    F --> G[正式发布]\n    G --> H[生态集成]\n    H --> A\n    \n    subgraph 社区生态\n    I[技能仓库]\n    J[使用统计]\n    K[质量评级]\n    end\n    \n    D --> I\n    G --> J\n    H --> K",
+        "description": "展示了技能从创意到发布的完整生命周期，以及社区生态在其中的重要作用"
+      }
+    }
+  ],
+  "key_takeaways": [
+    "Plugin 系统提供基础工具能力，Skill 系统提供用户友好的技能接口",
+    "技能用 Markdown 定义，实现了『文档即代码』的创新理念",
+    "SkillTool 是技能系统和工具系统之间的桥梁，负责转换和执行",
+    "技能开发简单易学，非开发者也能为 Claude Code 添加新功能",
+    "健康的技能生态需要遵循单一职责、清晰错误处理和安全性等最佳实践"
+  ],
+  "further_thinking": [
+    "如果技能系统完全开放给社区，会出现什么样的创新应用场景？",
+    "如何平衡技能的易用性和安全性，特别是在处理敏感操作时？"
+  ],
+  "analogies": [
+    "Plugin 系统像瑞士军刀的各种工具组件，Skill 系统像刀柄上的使用说明书，告诉你怎么组合使用这些工具完成特定任务"
+  ],
+  "mermaid_diagrams": [
+    "graph TD\n    A[用户输入 /command] --> B[SkillTool 解析]\n    B --> C[查找技能文件]\n    C --> D[解析元数据]\n    D --> E{技能类型}\n    E -->|工具封装| F[调用对应工具]\n    E -->|工作流| G[执行多步骤]\n    F --> H[返回结果]\n    G --> H\n    H --> I[用户获得响应]"
+  ],
+  "code_snippets": [
+    {
+      "title": "技能加载器核心逻辑",
+      "description": "负责从文件系统加载和解析技能文件",
+      "code": "async loadSkillsFromDir(dirPath: string): Promise<Skill[]> {\n  const files = await fs.readdir(dirPath);\n  const skills: Skill[] = [];\n  \n  for (const file of files) {\n    if (file.endsWith('.md')) {\n      const content = await fs.readFile(path.join(dirPath, file), 'utf8');\n      const { frontmatter, markdown } = parseFrontmatter(content);\n      \n      skills.push({\n        name: frontmatter.skill,\n        description: frontmatter.description || '',\n        content: markdown,\n        filePath: path.join(dirPath, file)\n      });\n    }\n  }\n  \n  return skills;\n}",
+      "language": "typescript"
+    }
+  ],
+  "word_count": 3850,
+  "prerequisites": ["了解基本的 Markdown 语法", "熟悉命令行工具概念", "具备基本的编程思维"]
+}
