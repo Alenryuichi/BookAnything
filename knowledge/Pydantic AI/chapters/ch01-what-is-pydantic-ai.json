@@ -2,114 +2,100 @@
   "chapter_id": "ch01-what-is-pydantic-ai",
   "title": "第1章：Pydantic AI 是什么",
   "subtitle": "从 FastAPI 到 GenAI 的演进之路",
-  "chapter_summary": "Pydantic AI 将 FastAPI 的设计哲学带入 GenAI 开发，通过类型系统、依赖注入和 Pydantic 验证，让 AI 应用开发既安全又优雅。",
-  "opening_hook": "想象这样一个场景：你正在构建一个智能客服机器人，需要调用三个不同的 LLM、两个数据库查询、一个天气 API 和一个邮件发送服务。你翻阅了 LangChain 文档、研究了 LlamaIndex 的索引机制、还啃了一遍 CrewAI 的多智能体协作代码。三天后，你的代码变成了一团意大利面——类型不匹配、依赖难以管理、错误只能在生产环境才发现。你不禁在想：为什么 Python 有 FastAPI 这样优雅的 Web 框架，却找不到一个让 GenAI 开发同样愉悦的框架？这正是 Pydantic AI 团队创建这个项目的原因。",
+  "chapter_summary": "Pydantic AI 是一个基于 Pydantic 的类型安全 GenAI 代理框架，将 FastAPI 的设计哲学带入 AI 应用开发领域。",
+  "opening_hook": "想象一下，你正在构建一个银行客服机器人。传统方法需要编写大量复杂的逻辑来处理用户查询、调用数据库、评估风险等级。但使用 Pydantic AI，你只需要定义好数据类型和工具函数，框架就会自动处理与 LLM 的复杂交互。这就像从手动驾驶升级到自动驾驶——你设定目的地，系统负责安全抵达。\n\n当 Pydantic 团队在开发 Logfire 时发现，虽然几乎每个 Python AI 框架都在使用 Pydantic 验证，却没有一个能提供像 FastAPI 那样优雅的开发体验。于是他们决定：为什么不把 FastAPI 的成功配方带到 GenAI 世界？这就是 Pydantic AI 诞生的故事。",
   "sections": [
     {
-      "heading": "从 FastAPI 的成功说起",
-      "content": "FastAPI 改变了 Web 开发的游戏规则。在它出现之前，Python Web 开发要么依赖 Django 的重量级约定，要么忍受 Flask 的手动验证。FastAPI 用一个简单但 powerful 的想法颠覆了这一切：**类型提示 + Pydantic 验证 = 自动生成文档 + 自动处理数据转换**。\n\n这个看似简单的组合产生了惊人的效果。开发者只需要定义好数据模型，IDE 就能提供完整的智能提示，API 文档自动生成，输入输出自动验证。错误从运行时提前到了写代码时——这正是 Rust 社区引以为傲的「能编译就能运行」的体验。\n\nPydantic AI 团队在构建 Pydantic Logfire（一个可观测性平台）时，需要将 LLM 集成到产品中。他们惊讶地发现：几乎所有 Python AI 框架都在底层使用 Pydantic 进行验证，但没有一个框架能提供接近 FastAPI 的开发体验。",
-      "code": {
-        "title": "FastAPI 的魔法：类型即契约",
-        "description": "FastAPI 通过类型提示和 Pydantic 实现自动验证和文档生成",
-        "code": "from fastapi import FastAPI\nfrom pydantic import BaseModel\n\napp = FastAPI()\n\nclass UserRequest(BaseModel):\n    name: str\n    age: int\n\n@app.post(\"/users\")\nasync def create_user(request: UserRequest) -> UserRequest:\n    return request  # 自动验证，自动文档化",
-        "language": "python",
-        "annotation": "Pydantic 将这个模式带入了 AI 开发：定义数据结构，框架处理剩下的一切"
-      },
-      "callout": {
-        "type": "info",
-        "text": "有趣的是，OpenAI SDK、Google ADK、Anthropic SDK、LangChain、LlamaIndex 等众多框架都在底层使用 Pydantic 验证——Pydantic 团队决定不再做衍生品，而是直接打造原生体验。"
-      }
-    },
-    {
-      "heading": "Pydantic AI 的核心设计：类型安全的 AI 代理",
-      "content": "Pydantic AI 的核心理念可以用一句话概括：**把 AI 代理当作函数来设计**。在 Python 中，函数有明确的类型签名、输入参数和返回值。Pydantic AI 要求每个代理也遵循同样的契约——它接受什么类型的依赖、返回什么类型的输出，在定义时就必须明确。\n\n这种设计带来的第一个好处是**类型安全**。当你依赖的类型错误，IDE 会立即报错；当你试图访问不存在的字段，类型检查器会阻止你。错误不再在生产环境中爆炸性爆发，而是在你写代码的那一刻就被捕获。\n\n第二个好处是**依赖注入**。代理需要的所有资源——数据库连接、API 客户端、配置参数——都通过一个统一的依赖对象传入。这不仅让代码更清晰，也让测试变得简单：测试时传入模拟依赖，生产时传入真实实现。\n\n更重要的是，Pydantic AI 将 **Pydantic 的验证能力**直接嵌入到 AI 对话中。当你要求代理返回特定结构的数据时，框架会确保输出必须符合 Pydantic 模型定义。如果 LLM 返回了错误格式，代理会自动尝试自我修正——这个过程对开发者完全透明。",
+      "heading": "从 FastAPI 到 GenAI 的设计哲学",
+      "content": "FastAPI 之所以能在短短几年内成为 Python Web 开发的标杆，核心在于它完美结合了现代 Python 特性：类型提示、Pydantic 验证和异步支持。开发者只需定义好数据模型，框架就能自动生成 API 文档、处理请求验证，并提供出色的 IDE 支持。\n\nPydantic AI 继承了这一设计理念，但将应用场景从 Web API 扩展到了 AI 代理。就像 FastAPI 让 Web 开发变得直观一样，Pydantic AI 让 AI 应用开发变得可预测和类型安全。\n\n这种设计哲学的核心是『声明式编程』。你不需要关心 LLM 如何调用工具、如何处理错误重试，只需要声明你想要什么——框架会处理剩下的复杂细节。",
       "diagram": {
-        "title": "Pydantic AI 的类型安全代理架构",
-        "chart": "graph TD\n    A[开发者定义代理] --> B[指定 deps_type]\n    A --> C[指定 output_type]\n    A --> D[注册工具函数]\n    \n    E[运行时注入依赖] --> F[RunContext 携带依赖]\n    F --> G[工具可访问依赖]\n    \n    H[LLM 返回输出] --> I[Pydantic 验证]\n    I --> J{验证通过?}\n    J -->|是| K[返回类型化的结果]\n    J -->|否| L[触发自我修正]\n    L --> H\n    \n    M[静态类型检查] --> N[IDE 智能提示]\n    N --> O[编译时捕获错误]",
-        "description": "代理定义了输入依赖类型和输出类型，框架负责验证、注入和类型检查"
+        "title": "Pydantic AI 设计哲学演进",
+        "chart": "graph LR\nA[FastAPI 设计理念] --> B[类型安全]\nA --> C[声明式编程]\nA --> D[IDE 友好]\nB --> E[Pydantic AI]\nC --> E\nD --> E\nE --> F[GenAI 应用开发]",
+        "description": "Pydantic AI 继承了 FastAPI 的核心设计理念，将其应用于 AI 代理开发领域"
       }
     },
     {
-      "heading": "11 大核心优势：为什么选择 Pydantic AI",
-      "content": "Pydantic AI 的优势可以归纳为三大类：开发体验、生产就绪和生态系统。\n\n**在开发体验方面**，类型安全排第一。你定义的代理具有完整的类型签名，IDE 能提供精确的自动补全。你不需要猜测某个工具函数接受什么参数——类型提示会告诉你一切。这让代码像读文档一样清晰。\n\n**在生产就绪方面**，可观测性是亮点。Pydantic AI 与 Pydantic Logfire 深度集成，你可以实时追踪代理的每一次思考、每一个工具调用、每一笔 API 成本。调试 AI 应用不再是黑盒，而是可以像观察 API 调用链一样直观。\n\nDurable Execution（持久化执行）则解决了 AI 应用最大的痛点之一——长流程的可靠性。当一个工作流涉及多次人机交互、多个异步步骤、可能遇到网络故障时，Pydantic AI 能保存中间状态，从断点恢复继续执行。这在现实世界的客服、审批、数据分析场景中至关重要。\n\n**在生态系统方面**，模型无关性让你不再被锁定到特定供应商。OpenAI、Anthropic、Gemini、DeepSeek……如果你想换模型，只需要修改一行配置。更重要的是，Pydantic AI 支持 MCP（Model Context Protocol）、A2A（Agent to Agent）等新兴标准，让你的代理可以与外部工具和其他代理无缝协作。",
+      "heading": "核心概念：类型安全的 AI 代理框架",
+      "content": "Pydantic AI 的核心是一个类型安全的 AI 代理框架。『类型安全』意味着在代码编写阶段就能发现潜在错误，而不是等到运行时才暴露问题。这就像建筑蓝图——在施工前就确保所有结构都符合规范。\n\n框架通过三个关键组件实现类型安全：依赖注入、工具注册和输出验证。依赖注入让你可以安全地传递数据库连接、用户信息等上下文数据；工具注册确保 LLM 只能调用你明确授权的函数；输出验证则保证 AI 的响应始终符合预期的数据结构。\n\n这种设计带来的最大好处是『编译时错误检测』。如果你的类型注解有误，IDE 和静态类型检查器会在你写代码时就发出警告，而不是等到应用上线后才发现问题。",
+      "code": {
+        "title": "类型安全的银行客服代理示例",
+        "description": "这个例子展示了如何用类型安全的方式构建一个银行客服代理",
+        "code": "from pydantic import BaseModel, Field\nfrom pydantic_ai import Agent, RunContext\n\nclass SupportOutput(BaseModel):\n    support_advice: str = Field(description='给客户的建议')\n    block_card: bool = Field(description='是否冻结卡片')\n    risk: int = Field(description='风险等级', ge=0, le=10)\n\nsupport_agent = Agent(\n    'openai:gpt-4',\n    output_type=SupportOutput,  # 类型安全的输出约束\n    instructions='你是银行客服，评估查询风险并提供建议'\n)",
+        "language": "python",
+        "annotation": "通过 output_type 参数，我们告诉框架：AI 的响应必须是 SupportOutput 类型。如果 LLM 返回的数据不符合这个结构，框架会自动重试或报错。"
+      }
+    },
+    {
+      "heading": "为什么选择 Pydantic AI：11 大核心优势解析",
+      "content": "Pydantic AI 提供了 11 个关键优势，使其在众多 AI 框架中脱颖而出。首先是『源头优势』——由 Pydantic 团队亲自打造。Pydantic 验证层已经被 OpenAI、Anthropic、LangChain 等主流框架采用，选择 Pydantic AI 就像是直接从源头获取技术。\n\n第二个优势是『模型无关性』。无论你使用 OpenAI、Anthropic、Gemini 还是其他任何模型提供商，Pydantic AI 都能提供一致的开发体验。这就像拥有一个万能遥控器，可以控制所有品牌的电视。\n\n第三个关键优势是『无缝可观测性』。通过与 Pydantic Logfire 的深度集成，你可以实时监控 AI 代理的行为、追踪成本、调试问题。这在生产环境中至关重要，就像给 AI 系统装上了黑匣子。",
       "table": {
-        "caption": "Pydantic AI 的三大类优势",
-        "headers": ["优势类别", "核心能力", "解决的核心问题"],
+        "caption": "Pydantic AI 核心优势对比",
+        "headers": ["优势", "描述", "价值"],
         "rows": [
-          ["开发体验", "类型安全、Evals、Human-in-the-loop", "让 AI 开发像写函数一样"],
-          ["生产就绪", "可观测性、持久化执行、流式输出", "从原型到生产的跨越"],
-          ["生态系统", "模型无关、MCP/A2A 支持、扩展性", "不被锁定，可无限扩展"]
+          ["类型安全", "编译时错误检测", "减少运行时错误"],
+          ["模型无关", "支持 20+ 模型提供商", "避免厂商锁定"],
+          ["可观测性", "Logfire 集成", "生产级监控"],
+          ["评估系统", "系统性测试框架", "质量保证"],
+          ["可扩展性", "组合式能力设计", "灵活定制"]
         ]
       },
       "callout": {
         "type": "tip",
-        "text": "Pydantic AI 支持超过 20 种模型和云提供商，包括 OpenAI、Anthropic、Gemini、DeepSeek、Grok、Cohere、Mistral、Perplexity，以及 Azure AI Foundry、Amazon Bedrock、Google Vertex AI、Ollama 等。"
-      }
-    },
-    {
-      "heading": "智能餐厅的服务员系统：理解 Pydantic AI 的比喻",
-      "content": "如果你觉得「类型安全的 AI 代理」听起来抽象，不妨想象一家高档智能餐厅的服务员系统。\n\n**Pydantic 本身的验证系统就像餐厅的门童**。它检查每个进入餐厅的客人是否符合预定的规则——比如客人必须携带预约确认（数据类型正确）、不能携带违禁品（数据格式正确）。门童不会关心客人要吃什么菜，它只负责确保进入的是合规的客人。\n\n**依赖注入就像给服务员递上工作装备**。当服务员被安排到某个餐桌服务时，餐厅经理会递上这个餐桌的菜单、点菜本、无线耳机——这就是服务员完成工作需要的「依赖」。不同的服务员可能需要不同的装备，但都是统一方式提供。\n\n**代理本身就像训练有素的服务员**。服务员知道如何向客人介绍菜品（系统提示）、如何使用点菜本（工具）、如何呼叫后厨（调用 LLM）。服务员不是后厨，不具备烹饪能力，但它是客人与食物之间的桥梁，协调一切以提供满意的用餐体验。\n\n**输出类型约束就像餐厅的标准摆盘**。无论客人点了什么菜，最终送到餐桌的摆盘必须符合餐厅标准——沙拉在左、主食在中间、汤在右侧。即使后厨（LLM）送来的是乱七八糟的盘子，服务员（代理）也会重新摆盘，确保最终呈现符合约定。",
-      "code": {
-        "title": "将餐厅比喻转化为代码",
-        "description": "用 Pydantic AI 代码还原餐厅服务场景",
-        "code": "from dataclasses import dataclass\nfrom pydantic import BaseModel, Field\nfrom pydantic_ai import Agent, RunContext\n\n# 服务员的工作装备（依赖）\n@dataclass\nclass WaiterEquipment:\n    table_number: int\n    menu: dict\n    order_device: 'OrderDevice'\n\n# 标准摆盘要求（输出类型）\nclass PlatedMeal(BaseModel):\n    salad: str | None = Field(default=None)\n    main_course: str\n    soup: str | None = Field(default=None)\n\n# 训练有素的服务员（代理）\nwaiter = Agent(\n    'gpt-4',\n    deps_type=WaiterEquipment,\n    output_type=PlatedMeal,\n    instructions='你是专业的服务员，为客人提供优雅的用餐体验。'\n)\n\n@waiter.tool\nasync def take_order(ctx: RunContext[WaiterEquipment], items: list[str]) -> str:\n    \"\"\"根据客人的要求点菜\"\"\"\n    return f\"桌号 {ctx.deps.table_number} 的订单：{items}\"",
-        "language": "python",
-        "annotation": "这个代码展示了依赖注入、输出约束和工具注册的组合——就像餐厅服务员的完整工作流"
+        "text": "实际体验比列表更有说服力。安装 pydantic-ai 包，运行一个简单的 Hello World 示例，你就能感受到框架的设计哲学。"
       }
     },
     {
       "heading": "与 LangChain、LlamaIndex 等框架的对比",
-      "content": "在 GenAI 开发生态系统中，LangChain 也许是这个名字最响亮的、LlamaIndex 以检索增强（RAG）见长、CrewAI 专注于多智能体协作。那么 Pydantic AI 的独特之处在哪里？\n\n**首先，设计哲学不同**。LangChain 采用「链式思维」——你把不同的组件（Prompt、LLM、工具）像搭积木一样连接起来，数据在链中流动。这种方式非常灵活，但也容易变得难以理解和调试。Pydantic AI 采用「函数式思维」——你定义一个有明确输入输出的代理，复杂逻辑通过组合代理来实现。\n\n**其次，类型系统的深度不同**。虽然很多框架都在使用 Pydantic，但没有一个像 Pydantic AI 这样将类型系统作为核心设计。工具函数的参数、代理的依赖、输出结构——一切都是类型安全的。这在大型项目中意味着更少的运行时错误和更好的可维护性。\n\n**第三，生产就绪性的起点不同**。LangChain 和类似框架更多从快速原型出发，生产能力是通过社区贡献逐步完善的。Pydantic AI 从一开始就是为生产环境设计——可观测性、持久化执行、Evals 测试都是一等公民。\n\n值得注意的是，这不是一种竞争关系。Pydantic AI 可以和 LangChain 的组件互操作，可以调用 LlamaIndex 的索引，甚至作为更大系统中的一部分。它的存在是为了让你在需要「FastAPI 式」体验时有一个可靠的选择。",
-      "table": {
-        "caption": "主流 AI 框架的设计理念对比",
-        "headers": ["框架", "核心隐喻", "类型安全", "生产就绪", "最佳场景"],
-        "rows": [
-          ["Pydantic AI", "函数式代理", "深度集成", "从设计开始", "类型敏感的企业应用"],
-          ["LangChain", "链式组件", "部分支持", "渐进式", "快速原型和复杂编排"],
-          ["LlamaIndex", "索引驱动", "基础支持", "良好", "RAG 和知识检索"],
-          ["AutoGen/CrewAI", "多智能体协作", "基本支持", "发展中", "多角色协作任务"]
-        ]
-      },
-      "callout": {
-        "type": "warning",
-        "text": "选择框架时要注意：没有「最好」的框架，只有「最适合」你项目需求和团队背景的选择。如果你的团队熟悉 FastAPI 和 Pydantic，Pydantic AI 会让你感觉如鱼得水；如果你需要 LlamaIndex 的高级检索功能，可以直接集成使用。"
+      "content": "与 LangChain 和 LlamaIndex 等成熟框架相比，Pydantic AI 采取了不同的设计路径。LangChain 更像是一个『工具箱』，提供了丰富的组件但需要开发者自行组装；而 Pydantic AI 更像是一个『完整解决方案』，强调开箱即用的类型安全和开发体验。\n\n这种差异体现在架构设计上。LangChain 采用链式调用模式，每个步骤都是明确的；Pydantic AI 则采用代理模式，LLM 自主决定何时调用工具。前者给予开发者更多控制权，后者更接近『智能代理』的原始概念。\n\n选择哪个框架取决于你的需求。如果你需要高度定制化的流程控制，LangChain 可能更合适；如果你追求开发效率和类型安全，Pydantic AI 是更好的选择。就像手动挡和自动挡汽车——各有适用场景。",
+      "diagram": {
+        "title": "框架架构对比",
+        "chart": "graph TB\nsubgraph LangChain\nA[输入] --> B[链式处理]\nB --> C[工具调用]\nC --> D[输出]\nend\n\nsubgraph PydanticAI\nE[输入] --> F[代理决策]\nF --> G[自主工具调用]\nG --> H[类型安全输出]\nend",
+        "description": "LangChain 采用明确的链式流程，Pydantic AI 采用自主决策的代理模式"
       }
     },
     {
-      "heading": "第一个 Pydantic AI 代理：Hello World",
-      "content": "理论说得再好，不如代码来得直观。让我们用 Pydantic AI 写一个最简单的代理——虽然简单，但已经展示了框架的核心设计。\n\n创建一个代理只需要两行代码：导入 Agent 类，实例化时指定模型和指令。模型可以是你支持的任何模型——OpenAI、Anthropic、Gemini 等等。指令可以是静态字符串（像下面这样），也可以是动态生成函数。\n\n运行代理同样简单。`run_sync` 方法会同步执行代理，将你的消息发送给 LLM 并返回结果。`result.output` 包含模型的响应文本。\n\n这个 Hello World 可能看起来没什么特别——但如果你仔细观察，会发现几个微妙的设计决策。首先，模型配置与代理实例绑定，意味着你可以轻松切换模型而无需重建代理。其次，指令在代理创建时就固定下来，形成了有状态的行为定义。最后，返回值是轻量的 Result 对象，包含了输出、元数据甚至完整的对话历史——为更深入的可观测性奠定基础。\n\n当你加上工具、依赖注入和结构化输出，你会发现这个简单的模型已经足够支撑相当复杂的 AI 应用。",
+      "heading": "比喻：Pydantic AI 就像智能餐厅的服务员系统",
+      "content": "理解 Pydantic AI 的最佳方式是通过一个生动的比喻：想象一家高档餐厅的服务员系统。顾客（开发者）只需要点菜（定义需求），不需要关心厨房（LLM）如何准备食材、厨师如何协作。\n\n服务员（Pydantic AI）负责协调整个流程：接收订单、与厨房沟通、确保菜品质量、处理特殊需求。如果顾客对菜品不满意（输出验证失败），服务员会要求厨房重做；如果需要额外食材（工具调用），服务员会自主决定何时去采购。\n\n这个比喻揭示了 Pydantic AI 的核心价值：抽象复杂性。就像你不需要知道餐厅厨房的运作细节一样，使用 Pydantic AI 时你也不需要关心 LLM 的内部工作机制，只需要关注业务逻辑。",
+      "callout": {
+        "type": "info",
+        "text": "这个比喻也解释了为什么类型安全如此重要——就像餐厅需要确保每道菜都符合食品安全标准一样，Pydantic AI 确保每个 AI 响应都符合预期的数据结构。"
+      }
+    },
+    {
+      "heading": "实战入门：从 Hello World 到生产应用",
+      "content": "让我们通过一个简单的例子感受 Pydantic AI 的开发体验。最基本的 Hello World 只需要几行代码：创建一个代理，设置模型和指令，然后运行。虽然简单，但这个例子展示了框架的核心工作流程。\n\n随着需求复杂化，你可以逐步添加工具函数、动态指令、能力组合等高级特性。Pydantic AI 的设计允许渐进式复杂度——从简单开始，按需扩展。这就像搭积木，先从基础结构开始，然后逐步添加更复杂的功能模块。\n\n最重要的是，整个开发过程都享受类型安全的保护。IDE 会提供智能提示，静态检查器会捕获潜在错误，测试框架确保行为符合预期。这种『安全网』让开发者可以自信地构建复杂的 AI 应用。",
       "code": {
-        "title": "Pydantic AI 的 Hello World",
-        "description": "最简单的 Pydantic AI 代理，展示核心使用模式",
-        "code": "from pydantic_ai import Agent\n\n# 创建代理：指定模型和指令\nagent = Agent(\n    'anthropic:claude-sonnet-4-6',\n    instructions='Be concise, reply with one sentence.',\n)\n\n# 同步运行代理\nresult = agent.run_sync('Where does \"hello world\" come from?')\nprint(result.output)\n# 输出: The first known use of \"hello, world\" was in a 1974 textbook about the C programming language.\n\n# 你也可以动态切换运行模型\nresult_gpt = agent.run_sync('Same question', model='openai:gpt-4o')",
+        "title": "渐进式复杂度示例",
+        "description": "展示如何从简单代理逐步扩展到功能完整的应用",
+        "code": "# 第1步：基础代理\nagent = Agent('anthropic:claude-sonnet-4-6')\n\n# 第2步：添加静态指令\nagent = Agent('anthropic:claude-sonnet-4-6', \n              instructions='请用中文回答')\n\n# 第3步：添加工具和能力\nfrom pydantic_ai.capabilities import WebSearch\nagent = Agent('anthropic:claude-sonnet-4-6',\n              instructions='请用中文回答',\n              capabilities=[WebSearch()])",
         "language": "python",
-        "annotation": "注意到这种 API 风格了吗？它和 FastAPI 如出一辙——简洁、声明式、可组合。"
+        "annotation": "通过这种渐进式的方式，你可以根据实际需求逐步增强代理的能力，而不会一开始就陷入复杂性中。"
       }
     }
   ],
   "key_takeaways": [
-    "Pydantic AI 将 FastAPI 的类型驱动设计哲学带入 GenAI 开发，让 AI 应用既安全又优雅",
-    "类型安全、依赖注入和 Pydantic 验证是框架的三大支柱，将错误从运行时提前到写代码时",
-    "11 大核心优势涵盖开发体验（类型安全、Evals）、生产就绪（可观测性、持久化执行）和生态系统（模型无关、MCP 支持）",
-    "框架采用「函数式代理」而非「链式组件」的设计理念，更适合类型敏感和企业级应用",
-    "Pydantic AI 与 LangChain、LlamaIndex 等框架不是竞争关系，可以互操作和组合使用"
+    "Pydantic AI 继承了 FastAPI 的设计哲学，将类型安全和开发体验带入 GenAI 领域",
+    "框架通过依赖注入、工具注册和输出验证实现编译时错误检测",
+    "模型无关性和可观测性使其适合生产环境部署",
+    "与 LangChain 等框架相比，Pydantic AI 更强调开箱即用的完整解决方案",
+    "渐进式复杂度设计允许开发者从简单开始，按需扩展功能"
   ],
   "further_thinking": [
-    "如果所有 AI 框架都在底层使用 Pydantic 验证，这说明了什么问题？类型系统在不可预测的 LLM 世界中扮演怎样的角色？",
-    "在 Agent 开发中，「函数式设计」和「链式思维」各自适合什么场景？是否存在一种方式可以结合两者的优势？"
+    "如果 Pydantic AI 的类型安全机制与 LLM 的创造性输出存在冲突，应该如何平衡？",
+    "在什么场景下你会选择 LangChain 而不是 Pydantic AI？反之亦然？"
   ],
   "analogies": [
-    "Pydantic AI 的类型系统就像高档餐厅的门童——确保所有进入系统的数据都符合预订规则",
-    "Pydantic AI 代理就像训练有素的服务员——拥有明确的工作流程（行为指令）、需要依赖（工作装备）、交付标准输出（标准摆盘），将客户（用户）与后厨（LLM）优雅地连接起来"
+    "Pydantic AI 就像智能餐厅的服务员系统，抽象了厨房的复杂性",
+    "类型安全机制就像建筑蓝图，在施工前确保结构合规"
   ],
   "mermaid_diagrams": [
-    "graph TD; A[开发者定义代理] --> B[指定 deps_type]; A --> C[指定 output_type]; A --> D[注册工具函数]; E[运行时注入依赖] --> F[RunContext 携带依赖]; F --> G[工具可访问依赖]; H[LLM 返回输出] --> I[Pydantic 验证]; I --> J{验证通过?}; J -->|是| K[返回类型化的结果]; J -->|否| L[触发自我修正]; L --> H; M[静态类型检查] --> N[IDE 智能提示]; N --> O[编译时捕获错误]"
+    "Pydantic AI 设计哲学演进",
+    "框架架构对比"
   ],
   "code_snippets": [
-    "from fastapi import FastAPI; from pydantic import BaseModel; app = FastAPI(); class UserRequest(BaseModel): name: str; age: int; @app.post('/users'); async def create_user(request: UserRequest) -> UserRequest: return request",
-    "from dataclasses import dataclass; from pydantic import BaseModel, Field; from pydantic_ai import Agent, RunContext; @dataclass; class WaiterEquipment: table_number: int; menu: dict; order_device: 'OrderDevice'; class PlatedMeal(BaseModel): salad: str | None = Field(default=None); main_course: str; soup: str | None = Field(default=None); waiter = Agent('gpt-4', deps_type=WaiterEquipment, output_type=PlatedMeal, instructions='你是专业的服务员，为客人提供优雅的用餐体验。'); @waiter.tool; async def take_order(ctx: RunContext[WaiterEquipment], items: list[str]) -> str: return f'桌号 {ctx.deps.table_number} 的订单：{items}'",
-    "from pydantic_ai import Agent; agent = Agent('anthropic:claude-sonnet-4-6', instructions='Be concise, reply with one sentence.'); result = agent.run_sync('Where does \"hello world\" come from?'); print(result.output); result_gpt = agent.run_sync('Same question', model='openai:gpt-4o')"
+    "类型安全的银行客服代理示例",
+    "渐进式复杂度示例"
   ],
-  "word_count": 4200,
+  "word_count": 3850,
   "prerequisites": []
 }
