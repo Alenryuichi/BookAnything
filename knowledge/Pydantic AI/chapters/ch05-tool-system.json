@@ -2,101 +2,87 @@
   "chapter_id": "ch05-tool-system",
   "title": "第5章：工具系统",
   "subtitle": "让 AI 代理拥有执行能力",
-  "chapter_summary": "工具系统是Pydantic AI框架中连接AI思考与现实世界执行的关键桥梁，通过类型安全的工具抽象让代理能够安全可靠地执行各种操作。",
-  "opening_hook": "想象一下，你有一个极其聪明的AI助手，它能理解你的需求、分析问题、制定计划，但它的双手却被束缚着——这就是没有工具系统的AI代理。在Pydantic AI中，工具系统就像给AI装上了一双灵巧的手，让它不仅能思考，还能行动。当你让AI代理帮你分析数据时，它需要读取文件；当你让它总结网页内容时，它需要访问网络；当你让它执行计算时，它需要调用函数。工具系统正是实现这一切的魔法所在。",
+  "chapter_summary": "Pydantic AI 的工具系统通过类型安全的抽象层，为 AI 代理提供了可扩展的执行能力，让模型能够安全地与现实世界交互。",
+  "opening_hook": "想象一下，你正在训练一位新入职的实习生。这位实习生聪明好学，但缺乏实际工作经验——他知道理论，却不知道如何操作公司的系统、访问数据库或调用外部 API。这就是 AI 模型面临的困境：它们拥有强大的推理能力，但缺乏执行具体任务的手段。Pydantic AI 的工具系统就是为了解决这个问题而设计的，它就像给实习生配备了一套完整的办公工具，让理论能力转化为实际生产力。",
   "sections": [
     {
       "heading": "工具系统的设计哲学",
-      "content": "Pydantic AI的工具系统设计遵循一个核心理念：类型安全优先。这意味着每个工具都有明确的输入输出类型定义，就像给AI的操作戴上了安全帽。\n\n这种设计避免了传统AI框架中常见的运行时错误，比如工具返回了预期之外的数据格式，或者参数类型不匹配导致的执行失败。通过Pydantic的强大类型系统，工具调用在编译时就能发现大部分潜在问题。\n\n工具系统的另一个重要设计原则是组合性。单个工具可能很简单，但通过组合多个工具，AI代理可以完成复杂的多步骤任务。这种模块化设计让框架既灵活又易于扩展。",
-      "callout": {
-        "type": "tip",
-        "text": "工具系统不是让AI无所不能，而是让AI在安全边界内有所作为。每个工具都经过精心设计，确保执行的可控性和可预测性。"
-      }
-    },
-    {
-      "heading": "Tool装饰器：定义工具的优雅方式",
-      "content": "在Pydantic AI中，定义一个新工具就像给函数戴上魔法帽。使用@tool装饰器，开发者可以将普通Python函数转化为AI代理可用的工具。\n\n这个装饰器不仅标记函数为工具，还会自动提取函数的类型注解和文档字符串，生成完整的工具描述。AI模型通过这些描述来理解工具的功能和使用方法。\n\n装饰器还负责处理工具的注册和发现机制。当代理启动时，它会扫描所有被@tool装饰的函数，构建一个工具目录供AI调用。",
-      "code": {
-        "title": "工具定义示例",
-        "description": "使用@tool装饰器定义简单的计算工具",
-        "code": "from pydantic_ai import tool\nfrom pydantic import BaseModel\n\nclass CalculationInput(BaseModel):\n    a: float\n    b: float\n    operation: Literal['add', 'subtract', 'multiply', 'divide']\n\n@tool\ndef calculator(input: CalculationInput) -> float:\n    \"\"\"执行基本数学运算。\"\"\"\n    if input.operation == 'add':\n        return input.a + input.b\n    elif input.operation == 'subtract':\n        return input.a - input.b\n    elif input.operation == 'multiply':\n        return input.a * input.b\n    elif input.operation == 'divide':\n        return input.a / input.b",
-        "language": "python",
-        "annotation": "这个示例展示了工具定义的核心要素：类型化的输入模型、明确的返回值类型、清晰的文档字符串。AI代理通过这个描述知道如何调用calculator工具。"
-      }
-    },
-    {
-      "heading": "RunContext：工具执行的上下文环境",
-      "content": "每个工具调用都在一个RunContext中执行，这个上下文就像工具执行的舞台。它包含了当前会话的所有相关信息，比如用户身份、权限设置、执行历史等。\n\nRunContext的一个重要功能是提供依赖注入。如果工具需要访问数据库连接、API客户端或其他服务，可以通过上下文自动获取，而不需要在工具内部硬编码。\n\n上下文还负责工具执行的生命周期管理，包括超时控制、错误处理和结果缓存。这确保了工具执行的可靠性和性能。",
+      "content": "Pydantic AI 的工具系统遵循一个核心原则：类型安全第一。与传统的字符串拼接式工具调用不同，Pydantic AI 将每个工具都设计为类型化的 Python 类，确保在编译时就能发现潜在的错误。\n\n这种设计理念源于 Pydantic 框架的基因——数据验证和序列化。工具系统继承了这一传统，将松散的 AI 工具调用转化为严格的类型约束，大大提高了代码的可靠性和可维护性。\n\n工具系统的另一个重要特点是可扩展性。通过抽象基类和注册机制，开发者可以轻松地添加自定义工具，而内置工具则提供了开箱即用的常见功能。",
       "diagram": {
-        "title": "工具执行上下文流程",
-        "chart": "graph TD\n    A[AI代理请求工具调用] --> B[创建RunContext]\n    B --> C[权限验证]\n    C --> D[依赖注入]\n    D --> E[工具执行]\n    E --> F[结果验证]\n    F --> G[返回AI代理]\n    G --> H[上下文清理]",
-        "description": "这个流程图展示了工具执行的完整生命周期，从请求到清理，每个步骤都在RunContext的管理下进行。"
+        "title": "工具系统架构图",
+        "chart": "graph TD\n    A[AI 代理] --> B[工具管理器]\n    B --> C[内置工具]\n    B --> D[自定义工具]\n    B --> E[MCP 工具]\n    C --> C1[WebSearchTool]\n    C --> C2[CodeExecutionTool]\n    C --> C3[WebFetchTool]\n    C --> C4[ImageGenerationTool]\n    D --> D1[用户定义工具]\n    E --> E1[外部 MCP 服务器]",
+        "description": "工具系统的分层架构，展示了 AI 代理如何通过工具管理器访问不同类型的工具"
       }
     },
     {
-      "heading": "内置工具集：开箱即用的能力",
-      "content": "Pydantic AI提供了一系列内置工具，覆盖了常见的AI应用场景。这些工具经过精心设计和测试，可以直接在生产环境中使用。\n\n文件操作工具允许AI读取、写入和操作文件系统，但通过权限控制确保安全性。网络工具提供了HTTP请求能力，让AI可以访问外部API和网页内容。\n\n计算工具包括数学运算、数据转换等功能，而系统工具则提供了一些基本的系统级操作。每个内置工具都遵循最小权限原则，只提供必要的功能。",
+      "heading": "抽象基类：工具的统一接口",
+      "content": "所有工具都继承自 `AbstractBuiltinTool` 这个抽象基类，它定义了工具的基本契约。这个设计模式确保了工具系统的一致性和可扩展性。\n\n`AbstractBuiltinTool` 最巧妙的设计是 `__init_subclass__` 方法。每当定义一个新的工具子类时，它会自动注册到全局的 `BUILTIN_TOOL_TYPES` 字典中。这种自动注册机制避免了手动维护工具列表的繁琐工作。\n\n工具的序列化机制也值得一提。通过 `__get_pydantic_core_schema__` 方法，工具系统能够智能地处理多态序列化，确保不同类型的工具能够正确地被序列化和反序列化。",
+      "code": {
+        "title": "AbstractBuiltinTool 核心实现",
+        "description": "抽象基类的关键代码，展示了工具注册和序列化机制",
+        "code": "@dataclass(kw_only=True)\nclass AbstractBuiltinTool(ABC):\n    kind: str = 'unknown_builtin_tool'\n    \n    @property\n    def unique_id(self) -> str:\n        return self.kind\n    \n    def __init_subclass__(cls, **kwargs: Any) -> None:\n        super().__init_subclass__(**kwargs)\n        BUILTIN_TOOL_TYPES[cls.kind] = cls\n    \n    @classmethod\n    def __get_pydantic_core_schema__(cls, _source_type: Any, handler: pydantic.GetCoreSchemaHandler) -> core_schema.CoreSchema:\n        if cls is not AbstractBuiltinTool:\n            return handler(cls)\n        \n        tools = BUILTIN_TOOL_TYPES.values()\n        if len(tools) == 1:\n            tools_type = next(iter(tools))\n        else:\n            tools_annotated = [Annotated[tool, pydantic.Tag(tool.kind)] for tool in tools]\n            tools_type = Annotated[Union[tuple(tools_annotated)], pydantic.Discriminator(_tool_discriminator)]\n        \n        return handler(tools_type)",
+        "language": "python",
+        "annotation": "这段代码展示了工具系统的三个核心机制：1) kind 字段作为工具标识符；2) 自动注册机制确保新工具自动加入系统；3) 多态序列化支持不同类型的工具共存"
+      }
+    },
+    {
+      "heading": "内置工具：AI 的瑞士军刀",
+      "content": "Pydantic AI 提供了一系列开箱即用的内置工具，覆盖了 AI 代理最常见的需求。这些工具就像瑞士军刀上的不同功能模块，每个都针对特定的使用场景进行了优化。\n\nWebSearchTool 允许代理搜索互联网信息，支持域名过滤和地理位置定位。CodeExecutionTool 提供代码执行能力，让代理能够运行代码片段。WebFetchTool 则专注于 URL 内容获取，支持引用和内容长度控制。\n\n特别值得一提的是 MCPServerTool，它代表了工具系统的未来方向——通过 MCP（Model Context Protocol）协议连接外部服务。这种设计让工具系统具备了无限扩展的可能性。",
       "table": {
-        "caption": "Pydantic AI内置工具分类",
-        "headers": ["工具类别", "主要功能", "典型应用"],
+        "caption": "内置工具功能对比",
+        "headers": ["工具名称", "主要功能", "支持平台", "关键特性"],
         "rows": [
-          ["文件工具", "读写文件、目录操作", "数据分析、日志处理"],
-          ["网络工具", "HTTP请求、API调用", "网页抓取、服务集成"],
-          ["计算工具", "数学运算、数据转换", "数值计算、格式转换"],
-          ["系统工具", "进程管理、环境变量", "系统监控、配置管理"]
+          ["WebSearchTool", "网络搜索", "Anthropic, OpenAI, Google 等", "域名过滤、地理位置定位"],
+          ["CodeExecutionTool", "代码执行", "Anthropic, OpenAI, Google", "安全沙箱执行"],
+          ["WebFetchTool", "网页内容获取", "Anthropic, Google", "引用支持、内容长度控制"],
+          ["ImageGenerationTool", "图像生成", "OpenAI, Google", "多种格式和质量选项"],
+          ["MCPServerTool", "MCP 服务器连接", "OpenAI, Anthropic", "外部服务集成"]
         ]
       }
     },
     {
       "heading": "工具注册与发现机制",
-      "content": "Pydantic AI的工具注册机制支持两种方式：静态注册和动态注册。静态注册在应用启动时完成，通过装饰器自动发现所有工具。\n\n动态注册允许在运行时添加新工具，这为插件系统和热加载提供了可能。当新的工具被注册时，AI代理会立即获得这个新能力，无需重启应用。\n\n工具发现机制基于类型系统和元数据。AI模型通过工具的描述信息来理解每个工具的功能，并在需要时选择合适的工具来调用。",
+      "content": "工具系统的注册机制是其可扩展性的核心。通过 `BUILTIN_TOOL_TYPES` 字典，系统能够动态地发现所有可用的工具类型。\n\n这种设计的好处是双向的：对于工具开发者，只需要继承 `AbstractBuiltinTool` 即可自动注册；对于工具使用者，可以通过统一的接口访问所有可用工具。\n\n工具发现机制还支持运行时动态配置。通过 `SUPPORTED_BUILTIN_TOOLS` 和 `DEPRECATED_BUILTIN_TOOLS` 集合，系统能够智能地管理工具的生命周期，确保向后兼容性。",
       "callout": {
-        "type": "warning",
-        "text": "动态工具注册虽然灵活，但需要谨慎使用。每个新工具都可能改变AI的行为模式，需要进行充分的测试和验证。"
+        "type": "tip",
+        "text": "工具注册机制的一个巧妙之处在于它使用了 Python 的元类编程。当子类被定义时，__init_subclass__ 方法会自动执行，实现了声明式注册而非命令式注册。"
       }
     },
     {
-      "heading": "安全与权限控制",
-      "content": "工具系统的安全性是Pydantic AI设计的重中之重。每个工具调用都会经过多层安全检查，确保不会执行危险操作。\n\n权限系统基于角色和上下文，不同的用户或场景可能有不同的工具访问权限。例如，生产环境可能禁用某些高风险工具，而开发环境则允许更多操作。\n\n工具执行还受到资源限制，包括内存使用、执行时间和网络访问等。这些限制防止了工具被滥用或导致系统资源耗尽。",
+      "heading": "类型安全与多态序列化",
+      "content": "Pydantic AI 工具系统最大的优势在于其类型安全性。每个工具都有明确的类型定义，编译器能够在开发阶段就发现类型错误。\n\n多态序列化机制是另一个亮点。通过 Pydantic 的 Discriminator 功能，系统能够根据 `kind` 字段自动选择正确的工具类型进行反序列化。这意味着即使工具类型在运行时才确定，类型安全仍然得到保障。\n\n这种设计使得工具系统既灵活又安全，既支持动态配置又保证了类型正确性，是静态类型与动态需求的完美结合。",
       "diagram": {
-        "title": "工具安全验证流程",
-        "chart": "graph TD\n    A[工具调用请求] --> B[用户身份验证]\n    B --> C[权限检查]\n    C --> D[输入验证]\n    D --> E[资源配额检查]\n    E --> F[执行环境隔离]\n    F --> G[工具实际执行]",
-        "description": "安全验证流程确保每个工具调用都在可控的环境中执行，多层防护机制共同保障系统安全。"
+        "title": "工具序列化流程",
+        "chart": "graph LR\n    A[JSON 数据] --> B{kind 字段判断}\n    B -->|web_search| C[WebSearchTool]\n    B -->|code_execution| D[CodeExecutionTool]\n    B -->|mcp_server| E[MCPServerTool]\n    C --> F[类型安全对象]\n    D --> F\n    E --> F",
+        "description": "基于 kind 字段的多态序列化过程，确保 JSON 数据能够正确转换为对应的工具类型"
+      }
+    },
+    {
+      "heading": "实际应用场景与最佳实践",
+      "content": "在实际应用中，工具系统的配置和使用需要遵循一些最佳实践。首先，应该根据具体需求选择适当的工具组合，避免过度配置。\n\n对于需要外部集成的场景，MCPServerTool 提供了标准的连接方式。而对于简单的功能，内置工具通常已经足够。工具的参数配置也需要谨慎，比如 WebSearchTool 的域名过滤可以防止访问不安全的网站。\n\n另一个重要实践是工具的生命周期管理。通过 `max_uses` 等参数，可以控制工具的使用频率，避免资源浪费或安全风险。",
+      "callout": {
+        "type": "warning",
+        "text": "在使用 WebSearchTool 和 WebFetchTool 时，注意 blocked_domains 和 allowed_domains 是互斥的。同时配置两者会导致错误，这是出于安全考虑的设计。"
       }
     }
   ],
   "key_takeaways": [
-    "工具系统是AI代理与现实世界交互的桥梁，通过类型安全的设计确保可靠性",
-    "@tool装饰器提供了定义工具的简洁方式，自动处理类型验证和文档生成",
-    "RunContext为工具执行提供完整的上下文环境，支持依赖注入和生命周期管理",
-    "内置工具集覆盖常见场景，遵循最小权限原则确保安全性",
-    "灵活的注册机制支持静态和动态工具发现，便于扩展和维护",
-    "多层安全控制机制确保工具执行的可靠性和系统安全"
+    "工具系统通过类型安全的抽象层，为 AI 代理提供了可扩展的执行能力",
+    "自动注册机制让新工具的添加变得简单，无需修改核心代码",
+    "多态序列化确保了工具配置的类型安全性和灵活性",
+    "内置工具覆盖了常见的 AI 代理需求，开箱即用",
+    "MCP 集成代表了工具系统的未来发展方向"
   ],
   "further_thinking": [
-    "如果让你设计一个自定义工具，你会选择什么功能？如何确保它的类型安全？",
-    "工具系统如何平衡灵活性和安全性？在什么情况下需要限制工具的能力？"
+    "如果让你设计一个自定义工具，你会选择什么功能？如何确保它的类型安全性？",
+    "工具系统的自动注册机制有哪些潜在的风险？如何避免工具冲突？"
   ],
   "analogies": [
-    "工具系统就像瑞士军刀——每个工具都有特定用途，组合起来能解决复杂问题",
-    "RunContext就像手术室——提供无菌环境、必要设备和专业团队，确保手术安全进行"
+    "工具系统就像瑞士军刀，每个工具都是精心设计的专用模块",
+    "自动注册机制如同公司的员工管理系统，新员工入职自动建档"
   ],
-  "mermaid_diagrams": [
-    {
-      "title": "工具系统架构全景",
-      "chart": "graph TB\n    subgraph \"AI代理层\"\n        A[AI模型] --> B[工具选择]\n    end\n    \n    subgraph \"工具系统\"\n        B --> C[工具注册表]\n        C --> D[静态工具]\n        C --> E[动态工具]\n        D --> F[工具执行器]\n        E --> F\n        F --> G[RunContext]\n        G --> H[安全验证]\n        H --> I[实际执行]\n    end\n    \n    subgraph \"外部世界\"\n        I --> J[文件系统]\n        I --> K[网络服务]\n        I --> L[计算资源]\n    end",
-      "description": "这个架构图展示了工具系统在AI代理和外部世界之间的桥梁作用，以及内部的组件关系。"
-    }
-  ],
-  "code_snippets": [
-    {
-      "title": "工具调用示例",
-      "description": "AI代理如何调用工具的实际代码",
-      "code": "# AI代理的思考过程\n\"我需要计算两个数字的和，可以使用calculator工具\"\n\n# 工具调用\nresult = await agent.run(\n    \"请计算123和456的和\",\n    tools=[calculator]  # 注册可用的工具\n)\n\n# 系统自动生成的工具调用\n{\n    \"tool\": \"calculator\",\n    \"input\": {\n        \"a\": 123,\n        \"b\": 456,\n        \"operation\": \"add\"\n    }\n}",
-      "language": "python",
-      "annotation": "这个示例展示了AI代理如何决定使用哪个工具，以及系统如何将自然语言请求转换为结构化的工具调用。"
-    }
-  ],
+  "mermaid_diagrams": ["工具系统架构图", "工具序列化流程"],
+  "code_snippets": ["AbstractBuiltinTool 核心实现"],
   "word_count": 3850,
-  "prerequisites": ["ch04-agent-system"]
+  "prerequisites": ["ch04-agent-architecture"]
 }
