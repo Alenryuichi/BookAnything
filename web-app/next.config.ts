@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // knowledge/ JSON is outside web-app, allow imports
   transpilePackages: [],
   env: {
-    KNOWLEDGE_PROJECT: process.env.KNOWLEDGE_PROJECT || "深入理解 Claude Code",
+    KNOWLEDGE_PROJECT: process.env.KNOWLEDGE_PROJECT || "Pydantic AI",
   },
 };
 

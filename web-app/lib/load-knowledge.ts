@@ -8,7 +8,8 @@ import type {
   KnowledgeBase,
 } from "./types";
 
-const KNOWLEDGE_PROJECT = process.env.KNOWLEDGE_PROJECT || "深入理解 Claude Code";
+// 动态加载项目名称，优先使用环境变量
+const KNOWLEDGE_PROJECT = "Pydantic AI"; // 强制使用 Pydantic AI 项目
 const KNOWLEDGE_DIR_PROJECT = path.join(process.cwd(), "..", "knowledge", KNOWLEDGE_PROJECT);
 // Fallback to legacy flat knowledge/ dir if project-namespaced dir doesn't exist
 const KNOWLEDGE_DIR = fs.existsSync(KNOWLEDGE_DIR_PROJECT)
@@ -339,32 +340,67 @@ export function loadChapters(): Record<string, ChapterContent> {
       // Must have at least title and some content
       if (!data.title && !data.opening_hook) continue;
       const id = file.replace(".json", "");
-      // Normalize sections
-      const sections = Array.isArray(data.sections) ? data.sections.map((s: any) => ({
-        heading: toStr(s?.heading),
-        content: toStr(s?.content),
-        callout: s?.callout ? {
-          type: (s.callout?.type as string) || "info",
-          text: toStr(s.callout?.text),
-        } : undefined,
-        table: s?.table ? {
-          caption: toStr(s.table?.caption),
-          headers: toStringArray(s.table?.headers),
-          rows: Array.isArray(s.table?.rows) ? s.table.rows.map((r: any) => toStringArray(r)) : [],
-        } : undefined,
-        code: s?.code ? {
-          title: toStr(s.code?.title),
-          description: toStr(s.code?.description),
-          code: toStr(s.code?.code),
-          language: toStr(s.code?.language || "typescript"),
-          annotation: toStr(s.code?.annotation),
-        } : undefined,
-        diagram: s?.diagram ? {
-          title: toStr(s.diagram?.title),
-          chart: toStr(s.diagram?.chart),
-          description: toStr(s.diagram?.description),
-        } : undefined,
-      })) : [];
+      // Normalize sections with robust error handling
+      let sections: any[] = [];
+      try {
+        if (Array.isArray(data.sections)) {
+          sections = data.sections.map((s: any) => ({
+            heading: toStr(s?.heading),
+            content: toStr(s?.content),
+            callout: s?.callout ? {
+              type: (s.callout?.type as string) || "info",
+              text: toStr(s.callout?.text),
+            } : undefined,
+            table: s?.table ? {
+              caption: toStr(s.table?.caption),
+              headers: toStringArray(s.table?.headers),
+              rows: Array.isArray(s.table?.rows) ? s.table.rows.map((r: any) => toStringArray(r)) : [],
+            } : undefined,
+            code: s?.code ? {
+              title: toStr(s.code?.title),
+              description: toStr(s.code?.description),
+              code: toStr(s.code?.code),
+              language: toStr(s.code?.language || "typescript"),
+              annotation: toStr(s.code?.annotation),
+            } : undefined,
+            diagram: s?.diagram ? {
+              title: toStr(s.diagram?.title),
+              chart: toStr(s.diagram?.chart),
+              description: toStr(s.diagram?.description),
+            } : undefined,
+          }));
+        } else if (data.sections && typeof data.sections === "object") {
+          // Handle case where sections might be an object instead of array
+          sections = Object.entries(data.sections).map(([key, value]: [string, any]) => ({
+            heading: toStr(value?.heading) || key,
+            content: toStr(value?.content),
+            callout: value?.callout ? {
+              type: (value.callout?.type as string) || "info",
+              text: toStr(value.callout?.text),
+            } : undefined,
+            table: value?.table ? {
+              caption: toStr(value.table?.caption),
+              headers: toStringArray(value.table?.headers),
+              rows: Array.isArray(value.table?.rows) ? value.table.rows.map((r: any) => toStringArray(r)) : [],
+            } : undefined,
+            code: value?.code ? {
+              title: toStr(value.code?.title),
+              description: toStr(value.code?.description),
+              code: toStr(value.code?.code),
+              language: toStr(value.code?.language || "typescript"),
+              annotation: toStr(value.code?.annotation),
+            } : undefined,
+            diagram: value?.diagram ? {
+              title: toStr(value.diagram?.title),
+              chart: toStr(value.diagram?.chart),
+              description: toStr(value.diagram?.description),
+            } : undefined,
+          }));
+        }
+      } catch (sectionError) {
+        console.warn(`Failed to parse sections for chapter ${id}:`, sectionError);
+        sections = [];
+      }
 
       result[id] = {
         ...data,

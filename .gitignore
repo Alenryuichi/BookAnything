@@ -26,3 +26,9 @@ web-app/.vercel/
 .DS_Store
 .env
 .env.*
+
+# cursor
+.cursor/
+
+# test results
+.playwright-mcp/

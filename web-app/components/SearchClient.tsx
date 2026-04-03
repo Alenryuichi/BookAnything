@@ -17,9 +17,43 @@ export function SearchClient({ entries }: { entries: SearchEntry[] }) {
 
   const results = useMemo(() => {
     if (!query.trim()) return [];
-    const q = query.toLowerCase();
+    const q = query.toLowerCase().trim();
+
+    // 改进搜索算法，支持更灵活的匹配
     return entries
-      .filter((e) => e.title.toLowerCase().includes(q) || e.content.toLowerCase().includes(q))
+      .filter((e) => {
+        if (!e.title || !e.content) return false;
+
+        const title = e.title.toLowerCase();
+        const content = e.content.toLowerCase();
+
+        // 支持单词匹配和部分匹配
+        const words = q.split(/\s+/).filter(word => word.length > 0);
+
+        if (words.length === 0) return false;
+
+        // 至少有一个单词匹配
+        return words.some(word =>
+          title.includes(word) || content.includes(word)
+        );
+      })
+      .sort((a, b) => {
+        // 按匹配度排序：标题匹配优先于内容匹配
+        const aTitleMatch = a.title.toLowerCase().includes(q);
+        const bTitleMatch = b.title.toLowerCase().includes(q);
+
+        if (aTitleMatch && !bTitleMatch) return -1;
+        if (!aTitleMatch && bTitleMatch) return 1;
+
+        // 如果都是标题匹配或都不是，按内容匹配度排序
+        const aContentMatch = a.content.toLowerCase().includes(q);
+        const bContentMatch = b.content.toLowerCase().includes(q);
+
+        if (aContentMatch && !bContentMatch) return -1;
+        if (!aContentMatch && bContentMatch) return 1;
+
+        return 0;
+      })
       .slice(0, 30);
   }, [query, entries]);
 
@@ -50,48 +84,103 @@ export function SearchClient({ entries }: { entries: SearchEntry[] }) {
       )}
 
       <div style={{ marginTop: 16 }}>
-        {results.map((r) => {
-          const typeInfo = TYPE_LABELS[r.type] || TYPE_LABELS.chapter;
-          return (
-            <Link
-              key={r.id}
-              href={r.href}
-              className="card"
-              style={{
-                display: "block",
-                marginBottom: 8,
-                textDecoration: "none",
-                color: "inherit",
-                padding: "14px 18px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{
-                  fontSize: 11,
-                  padding: "2px 10px",
-                  borderRadius: 10,
-                  background: `${typeInfo.color}15`,
-                  color: typeInfo.color,
+        {results.length > 0 ? (
+          results.map((r) => {
+            const typeInfo = TYPE_LABELS[r.type] || TYPE_LABELS.chapter;
+            return (
+              <Link
+                key={r.id}
+                href={r.href}
+                className="card"
+                style={{
+                  display: "block",
+                  marginBottom: 12,
+                  textDecoration: "none",
+                  color: "inherit",
+                  padding: "16px 20px",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  transition: "all 0.2s ease-in-out",
+                  background: "var(--bg-card)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.1)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    fontSize: 11,
+                    padding: "4px 12px",
+                    borderRadius: 12,
+                    background: `${typeInfo.color}15`,
+                    color: typeInfo.color,
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px"
+                  }}>
+                    {typeInfo.label}
+                  </span>
+                  <span style={{
+                    fontWeight: 600,
+                    fontSize: 16,
+                    color: "var(--text-primary)"
+                  }}>
+                    {r.title}
+                  </span>
+                </div>
+                <p style={{
+                  fontSize: 14,
+                  color: "var(--text-secondary)",
+                  marginTop: 8,
+                  lineHeight: 1.6,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
                 }}>
-                  {typeInfo.label}
-                </span>
-                <span style={{ fontWeight: 600, fontSize: 15 }}>{r.title}</span>
-              </div>
-              <p style={{
-                fontSize: 13,
-                color: "var(--text-secondary)",
-                marginTop: 6,
-                lineHeight: 1.6,
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }}>
-                {r.content.slice(0, 200)}
-              </p>
-            </Link>
-          );
-        })}
+                  {r.content ? r.content.slice(0, 250) + "..." : "暂无内容描述"}
+                </p>
+              </Link>
+            );
+          })
+        ) : query ? (
+          <div style={{
+            textAlign: "center",
+            padding: "60px 20px",
+            color: "var(--text-secondary)",
+            fontSize: 16,
+            background: "var(--bg-card)",
+            borderRadius: 12,
+            border: "1px solid var(--border)"
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
+            <div style={{ marginBottom: 8 }}>未找到相关结果</div>
+            <div style={{ fontSize: 14, opacity: 0.7 }}>
+              尝试使用不同的关键词或检查拼写
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            textAlign: "center",
+            padding: "60px 20px",
+            color: "var(--text-secondary)",
+            fontSize: 16,
+            background: "var(--bg-card)",
+            borderRadius: 12,
+            border: "1px solid var(--border)"
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>💡</div>
+            <div style={{ marginBottom: 8 }}>输入关键词开始搜索</div>
+            <div style={{ fontSize: 14, opacity: 0.7 }}>
+              支持搜索章节标题、内容、模块名称等
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

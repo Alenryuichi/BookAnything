@@ -679,7 +679,7 @@ _build_chapter_summary() {
   echo "$chapter_summary"
 }
 
-# 内容质量评分 (40分)
+# 内容质量评分 (40分) — 确定性公式计算
 eval_content() {
   local iteration="$1"
 
@@ -687,137 +687,239 @@ eval_content() {
   analysis_count=$(ls "$CHAPTERS_DIR"/*.json 2>/dev/null | wc -l | tr -d ' ')
   local total_chapters
   total_chapters=$(get_total_chapters)
-  local chapter_summary
-  chapter_summary=$(_build_chapter_summary)
 
-  local prompt_file="$LOG_DIR/_prompt_eval_content_iter${iteration}.md"
-  cat > "$prompt_file" <<PROMPT
-你是内容质量评估专家。评估《${BOOK_TITLE}》的**内容质量**。仅根据以下数据评分，不要读取文件。
+  # 避免除零
+  [[ "$total_chapters" -eq 0 ]] && total_chapters=1
+  [[ "$analysis_count" -eq 0 ]] && analysis_count=0
 
-## 章节状态
-已写: $analysis_count / $total_chapters
-$chapter_summary
+  # 覆盖率 (15分): analysis_count / total_chapters * 15
+  local coverage=$(( analysis_count * 15 / total_chapters ))
 
-## 评分维度（满分 40 分）
-按以下细则打分：
-- 覆盖率 (15分): $analysis_count / $total_chapters × 15，全部写完得满分
-- 内容量 (15分): 章节 > 10KB 且 sections >= 4 的比例 × 15
-- 叙事深度 (10分):
-  - 章节 word_count >= 3000 且 sections >= 4 的比例 × 5
-  - 章节有多个 section（>=5）的比例 × 5
+  # 遍历章节统计 volume 和 depth
+  local vol_count=0 depth_a_count=0 depth_b_count=0
+  for f in "$CHAPTERS_DIR"/*.json; do
+    [ -f "$f" ] || continue
+    local fsize sections wcount
+    fsize=$(wc -c < "$f" | tr -d ' ')
+    sections=$(jq '.sections | length' "$f" 2>/dev/null || echo "0")
+    wcount=$(jq '.word_count // 0' "$f" 2>/dev/null || echo "0")
+    [[ "$sections" =~ ^[0-9]+$ ]] || sections=0
+    [[ "$wcount" =~ ^[0-9]+$ ]] || wcount=0
 
-## 输出纯 JSON
+    # 内容量: > 10KB 且 sections >= 4
+    if (( fsize > 10240 && sections >= 4 )); then
+      vol_count=$((vol_count + 1))
+    fi
+    # 叙事深度 a: word_count >= 3000 且 sections >= 4
+    if (( wcount >= 3000 && sections >= 4 )); then
+      depth_a_count=$((depth_a_count + 1))
+    fi
+    # 叙事深度 b: sections >= 5
+    if (( sections >= 5 )); then
+      depth_b_count=$((depth_b_count + 1))
+    fi
+  done
+
+  local safe_count=$analysis_count
+  [[ "$safe_count" -eq 0 ]] && safe_count=1
+
+  local volume=$(( vol_count * 15 / safe_count ))
+  local depth_a=$(( depth_a_count * 5 / safe_count ))
+  local depth_b=$(( depth_b_count * 5 / safe_count ))
+  local depth=$(( depth_a + depth_b ))
+  local content_score=$(( coverage + volume + depth ))
+
+  # 生成 issues/suggestions
+  local issues="[]" suggestions="[]"
+  if (( coverage < 15 )); then
+    issues=$(echo "$issues" | jq --arg m "覆盖率不足: $analysis_count/$total_chapters 章节已写" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq '. + ["继续撰写未完成的章节"]')
+  fi
+  if (( volume < 10 )); then
+    issues=$(echo "$issues" | jq --arg m "内容量不足: $vol_count/$analysis_count 章节达到 10KB+4sections 标准" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq '. + ["增加章节内容深度和小节数量"]')
+  fi
+  if (( depth < 6 )); then
+    issues=$(echo "$issues" | jq --arg m "叙事深度不足: word_count>=3000的章节比例偏低" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq '. + ["扩充章节字数到3000-5000范围"]')
+  fi
+
+  cat > "$LOG_DIR/eval_content_iter${iteration}.json" <<EOF
 {
   "dimension": "content",
-  "score": 0,
+  "score": $content_score,
   "max_score": 40,
-  "breakdown": {"coverage": 0, "volume": 0, "depth": 0},
-  "issues": ["不足之处"],
-  "suggestions": ["改进建议"]
+  "breakdown": {"coverage": $coverage, "volume": $volume, "depth": $depth},
+  "issues": $issues,
+  "suggestions": $suggestions
 }
-PROMPT
+EOF
 
-  run_claude "eval_content_iter${iteration}" "$prompt_file" \
-    "$LOG_DIR/eval_content_iter${iteration}.json" 8
+  log OK "eval_content: $content_score/40 (cov=$coverage vol=$volume depth=$depth)"
 }
 
-# 视觉质量评分 (35分)
+# 视觉质量评分 (35分) — 确定性公式计算
 eval_visual() {
   local iteration="$1"
-
-  local site_exists="false"
-  [ -d "$WEBAPP_DIR/out" ] && site_exists="true"
-
-  # 截图报告
-  local visual_report=""
   local screenshot_report="$HARNESS_DIR/output/screenshots/report.json"
+
+  # 构建状态 (10分)
+  local build_score=0
+  [ -d "$WEBAPP_DIR/out" ] && build_score=10
+
+  # 从 report.json 提取 metrics
+  local total_errors=0 mermaid_rendered=0 mermaid_errors=0
+  local has_sidebar="false" has_dark_mode="false"
+  local home_card_count=0 home_body_text=0
+
   if [ -f "$screenshot_report" ]; then
-    visual_report=$(jq '.' "$screenshot_report" 2>/dev/null || echo "{}")
+    total_errors=$(jq '.summary.totalErrors // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    mermaid_rendered=$(jq '.summary.totalMermaidRendered // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    mermaid_errors=$(jq '.summary.totalMermaidErrors // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    has_sidebar=$(jq -r '.pages.home.metrics.hasSidebar // false' "$screenshot_report" 2>/dev/null || echo "false")
+    has_dark_mode=$(jq -r '.pages.home.metrics.hasDarkModeToggle // false' "$screenshot_report" 2>/dev/null || echo "false")
+    home_card_count=$(jq '.pages.home.metrics.cardCount // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    home_body_text=$(jq '.pages.home.metrics.bodyText // 0' "$screenshot_report" 2>/dev/null || echo "0")
   fi
 
-  # 截图文件列表（供读取）
-  local screenshot_files=""
-  if [ -d "$HARNESS_DIR/output/screenshots" ]; then
-    screenshot_files=$(ls "$HARNESS_DIR/output/screenshots"/*.png 2>/dev/null | head -6 | tr '\n' '\n')
+  [[ "$total_errors" =~ ^[0-9]+$ ]] || total_errors=0
+  [[ "$mermaid_rendered" =~ ^[0-9]+$ ]] || mermaid_rendered=0
+  [[ "$mermaid_errors" =~ ^[0-9]+$ ]] || mermaid_errors=0
+  [[ "$home_card_count" =~ ^[0-9]+$ ]] || home_card_count=0
+  [[ "$home_body_text" =~ ^[0-9]+$ ]] || home_body_text=0
+
+  # Console 无错 (10分): 每个 error 扣 2 分
+  local no_errors_score=$(( 10 - total_errors * 2 ))
+  (( no_errors_score < 0 )) && no_errors_score=0
+
+  # Mermaid 渲染 (8分)
+  local mermaid_score=0
+  if (( mermaid_rendered > 0 && mermaid_errors == 0 )); then
+    mermaid_score=8
+  elif (( mermaid_rendered > 0 )); then
+    mermaid_score=4
   fi
 
-  local prompt_file="$LOG_DIR/_prompt_eval_visual_iter${iteration}.md"
-  cat > "$prompt_file" <<PROMPT
-你是视觉/UI 质量评估专家。评估 Web App 的**视觉质量**。
+  # 布局完整 (7分): 基于布尔指标求和
+  local layout_score=0
+  [[ "$has_sidebar" == "true" ]] && layout_score=$((layout_score + 2))
+  [[ "$has_dark_mode" == "true" ]] && layout_score=$((layout_score + 1))
+  (( home_card_count > 5 )) && layout_score=$((layout_score + 2))
+  (( home_body_text > 200 )) && layout_score=$((layout_score + 2))
 
-## 网站状态
-构建成功: $site_exists
+  local visual_score=$((build_score + no_errors_score + mermaid_score + layout_score))
 
-## 视觉测试报告
-$visual_report
+  # 生成 issues/suggestions
+  local issues="[]" suggestions="[]"
+  if (( build_score == 0 )); then
+    issues=$(echo "$issues" | jq '. + ["网站未构建成功"]')
+    suggestions=$(echo "$suggestions" | jq '. + ["检查 next build 错误日志"]')
+  fi
+  if (( total_errors > 0 )); then
+    issues=$(echo "$issues" | jq --arg m "Console errors: $total_errors 个" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq '. + ["修复 JavaScript 运行时错误"]')
+  fi
+  if (( mermaid_score < 8 )); then
+    issues=$(echo "$issues" | jq --arg m "Mermaid: $mermaid_rendered rendered, $mermaid_errors errors" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq '. + ["检查 Mermaid 图表语法和渲染组件"]')
+  fi
+  if (( layout_score < 5 )); then
+    issues=$(echo "$issues" | jq '. + ["布局指标不完整"]')
+    suggestions=$(echo "$suggestions" | jq '. + ["检查 sidebar、dark mode、卡片数量"]')
+  fi
 
-## 截图文件（你可以用 Read 工具查看）
-$screenshot_files
-
-## 评分维度（满分 35 分）
-- 构建状态 (10分): 网站成功构建得 10 分，否则 0
-- Console 无错 (10分): 0 个 console error 得 10 分，每个 error 扣 2 分，最低 0
-- Mermaid 渲染 (8分): 检查截图中 Mermaid 图是否正确渲染（无错误文本、有 SVG）
-- 布局完整 (7分): 页面布局正常、无断裂、响应式正确
-
-## 步骤
-1. 如果有截图文件，用 Read 工具读取截图查看
-2. 结合视觉测试报告的 metrics 数据
-3. 评分
-
-## 输出纯 JSON
+  cat > "$LOG_DIR/eval_visual_iter${iteration}.json" <<EOF
 {
   "dimension": "visual",
-  "score": 0,
+  "score": $visual_score,
   "max_score": 35,
-  "breakdown": {"build": 0, "no_errors": 0, "mermaid": 0, "layout": 0},
-  "issues": ["视觉问题"],
-  "suggestions": ["改进建议"]
+  "breakdown": {"build": $build_score, "no_errors": $no_errors_score, "mermaid": $mermaid_score, "layout": $layout_score},
+  "issues": $issues,
+  "suggestions": $suggestions
 }
-PROMPT
+EOF
 
-  run_claude "eval_visual_iter${iteration}" "$prompt_file" \
-    "$LOG_DIR/eval_visual_iter${iteration}.json" 10 \
-    "Read,Glob,Grep"
+  log OK "eval_visual: $visual_score/35 (build=$build_score err=$no_errors_score mermaid=$mermaid_score layout=$layout_score)"
 }
 
-# 交互功能评分 (25分)
+# 交互功能评分 (25分) — 确定性公式计算
 eval_interaction() {
   local iteration="$1"
-
-  # 截图报告（含 metrics）
-  local visual_report=""
   local screenshot_report="$HARNESS_DIR/output/screenshots/report.json"
+
+  local search_has_input="false" search_card_count=0
+  local has_sidebar="false" nav_item_count=0 home_link_count=0
+  local max_code_blocks=0 pages_with_errors=0
+
   if [ -f "$screenshot_report" ]; then
-    visual_report=$(jq '.' "$screenshot_report" 2>/dev/null || echo "{}")
+    search_has_input=$(jq -r '.pages.search.metrics.hasSearchInput // false' "$screenshot_report" 2>/dev/null || echo "false")
+    search_card_count=$(jq '.pages.search.metrics.cardCount // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    has_sidebar=$(jq -r '.pages.home.metrics.hasSidebar // false' "$screenshot_report" 2>/dev/null || echo "false")
+    nav_item_count=$(jq '.pages.home.metrics.navItemCount // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    home_link_count=$(jq '.pages.home.metrics.linkCount // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    pages_with_errors=$(jq '.summary.pagesWithErrors // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    # Find max codeBlockCount across all pages
+    max_code_blocks=$(jq '[.pages[].metrics.codeBlockCount // 0] | max // 0' "$screenshot_report" 2>/dev/null || echo "0")
   fi
 
-  local prompt_file="$LOG_DIR/_prompt_eval_interaction_iter${iteration}.md"
-  cat > "$prompt_file" <<PROMPT
-你是交互功能评估专家。评估 Web App 的**交互功能**。仅根据以下数据评分。
+  [[ "$search_card_count" =~ ^[0-9]+$ ]] || search_card_count=0
+  [[ "$nav_item_count" =~ ^[0-9]+$ ]] || nav_item_count=0
+  [[ "$home_link_count" =~ ^[0-9]+$ ]] || home_link_count=0
+  [[ "$max_code_blocks" =~ ^[0-9]+$ ]] || max_code_blocks=0
+  [[ "$pages_with_errors" =~ ^[0-9]+$ ]] || pages_with_errors=0
 
-## 视觉测试报告（含 metrics）
-$visual_report
+  # 搜索功能 (8分)
+  local search_score=0
+  [[ "$search_has_input" == "true" ]] && search_score=$((search_score + 4))
+  (( search_card_count > 0 )) && search_score=$((search_score + 4))
 
-## 评分维度（满分 25 分）
-- 搜索功能 (8分): search 页面有 input（hasSearchInput=true）得 4 分，有 card 结果得 4 分
-- 导航功能 (7分): 有 sidebar/nav、链接数量合理（>10 links）、nav items 存在
-- 代码高亮 (5分): 有 pre/code blocks 存在（codeBlockCount > 0）
-- 页面跳转 (5分): 各页面能正常加载（无 navigation errors）
+  # 导航功能 (7分)
+  local nav_score=0
+  [[ "$has_sidebar" == "true" ]] && nav_score=$((nav_score + 3))
+  (( nav_item_count > 10 )) && nav_score=$((nav_score + 2))
+  (( home_link_count > 10 )) && nav_score=$((nav_score + 2))
 
-## 输出纯 JSON
+  # 代码高亮 (5分)
+  local code_score=0
+  (( max_code_blocks > 0 )) && code_score=5
+
+  # 页面跳转 (5分)
+  local routing_score=$(( 5 - pages_with_errors ))
+  (( routing_score < 0 )) && routing_score=0
+
+  local interaction_score=$((search_score + nav_score + code_score + routing_score))
+
+  # 生成 issues/suggestions
+  local issues="[]" suggestions="[]"
+  if (( search_score < 8 )); then
+    issues=$(echo "$issues" | jq --arg m "搜索功能: input=$search_has_input, cards=$search_card_count" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq '. + ["改进搜索页面的数据加载和结果展示"]')
+  fi
+  if (( nav_score < 5 )); then
+    issues=$(echo "$issues" | jq --arg m "导航: sidebar=$has_sidebar, navItems=$nav_item_count, links=$home_link_count" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq '. + ["确保 sidebar 和导航链接完整"]')
+  fi
+  if (( code_score == 0 )); then
+    issues=$(echo "$issues" | jq '. + ["无代码高亮: 所有页面 codeBlockCount=0"]')
+    suggestions=$(echo "$suggestions" | jq '. + ["检查 CodeBlock 组件和 shiki 渲染"]')
+  fi
+  if (( routing_score < 5 )); then
+    issues=$(echo "$issues" | jq --arg m "页面错误: $pages_with_errors 个页面有 errors" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq '. + ["修复页面加载错误"]')
+  fi
+
+  cat > "$LOG_DIR/eval_interaction_iter${iteration}.json" <<EOF
 {
   "dimension": "interaction",
-  "score": 0,
+  "score": $interaction_score,
   "max_score": 25,
-  "breakdown": {"search": 0, "navigation": 0, "code_highlight": 0, "page_routing": 0},
-  "issues": ["交互问题"],
-  "suggestions": ["改进建议"]
+  "breakdown": {"search": $search_score, "navigation": $nav_score, "code_highlight": $code_score, "page_routing": $routing_score},
+  "issues": $issues,
+  "suggestions": $suggestions
 }
-PROMPT
+EOF
 
-  run_claude "eval_interaction_iter${iteration}" "$prompt_file" \
-    "$LOG_DIR/eval_interaction_iter${iteration}.json" 8
+  log OK "eval_interaction: $interaction_score/25 (search=$search_score nav=$nav_score code=$code_score route=$routing_score)"
 }
 
 # 合并多维分数
@@ -878,33 +980,16 @@ EOF
   log OK "Scores: content=$content_score/40 visual=$visual_score/35 interaction=$interaction_score/25 → total=$total_score/100"
 }
 
-# 主评估入口：并行 3 维度 + 汇总
+# 主评估入口：确定性公式计算（毫秒级完成）
 step_evaluate() {
   local iteration="$1"
 
-  log STEP "Starting multi-dimensional evaluation (3 parallel scorers)..."
+  log STEP "Deterministic evaluation (formula-based)..."
 
-  # 并行启动 3 个评分
-  eval_content "$iteration" &
-  local pid1=$!
-  eval_visual "$iteration" &
-  local pid2=$!
-  eval_interaction "$iteration" &
-  local pid3=$!
+  eval_content "$iteration"
+  eval_visual "$iteration"
+  eval_interaction "$iteration"
 
-  # 等待全部完成
-  local failed=0
-  wait $pid1 || { log WARN "Content eval failed"; failed=$((failed + 1)); }
-  wait $pid2 || { log WARN "Visual eval failed"; failed=$((failed + 1)); }
-  wait $pid3 || { log WARN "Interaction eval failed"; failed=$((failed + 1)); }
-
-  if [ $failed -eq 3 ]; then
-    log ERROR "All evaluations failed"
-    echo '{"score":0,"scores":{"content":0,"visual":0,"interaction":0}}' > "$LOG_DIR/eval_iter${iteration}.json"
-    return 1
-  fi
-
-  # 汇总分数
   merge_scores "$iteration"
 }
 
