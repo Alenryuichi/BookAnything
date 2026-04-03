@@ -2,87 +2,106 @@
   "chapter_id": "ch05-tool-system",
   "title": "第5章：工具系统",
   "subtitle": "让 AI 代理拥有执行能力",
-  "chapter_summary": "Pydantic AI 的工具系统通过类型安全的抽象层，为 AI 代理提供了可扩展的执行能力，让模型能够安全地与现实世界交互。",
-  "opening_hook": "想象一下，你正在训练一位新入职的实习生。这位实习生聪明好学，但缺乏实际工作经验——他知道理论，却不知道如何操作公司的系统、访问数据库或调用外部 API。这就是 AI 模型面临的困境：它们拥有强大的推理能力，但缺乏执行具体任务的手段。Pydantic AI 的工具系统就是为了解决这个问题而设计的，它就像给实习生配备了一套完整的办公工具，让理论能力转化为实际生产力。",
+  "chapter_summary": "工具系统是 Pydantic AI 赋予 AI 代理「行动力」的核心机制，它将 Python 函数封装为 AI 可调用的工具，并支持内置工具、动态工具注册等多种使用方式。",
+  "opening_hook": "想象一下，你正坐在图书馆里查阅资料。你脑海里的念头是「我需要了解某个概念」，但你并不能直接让脑海中涌进答案——你还需要走到书架前、翻开书本、阅读文字。\n\nAI 代理也是如此。没有工具的 AI，就像一个被困在自己思维空间里的聪明人——它能思考、能推理、能规划，但无法真正「触碰」外部世界。它无法查询实时新闻，无法计算复杂公式，无法调用数据库，无法与任何 Python 代码交互。\n\n工具系统就是这座图书馆与书架之间的桥梁。它让 AI 代理能够「伸手」调用 Python 函数，访问外部 API，执行代码，搜索网络。当你注册了一个工具，你本质上是在告诉 AI：「当你需要做某某事时，你可以让这个 Python 函数帮你。」",
   "sections": [
     {
-      "heading": "工具系统的设计哲学",
-      "content": "Pydantic AI 的工具系统遵循一个核心原则：类型安全第一。与传统的字符串拼接式工具调用不同，Pydantic AI 将每个工具都设计为类型化的 Python 类，确保在编译时就能发现潜在的错误。\n\n这种设计理念源于 Pydantic 框架的基因——数据验证和序列化。工具系统继承了这一传统，将松散的 AI 工具调用转化为严格的类型约束，大大提高了代码的可靠性和可维护性。\n\n工具系统的另一个重要特点是可扩展性。通过抽象基类和注册机制，开发者可以轻松地添加自定义工具，而内置工具则提供了开箱即用的常见功能。",
-      "diagram": {
-        "title": "工具系统架构图",
-        "chart": "graph TD\n    A[AI 代理] --> B[工具管理器]\n    B --> C[内置工具]\n    B --> D[自定义工具]\n    B --> E[MCP 工具]\n    C --> C1[WebSearchTool]\n    C --> C2[CodeExecutionTool]\n    C --> C3[WebFetchTool]\n    C --> C4[ImageGenerationTool]\n    D --> D1[用户定义工具]\n    E --> E1[外部 MCP 服务器]",
-        "description": "工具系统的分层架构，展示了 AI 代理如何通过工具管理器访问不同类型的工具"
-      }
-    },
-    {
-      "heading": "抽象基类：工具的统一接口",
-      "content": "所有工具都继承自 `AbstractBuiltinTool` 这个抽象基类，它定义了工具的基本契约。这个设计模式确保了工具系统的一致性和可扩展性。\n\n`AbstractBuiltinTool` 最巧妙的设计是 `__init_subclass__` 方法。每当定义一个新的工具子类时，它会自动注册到全局的 `BUILTIN_TOOL_TYPES` 字典中。这种自动注册机制避免了手动维护工具列表的繁琐工作。\n\n工具的序列化机制也值得一提。通过 `__get_pydantic_core_schema__` 方法，工具系统能够智能地处理多态序列化，确保不同类型的工具能够正确地被序列化和反序列化。",
+      "heading": "从函数到工具：Tool 装饰器的工作原理",
+      "content": "在 Pydantic AI 中，任何 Python 函数都可以成为工具。你只需要用 `Tool` 类包装它，系统会自动完成剩余的工作。\n\n这个过程就像是给一个普通的厨房刀具做「智能化改造」。原本它只能手动拿起使用，现在它可以被语音召唤、自动定位、参数校验、安全限制——但切割的本质没变，使用的方式变得更智能了。\n\n让我们看看最简单的工具定义方式。当你定义一个工具时，Pydantic AI 会自动扫描你的函数签名，从类型注解中提取参数信息，从函数名和文档字符串中生成工具的描述。这一切都是自动完成的，你不需要编写任何额外的配置。",
+      "callout": {
+        "type": "tip",
+        "text": "工具的 `name` 和 `description` 会被发送给 AI 模型。好的描述应该告诉模型「何时使用这个工具」和「如何正确调用它」。"
+      },
       "code": {
-        "title": "AbstractBuiltinTool 核心实现",
-        "description": "抽象基类的关键代码，展示了工具注册和序列化机制",
-        "code": "@dataclass(kw_only=True)\nclass AbstractBuiltinTool(ABC):\n    kind: str = 'unknown_builtin_tool'\n    \n    @property\n    def unique_id(self) -> str:\n        return self.kind\n    \n    def __init_subclass__(cls, **kwargs: Any) -> None:\n        super().__init_subclass__(**kwargs)\n        BUILTIN_TOOL_TYPES[cls.kind] = cls\n    \n    @classmethod\n    def __get_pydantic_core_schema__(cls, _source_type: Any, handler: pydantic.GetCoreSchemaHandler) -> core_schema.CoreSchema:\n        if cls is not AbstractBuiltinTool:\n            return handler(cls)\n        \n        tools = BUILTIN_TOOL_TYPES.values()\n        if len(tools) == 1:\n            tools_type = next(iter(tools))\n        else:\n            tools_annotated = [Annotated[tool, pydantic.Tag(tool.kind)] for tool in tools]\n            tools_type = Annotated[Union[tuple(tools_annotated)], pydantic.Discriminator(_tool_discriminator)]\n        \n        return handler(tools_type)",
+        "title": "最简单的工具定义",
+        "description": "一个简单的数学计算工具，自动从类型注解生成 schema",
+        "code": "from pydantic_ai import Agent, RunContext, Tool\n\n# 定义工具函数接受 context 和参数\ndef calculate(ctx: RunContext[int], operation: str, x: float, y: float) -> str:\n    \"\"\"执行基本数学运算。\"\"\"\n    result = {'add': x + y, 'subtract': x - y, 'multiply': x * y, 'divide': x / y}\n    return f'{ctx.deps}: {x} {operation} {y} = {result[operation]}'\n\n# 包装为工具并传递给 Agent\nagent = Agent('test', tools=[Tool(calculate)])",
         "language": "python",
-        "annotation": "这段代码展示了工具系统的三个核心机制：1) kind 字段作为工具标识符；2) 自动注册机制确保新工具自动加入系统；3) 多态序列化支持不同类型的工具共存"
+        "annotation": "RunContext[int] 表示这个工具可以访问类型为 int 的依赖，通过 ctx.deps 获取"
+      },
+      "diagram": {
+        "title": "工具注册与调用流程",
+        "chart": "graph TD;\n    A[Python 函数] -->|Tool 类包装| B[Tool 实例]\n    B -->|函数签名解析| C[FunctionSchema]\n    C -->|生成| D[JSON Schema]\n    E[Agent 初始化] -->|tools 参数| F[工具集]\n    F -->|向模型注册| G[ToolDefinition 列表]\n    G -->|模型调用| H[ToolCall]\n    H -->|参数校验| I[执行函数]\n    I -->|返回结果| J[ToolReturn]",
+        "description": "从 Python 函数到 AI 可调用工具的完整生命周期"
       }
     },
     {
-      "heading": "内置工具：AI 的瑞士军刀",
-      "content": "Pydantic AI 提供了一系列开箱即用的内置工具，覆盖了 AI 代理最常见的需求。这些工具就像瑞士军刀上的不同功能模块，每个都针对特定的使用场景进行了优化。\n\nWebSearchTool 允许代理搜索互联网信息，支持域名过滤和地理位置定位。CodeExecutionTool 提供代码执行能力，让代理能够运行代码片段。WebFetchTool 则专注于 URL 内容获取，支持引用和内容长度控制。\n\n特别值得一提的是 MCPServerTool，它代表了工具系统的未来方向——通过 MCP（Model Context Protocol）协议连接外部服务。这种设计让工具系统具备了无限扩展的可能性。",
+      "heading": "RunContext：工具的随身背包",
+      "content": "当工具需要访问外部依赖时，`RunContext` 就是它的随身背包。你定义 Agent 时指定的依赖类型（比如数据库连接、API 客户端），都会通过 RunContext 传递给每个工具。\n\n这就像是给每位登山运动员配备一个装备包。不同的工具需要不同的装备——数据库工具需要连接池，网络工具需要 HTTP 客户端。RunContext 确保工具「手边就有」它需要的一切。\n\n工具的第一参数可以是 RunContext 或完全省略。Pydantic AI 会自动检测：如果你的函数签名接受 `ctx: RunContext[...]` 作为第一个参数，系统会自动注入上下文；否则，工具就是一个纯函数。",
       "table": {
-        "caption": "内置工具功能对比",
-        "headers": ["工具名称", "主要功能", "支持平台", "关键特性"],
+        "caption": "RunContext 核心字段",
+        "headers": ["字段", "类型", "说明"],
         "rows": [
-          ["WebSearchTool", "网络搜索", "Anthropic, OpenAI, Google 等", "域名过滤、地理位置定位"],
-          ["CodeExecutionTool", "代码执行", "Anthropic, OpenAI, Google", "安全沙箱执行"],
-          ["WebFetchTool", "网页内容获取", "Anthropic, Google", "引用支持、内容长度控制"],
-          ["ImageGenerationTool", "图像生成", "OpenAI, Google", "多种格式和质量选项"],
-          ["MCPServerTool", "MCP 服务器连接", "OpenAI, Anthropic", "外部服务集成"]
+          ["deps", "AgentDepsT", "Agent 级别的依赖对象，运行时注入"],
+          ["model", "Model", "当前使用的模型实例"],
+          ["retry_prompt", "str | None", "如果需要模型重试时的提示信息"],
+          ["tool_call_metadata", "dict | None", "本次工具调用的元数据"]
         ]
       }
     },
     {
-      "heading": "工具注册与发现机制",
-      "content": "工具系统的注册机制是其可扩展性的核心。通过 `BUILTIN_TOOL_TYPES` 字典，系统能够动态地发现所有可用的工具类型。\n\n这种设计的好处是双向的：对于工具开发者，只需要继承 `AbstractBuiltinTool` 即可自动注册；对于工具使用者，可以通过统一的接口访问所有可用工具。\n\n工具发现机制还支持运行时动态配置。通过 `SUPPORTED_BUILTIN_TOOLS` 和 `DEPRECATED_BUILTIN_TOOLS` 集合，系统能够智能地管理工具的生命周期，确保向后兼容性。",
+      "heading": "动态工具：prepare 函数的魔法",
+      "content": "有时候，你不想让某些工具一直「挂」在 AI 身上。比如，「发送邮件」工具应该只在用户登录后才可用，或者「高级查询」工具应该只在付费账户下启用。\n\n`prepare` 函数就是这种条件控制的开关。它在每次工具注册前被调用，返回 ToolDefinition 让工具上场，返回 None 则将工具暂时雪藏。\n\n这就像是餐厅的「今日菜单」。餐厅的基础菜品（工具）是固定的，但根据季节、库存、客人的会员等级，厨师可以动态调整当日特供。prepare 函数就是那位看情况上菜的厨师。",
+      "code": {
+        "title": "条件性工具注册",
+        "description": "只在特定条件下才向模型提供工具",
+        "code": "from pydantic_ai import Agent, RunContext, Tool\nfrom pydantic_ai.tools import ToolDefinition\n\n# 工具函数：仅管理员可用\ndef delete_user(ctx: RunContext[list[str]], user_id: str) -> str:\n    \"\"\"删除指定用户（仅限管理员）。\"\"\"\n    return f'User {user_id} deleted by admin of {ctx.deps}'\n\n# prepare 函数：检查当前用户是否是管理员\ndef only_if_admin(\n    ctx: RunContext[list[str]], tool_def: ToolDefinition\n) -> ToolDefinition | None:\n    # deps 中的列表代表允许的管理员用户名\n    if ctx.deps:  # 如果管理员列表非空\n        return tool_def\n    return None  # 非管理员上下文，不提供此工具\n\n# 只有依赖列表非空时，delete_user 工具才可用\nagent = Agent(\n    'test',\n    tools=[Tool(delete_user, prepare=only_if_admin)],\n    deps_type=list[str]\n)",
+        "language": "python",
+        "annotation": "deps_type=list[str] 意味着运行时需要传入一个字符串列表作为依赖"
+      },
       "callout": {
-        "type": "tip",
-        "text": "工具注册机制的一个巧妙之处在于它使用了 Python 的元类编程。当子类被定义时，__init_subclass__ 方法会自动执行，实现了声明式注册而非命令式注册。"
+        "type": "info",
+        "text": "Agent 级别的 `prepare_tools` 函数可以一次性调整所有工具的定义，适合批量修改工具属性（比如全局开启 strict 模式）"
       }
     },
     {
-      "heading": "类型安全与多态序列化",
-      "content": "Pydantic AI 工具系统最大的优势在于其类型安全性。每个工具都有明确的类型定义，编译器能够在开发阶段就发现类型错误。\n\n多态序列化机制是另一个亮点。通过 Pydantic 的 Discriminator 功能，系统能够根据 `kind` 字段自动选择正确的工具类型进行反序列化。这意味着即使工具类型在运行时才确定，类型安全仍然得到保障。\n\n这种设计使得工具系统既灵活又安全，既支持动态配置又保证了类型正确性，是静态类型与动态需求的完美结合。",
+      "heading": "内置工具：开箱即用的能力",
+      "content": "Pydantic AI 提供了一套内置工具，这些工具的功能直接由底层 AI 模型提供支持，你无需编写任何代码即可使用。\n\n这些内置工具就像是手机出厂预装的系统应用——相机、日历、天气。它们虽然功能强大，但你可能需要告诉模型「可以用相机拍照」，模型才会意识到这个能力的存在。\n\n内置工具的设计体现了 Pydantic AI 的「桥接」哲学。同样的 API 接口（WebSearchTool），在 Anthropic、OpenAI、Google 等不同模型上会映射到各自的原生实现。作为开发者，你只需要声明「我要搜索能力」，剩下的适配工作由 Pydantic AI 完成。",
+      "table": {
+        "caption": "主要内置工具一览",
+        "headers": ["工具", "用途", "支持的模型"],
+        "rows": [
+          ["WebSearchTool", "网络搜索", "Anthropic, OpenAI, Groq, Google, xAI"],
+          ["CodeExecutionTool", "代码执行", "Anthropic, OpenAI, Google, xAI"],
+          ["WebFetchTool", "网页抓取", "Anthropic, Google"],
+          ["ImageGenerationTool", "图像生成", "OpenAI, Google"],
+          ["MemoryTool", "记忆机制", "Anthropic"],
+          ["MCPServerTool", "MCP 服务集成", "OpenAI, Anthropic, xAI"]
+        ]
+      },
+      "code": {
+        "title": "使用内置工具",
+        "description": "通过 Agent 参数启用内置工具",
+        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.builtin_tools import WebSearchTool, CodeExecutionTool\n\nagent = Agent(\n    'anthropic:claude-3-5-sonnet',\n    tools=[\n        WebSearchTool(\n            search_context_size='high',\n            max_uses=3  # 最多搜索3次\n        ),\n        CodeExecutionTool()  # 允许执行代码\n    ]\n)\n\n# AI 现在可以主动搜索网络和运行代码了\nresult = await agent.run('帮我查询今天比特币的价格并计算涨跌幅')",
+        "language": "python",
+        "annotation": "内置工具自动处理底层转换，同一个 API 在不同模型上都能工作"
+      },
       "diagram": {
-        "title": "工具序列化流程",
-        "chart": "graph LR\n    A[JSON 数据] --> B{kind 字段判断}\n    B -->|web_search| C[WebSearchTool]\n    B -->|code_execution| D[CodeExecutionTool]\n    B -->|mcp_server| E[MCPServerTool]\n    C --> F[类型安全对象]\n    D --> F\n    E --> F",
-        "description": "基于 kind 字段的多态序列化过程，确保 JSON 数据能够正确转换为对应的工具类型"
+        "title": "内置工具的模型映射",
+        "chart": "graph LR;\n    A[Pydantic AI] -->|WebSearchTool| B[Anthropic]\n    A -->|WebSearchTool| C[OpenAI]\n    A -->|WebSearchTool| D[Google]\n    A -->|WebSearchTool| E[xAI]\n    B -->|原生 API| B1[计算机使用API]\n    C -->|原生API| C1[Web Search API]\n    D -->|原生API| D1[Grounding API]\n    E -->|原生API| E1[搜索工具]",
+        "description": "同一个内置工具在不同模型上的路由映射"
       }
     },
     {
-      "heading": "实际应用场景与最佳实践",
-      "content": "在实际应用中，工具系统的配置和使用需要遵循一些最佳实践。首先，应该根据具体需求选择适当的工具组合，避免过度配置。\n\n对于需要外部集成的场景，MCPServerTool 提供了标准的连接方式。而对于简单的功能，内置工具通常已经足够。工具的参数配置也需要谨慎，比如 WebSearchTool 的域名过滤可以防止访问不安全的网站。\n\n另一个重要实践是工具的生命周期管理。通过 `max_uses` 等参数，可以控制工具的使用频率，避免资源浪费或安全风险。",
+      "heading": "工具的瑞士军刀特性",
+      "content": "Pydantic AI 的工具系统就像一把瑞士军刀——它是模块化的、可组合的、场景适应的。\n\n工具可以是单功能的小刀（一个简单的函数），也可以是复杂的多功能模块（内嵌多个子操作的工具集）。你可以通过 `ToolSet` 组织工具，通过 M 系列前缀命名空间分组，通过 MCP 协议集成外部工具。\n\n更重要的是，这些工具是「可重载」的。你可以用本地实现替换内置工具（通过 `prefer_builtin` 配置），可以用工具搜索动态发现工具，可以通过人类审批控制高危操作的执行。这一切设计都围绕着同一个目标：让 AI 安全、可控、灵活地拥抱外部世界。",
       "callout": {
         "type": "warning",
-        "text": "在使用 WebSearchTool 和 WebFetchTool 时，注意 blocked_domains 和 allowed_domains 是互斥的。同时配置两者会导致错误，这是出于安全考虑的设计。"
+        "text": "工具的 `requires_approval=True` 会启用人工审批模式。适合删除文件、发送邮件、数据库变更等高风险操作"
       }
     }
   ],
   "key_takeaways": [
-    "工具系统通过类型安全的抽象层，为 AI 代理提供了可扩展的执行能力",
-    "自动注册机制让新工具的添加变得简单，无需修改核心代码",
-    "多态序列化确保了工具配置的类型安全性和灵活性",
-    "内置工具覆盖了常见的 AI 代理需求，开箱即用",
-    "MCP 集成代表了工具系统的未来发展方向"
+    "Tool 类将 Python 函数封装为 AI 可调用工具，自动从类型注解生成 JSON Schema",
+    "RunContext 是工具的依赖注入容器，让工具能访问 Agent 级别的资源和状态",
+    "prepare 函数支持条件性工具注册，实现按需动态暴露工具能力",
+    "内置工具（WebSearchTool、CodeExecutionTool 等）直接使用模型原生能力，无需自定义实现",
+    "工具系统支持多种工作流模式：立即执行、延迟执行、人工审批、外部服务调用"
   ],
   "further_thinking": [
-    "如果让你设计一个自定义工具，你会选择什么功能？如何确保它的类型安全性？",
-    "工具系统的自动注册机制有哪些潜在的风险？如何避免工具冲突？"
+    "如果你想让工具支持流式逐步输出结果，应该如何设计？（提示：考虑 Tool 的 sequential 参数和 Generator 返回值）",
+    "当工具执行失败时，是直接返回错误信息还是让模型重试？不同的重试策略对对话流畅度有何影响？"
   ],
-  "analogies": [
-    "工具系统就像瑞士军刀，每个工具都是精心设计的专用模块",
-    "自动注册机制如同公司的员工管理系统，新员工入职自动建档"
-  ],
-  "mermaid_diagrams": ["工具系统架构图", "工具序列化流程"],
-  "code_snippets": ["AbstractBuiltinTool 核心实现"],
-  "word_count": 3850,
-  "prerequisites": ["ch04-agent-architecture"]
+  "word_count": 4200,
+  "prerequisites": ["ch06-capabilities"]
 }
