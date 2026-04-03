@@ -1,0 +1,36 @@
+name: "项目名称"
+repo_path: "/path/to/repo"
+target_dir: "src"
+language: "TypeScript"
+description: "项目简介"
+
+book:
+  title: "深入理解 XXX"
+  subtitle: "一本由浅入深的交互式技术书"
+  stats:
+    files: 0
+    lines: 0
+
+chapters:
+  # 按照由浅入深的顺序组织章节
+  # 每章需要：id, title, subtitle, sources, prerequisites, outline
+  - id: ch01-introduction
+    title: "第1章：项目简介"
+    subtitle: "全景概览"
+    sources: "src/main.ts"
+    prerequisites: []
+    outline: |
+      - 项目是什么
+      - 解决什么问题
+      - 技术栈概览
+      - 架构总览
+
+  - id: ch02-core
+    title: "第2章：核心模块"
+    subtitle: "核心设计与实现"
+    sources: "src/core"
+    prerequisites: ["ch01-introduction"]
+    outline: |
+      - 核心抽象
+      - 主要数据流
+      - 关键设计决策

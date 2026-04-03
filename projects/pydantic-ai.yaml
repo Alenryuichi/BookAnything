@@ -1,0 +1,232 @@
+name: "Pydantic AI"
+repo_path: "/tmp/pydantic-ai"
+target_dir: "."
+language: "Python"
+description: "基于 Pydantic 的类型安全 GenAI 代理框架，为 Python 开发者提供生产级的 AI 应用开发体验"
+
+book:
+  title: "深入理解 Pydantic AI"
+  subtitle: "一本由浅入深的交互式技术书"
+  stats:
+    files: 1703
+    lines: 242799
+
+chapters:
+
+  # ──────────────────────────────
+  # Part 1 - 建立直觉：什么是 Pydantic AI
+  # ──────────────────────────────
+  - id: ch01-what-is-pydantic-ai
+    title: "第1章：Pydantic AI 是什么"
+    subtitle: "从 FastAPI 到 GenAI 的演进之路"
+    sources: "/tmp/pydantic-ai/README.md,/tmp/pydantic-ai/docs/index.md"
+    prerequisites: []
+    outline: |
+      - 开篇：从 FastAPI 的成功看 Pydantic AI 的设计哲学
+      - 核心概念：类型安全的 AI 代理框架
+      - 为什么选择 Pydantic AI：11 大核心优势解析
+      - 与 LangChain、LlamaIndex 等框架的对比
+      - 比喻：Pydantic AI 就像智能餐厅的服务员系统
+  - id: ch02-hello-world
+    title: "第2章：第一个 AI 代理"
+    subtitle: "从零开始构建智能对话助手"
+    sources: "/tmp/pydantic-ai/examples/pydantic_ai_examples/bank_support.py,/tmp/pydantic-ai/docs/index.md"
+    prerequisites: ["ch01-what-is-pydantic-ai"]
+    outline: |
+      - 开篇：银行客服代理的实际应用场景
+      - 核心概念：Agent 类、依赖注入、工具注册
+      - 代码解读：银行支持代理的完整实现
+      - 类型安全：Pydantic 模型如何保证输出结构
+      - 比喻：AI 代理就像训练有素的客服专员
+  - id: ch03-architecture-overview
+    title: "第3章：架构全景图"
+    subtitle: "理解 Pydantic AI 的核心组件"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/__init__.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/agent/abstract.py"
+    prerequisites: ["ch02-hello-world"]
+    outline: |
+      - 开篇：复杂 AI 应用需要什么样的架构
+      - 核心组件：Agent、Tools、Capabilities、Messages
+      - 数据流：从用户输入到结构化输出的完整流程
+      - 扩展性：插件化架构设计原理
+      - 比喻：Pydantic AI 就像模块化的乐高积木系统
+
+  # ──────────────────────────────
+  # Part 2 - 核心构建块：代理、工具与能力
+  # ──────────────────────────────
+  - id: ch04-agent-system
+    title: "第4章：代理系统深度解析"
+    subtitle: "AbstractAgent 的设计哲学"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/agent/abstract.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/agent/__init__.py"
+    prerequisites: ["ch03-architecture-overview"]
+    outline: |
+      - 开篇：为什么需要抽象的代理基类
+      - 核心概念：泛型类型参数、依赖类型、输出规范
+      - 代码解读：AbstractAgent 的关键方法实现
+      - 运行机制：同步与异步执行的区别
+      - 比喻：AbstractAgent 就像汽车的底盘架构
+  - id: ch05-tool-system
+    title: "第5章：工具系统"
+    subtitle: "让 AI 代理拥有执行能力"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/tools/__init__.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/builtin_tools.py"
+    prerequisites: ["ch04-agent-system"]
+    outline: |
+      - 开篇：工具如何扩展 AI 代理的能力边界
+      - 核心概念：Tool 装饰器、RunContext、工具集
+      - 代码解读：内置工具的实现原理
+      - 工具注册：动态与静态工具的区别
+      - 比喻：工具系统就像瑞士军刀的多功能模块
+  - id: ch06-capabilities
+    title: "第6章：能力系统"
+    subtitle: "可组合的功能模块"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/capabilities/__init__.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/capabilities/thinking.py"
+    prerequisites: ["ch05-tool-system"]
+    outline: |
+      - 开篇：从单一工具到能力组合的演进
+      - 核心概念：Thinking、WebSearch、MCP 等内置能力
+      - 代码解读：能力类的抽象定义与实现
+      - 自定义能力：如何扩展新的功能模块
+      - 比喻：能力系统就像应用程序的功能插件
+
+  # ──────────────────────────────
+  # Part 3 - 高级特性：生产级功能
+  # ──────────────────────────────
+  - id: ch07-type-safety
+    title: "第7章：类型安全"
+    subtitle: "Pydantic 的强类型保障"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/_output.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/output/__init__.py"
+    prerequisites: ["ch06-capabilities"]
+    outline: |
+      - 开篇：为什么 AI 应用需要类型安全
+      - 核心概念：输出规范、类型适配器、JSON Schema
+      - 代码解读：类型验证的实现机制
+      - 错误处理：类型不匹配时的优雅降级
+      - 比喻：类型安全就像建筑的结构工程师
+  - id: ch08-observability
+    title: "第8章：可观测性"
+    subtitle: "Pydantic Logfire 集成"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/_instrumentation.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/_otel_messages.py"
+    prerequisites: ["ch07-type-safety"]
+    outline: |
+      - 开篇：生产环境中的 AI 应用监控需求
+      - 核心概念：OpenTelemetry、追踪、指标、日志
+      - 代码解读：可观测性工具的集成方式
+      - 实战应用：性能监控与故障诊断
+      - 比喻：可观测性就像飞机的黑匣子
+  - id: ch09-durable-execution
+    title: "第9章：持久化执行"
+    subtitle: "处理长运行工作流"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/durable_exec/__init__.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/durable_exec/temporal/_agent.py"
+    prerequisites: ["ch08-observability"]
+    outline: |
+      - 开篇：为什么 AI 工作流需要持久化
+      - 核心概念：Temporal、Prefect、DBOS 集成
+      - 代码解读：持久化代理的实现原理
+      - 容错机制：故障恢复与状态保持
+      - 比喻：持久化执行就像可靠的快递服务
+  - id: ch10-human-in-the-loop
+    title: "第10章：人机协作"
+    subtitle: "工具调用的人工审批"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/tools/__init__.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/toolsets/__init__.py"
+    prerequisites: ["ch09-durable-execution"]
+    outline: |
+      - 开篇：何时需要人工介入 AI 决策
+      - 核心概念：工具审批、延迟执行、人工确认
+      - 代码解读：审批机制的实现细节
+      - 安全考虑：敏感操作的权限控制
+      - 比喻：人机协作就像飞行员与自动驾驶系统
+
+  # ──────────────────────────────
+  # Part 4 - 扩展与集成：生态系统
+  # ──────────────────────────────
+  - id: ch11-model-agnostic
+    title: "第11章：模型无关设计"
+    subtitle: "支持 20+ 模型提供商"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/models/__init__.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/embeddings/__init__.py"
+    prerequisites: ["ch10-human-in-the-loop"]
+    outline: |
+      - 开篇：为什么模型无关性如此重要
+      - 核心概念：模型抽象层、提供商适配器
+      - 代码解读：统一 API 接口设计
+      - 自定义模型：扩展新的 AI 服务提供商
+      - 比喻：模型无关设计就像通用的电源适配器
+  - id: ch12-mcp-integration
+    title: "第12章：MCP 集成"
+    subtitle: "模型上下文协议"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/_mcp.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/capabilities/mcp.py"
+    prerequisites: ["ch11-model-agnostic"]
+    outline: |
+      - 开篇：MCP 如何统一工具生态系统
+      - 核心概念：MCP 服务器、工具发现、协议规范
+      - 代码解读：MCP 客户端的实现原理
+      - 实战应用：集成第三方 MCP 工具
+      - 比喻：MCP 就像计算机的 USB 接口标准
+  - id: ch13-a2a-communication
+    title: "第13章：Agent2Agent 通信"
+    subtitle: "多代理协作系统"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/_a2a.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/capabilities/__init__.py"
+    prerequisites: ["ch12-mcp-integration"]
+    outline: |
+      - 开篇：单个代理的局限与多代理的优势
+      - 核心概念：A2A 协议、代理间通信、技能共享
+      - 代码解读：代理协作的实现机制
+      - 应用场景：复杂任务的分工协作
+      - 比喻：A2A 就像团队协作中的专业分工
+  - id: ch14-graph-support
+    title: "第14章：图支持"
+    subtitle: "复杂工作流的可视化编排"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/_agent_graph.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/pydantic_graph/__init__.py"
+    prerequisites: ["ch13-a2a-communication"]
+    outline: |
+      - 开篇：何时需要图结构来组织 AI 工作流
+      - 核心概念：节点、边、执行图、类型提示
+      - 代码解读：图执行引擎的实现
+      - 可视化：工作流的图形化表示
+      - 比喻：图支持就像城市规划的交通网络
+
+  # ──────────────────────────────
+  # Part 5 - 测试与部署：生产就绪
+  # ──────────────────────────────
+  - id: ch15-evals-system
+    title: "第15章：评估系统"
+    subtitle: "AI 应用的自动化测试"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/pydantic_evals/__init__.py,/tmp/pydantic-ai/examples/pydantic_ai_examples/evals/agent.py"
+    prerequisites: ["ch14-graph-support"]
+    outline: |
+      - 开篇：为什么 AI 应用需要专门的评估
+      - 核心概念：评估指标、测试数据集、性能监控
+      - 代码解读：评估框架的架构设计
+      - 实战应用：构建自定义评估器
+      - 比喻：评估系统就像产品的质量检测线
+  - id: ch16-deployment
+    title: "第16章：部署与运维"
+    subtitle: "生产环境的最佳实践"
+    sources: "/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/ag_ui.py,/tmp/pydantic-ai/pydantic_ai_slim/pydantic_ai/_cli/web.py"
+    prerequisites: ["ch15-evals-system"]
+    outline: |
+      - 开篇：从开发到生产的挑战
+      - 核心概念：Web UI、CLI 工具、API 服务
+      - 代码解读：部署工具的实现
+      - 运维考虑：监控、扩缩容、故障处理
+      - 比喻：部署运维就像火箭发射的地面控制
+  - id: ch17-best-practices
+    title: "第17章：最佳实践"
+    subtitle: "大型 AI 应用架构指南"
+    sources: "/tmp/pydantic-ai/docs/agents.md,/tmp/pydantic-ai/docs/index.md"
+    prerequisites: ["ch16-deployment"]
+    outline: |
+      - 开篇：从经验中总结的智慧
+      - 架构模式：微服务 vs 单体应用
+      - 性能优化：并发控制、缓存策略
+      - 安全考虑：输入验证、权限控制
+      - 比喻：最佳实践就像老船长的航海经验
+  - id: ch18-future-outlook
+    title: "第18章：未来展望"
+    subtitle: "AI 代理框架的发展趋势"
+    sources: "/tmp/pydantic-ai/README.md,/tmp/pydantic-ai/docs/index.md"
+    prerequisites: ["ch17-best-practices"]
+    outline: |
+      - 开篇：AI 代理技术的演进方向
+      - 技术趋势：多模态、自主性、标准化
+      - 生态发展：开源社区与商业应用
+      - 个人成长：AI 工程师的技能图谱
+      - 比喻：未来展望就像探索未知星系的航海图

@@ -1,0 +1,217 @@
+name: "深入理解 Claude Code"
+repo_path: "/Users/kylinmiao/Documents/project/ClaudeCode"
+target_dir: "src"
+language: "TypeScript"
+description: "AI 编程助手 CLI 工具"
+
+book:
+  title: "深入理解 Claude Code"
+  subtitle: "一本由浅入深的交互式技术书"
+  stats:
+    files: 1900
+    lines: 512000
+
+chapters:
+  # ──────────────────────────────
+  # 第一部分：初识 Claude Code
+  # ──────────────────────────────
+  - id: ch01-what-is-claude-code
+    title: "第1章：Claude Code 是什么"
+    subtitle: "一个 AI 编程助手的全景图"
+    sources: "src/main.tsx,src/entrypoints,src/setup.ts"
+    prerequisites: []
+    outline: |
+      - 开篇：你输入一行指令，背后发生了什么？
+      - Claude Code 的定位：不是 IDE 插件，而是终端原生 AI
+      - 技术栈全景：TypeScript + React + Ink + Bun
+      - 数字概览：1900 文件、50 万行代码、100+ 命令、40+ 工具
+      - 架构六层饼图：入口层 → CLI → 逻辑层 → 引擎层 → UI → 基础设施
+      - 本书路线图：我们将如何一层层揭开它
+
+  - id: ch02-startup-journey
+    title: "第2章：一次启动的旅程"
+    subtitle: "从敲下 claude 到看见光标闪烁"
+    sources: "src/main.tsx,src/setup.ts,src/bootstrap,src/entrypoints,src/context.ts"
+    prerequisites: ["ch01-what-is-claude-code"]
+    outline: |
+      - 开篇：打开终端，输入 claude，回车。接下来的 500 毫秒里发生了什么？
+      - Phase 1: 入口分发 — entrypoints 如何决定走 REPL/headless/server
+      - Phase 2: Bootstrap — 并行预取配置、密钥、MDM 策略
+      - Phase 3: Setup — 环境检测、hooks 加载、worktree
+      - Phase 4: 进入 REPL 循环 — React 接管终端
+      - 设计哲学：为什么用 4 阶段启动？（懒加载、容错、速度）
+      - 关键代码：setup.ts 的 parallel prefetch 模式
+
+  - id: ch03-terminal-ui
+    title: "第3章：终端里的 React"
+    subtitle: "Ink 框架如何让终端变成画布"
+    sources: "src/ink.ts,src/ink,src/components,src/screens"
+    prerequisites: ["ch02-startup-journey"]
+    outline: |
+      - 开篇：你见过在终端里跑 React 组件吗？
+      - Ink 框架原理：React → Virtual DOM → ANSI 转义序列
+      - 自定义渲染管线：layout、components、hooks、events、termio
+      - 146 个 UI 组件的分类：输入、展示、对话框、权限请求
+      - Screen 系统：主屏幕、设置屏幕、Agent 屏幕的切换
+      - 深入 termio：如何精确控制终端光标和颜色
+      - 比喻：把终端想象成一个只有文字的浏览器
+
+  # ──────────────────────────────
+  # 第二部分：核心引擎
+  # ──────────────────────────────
+  - id: ch04-tool-system
+    title: "第4章：工具系统 — AI 的双手"
+    subtitle: "40+ 工具的统一抽象与精密权限"
+    sources: "src/Tool.ts,src/tools.ts,src/tools/shared,src/tools/BashTool,src/tools/FileReadTool,src/tools/FileEditTool,src/tools/GlobTool,src/tools/GrepTool"
+    prerequisites: ["ch02-startup-journey"]
+    outline: |
+      - 开篇：AI 有了思考能力，但它怎么「动手」？
+      - Tool<Input, Output, Progress> — 三个泛型参数的深意
+      - Builder 模式：用链式调用构建工具，而不是继承
+      - 权限模型：为什么不能让 AI 随便 rm -rf /?
+      - 文件工具族：Read/Write/Edit/Glob/Grep 的设计取舍
+      - BashTool 的安全挑战：沙箱、AST 解析、危险命令检测
+      - 工具注册与发现：如何从 40+ 工具中选择正确的那个
+      - 设计模式：工厂模式 + 策略模式 + 装饰器模式
+
+  - id: ch05-command-system
+    title: "第5章：命令系统 — 用户的入口"
+    subtitle: "100+ 斜杠命令的注册、解析与执行"
+    sources: "src/commands.ts,src/commands,src/cli"
+    prerequisites: ["ch04-tool-system"]
+    outline: |
+      - 开篇：当你输入 /help，系统怎么知道该做什么？
+      - 命令的生命周期：注册 → 解析 → 权限检查 → 执行
+      - 多层命令来源：内置 → 插件 → 技能 → 工作流
+      - Feature Flag 门控：如何用编译时标记裁剪功能
+      - 命令与工具的区别：人类触发 vs AI 触发
+      - 实现细节：commands.ts 的 755 行如何管理 100+ 命令
+
+  - id: ch06-query-engine
+    title: "第6章：查询引擎 — 思考的核心"
+    subtitle: "从用户输入到 AI 响应的完整链路"
+    sources: "src/query.ts,src/QueryEngine.ts,src/query"
+    prerequisites: ["ch04-tool-system", "ch05-command-system"]
+    outline: |
+      - 开篇：你问了一个问题，Claude 是怎么「想」出答案的？
+      - QueryEngine 的职责：模型选择 → 工具组装 → API 调用 → 流式响应
+      - 上下文管理：怎么在 100K token 限制内塞入最多有用信息
+      - 工具调用循环：AI 说「我要读文件」→ 执行 → 结果返回 → 继续思考
+      - 流式输出：为什么你能看到 AI 一个字一个字打出来
+      - 成本追踪：cost-tracker.ts 如何实时计算 token 花费
+
+  # ──────────────────────────────
+  # 第三部分：高级特性
+  # ──────────────────────────────
+  - id: ch07-task-system
+    title: "第7章：任务系统 — 并行的力量"
+    subtitle: "Dream/Local/Remote 三种任务模式"
+    sources: "src/Task.ts,src/tasks.ts,src/tasks"
+    prerequisites: ["ch06-query-engine"]
+    outline: |
+      - 开篇：如果 AI 可以同时做多件事呢？
+      - 7 种任务类型的设计动机：为什么不是一种就够了？
+      - LocalAgentTask：在本地启一个子 Agent
+      - RemoteAgentTask：SSH 到远程机器执行
+      - DreamTask：后台「做梦」—— 异步思考和推测
+      - 任务生命周期：pending → running → completed/failed/killed
+      - 并行控制：如何防止多个 Agent 互相踩踏文件
+
+  - id: ch08-agent-coordination
+    title: "第8章：多智能体协作"
+    subtitle: "Agent 如何创建、通信和协调"
+    sources: "src/tools/AgentTool,src/tools/SendMessageTool,src/tools/TeamCreateTool,src/coordinator,src/buddy"
+    prerequisites: ["ch07-task-system"]
+    outline: |
+      - 开篇：一个 AI 不够用？那就召唤更多
+      - AgentTool：主 Agent 如何创建子 Agent
+      - SendMessage：Agent 间的消息传递协议
+      - Coordinator：多 Agent 的调度中枢
+      - Team 概念：创建和删除 Agent 团队
+      - Worktree 隔离：每个 Agent 可以有自己的代码副本
+      - 挑战：如何避免 Agent 冲突和死锁
+
+  - id: ch09-mcp-protocol
+    title: "第9章：MCP — 连接外部世界"
+    subtitle: "Model Context Protocol 的实现与扩展"
+    sources: "src/tools/MCPTool,src/tools/McpAuthTool,src/tools/ReadMcpResourceTool,src/services"
+    prerequisites: ["ch04-tool-system"]
+    outline: |
+      - 开篇：AI 只能读本地文件？MCP 让它连接一切
+      - MCP 是什么：标准化的 AI ↔ 外部服务协议
+      - MCPTool：把任何 MCP 服务器的能力变成工具
+      - 认证流程：McpAuth 如何处理 OAuth
+      - Resource 读取：像读文件一样读远程数据
+      - 实际案例：连接 GitHub、数据库、API
+
+  - id: ch10-state-management
+    title: "第10章：状态管理 — 记忆与上下文"
+    subtitle: "Hooks、Context、全局状态的协作"
+    sources: "src/hooks,src/state,src/context,src/memdir"
+    prerequisites: ["ch03-terminal-ui"]
+    outline: |
+      - 开篇：AI 怎么记住你之前说了什么？
+      - 87 个自定义 Hooks 的分类与职责
+      - 全局状态（state/）vs 组件状态（hooks/）的边界
+      - Context Providers：如何在 React 树中传递深层数据
+      - Memdir：会话记忆的持久化机制
+      - History：对话历史的存储与回放
+
+  # ──────────────────────────────
+  # 第四部分：可扩展性
+  # ──────────────────────────────
+  - id: ch11-plugin-skill
+    title: "第11章：插件与技能系统"
+    subtitle: "让 Claude Code 学会新技能"
+    sources: "src/plugins,src/skills,src/tools/SkillTool"
+    prerequisites: ["ch05-command-system"]
+    outline: |
+      - 开篇：如果 Claude Code 不会做某件事，你可以教它
+      - Plugin 系统：bundled 插件与第三方插件的加载
+      - Skill 系统：用 Markdown 定义的可复用能力
+      - SkillTool：技能如何被转化为工具调用
+      - 开发者指南：如何写一个自己的插件/技能
+
+  - id: ch12-bridge-server
+    title: "第12章：通信与服务层"
+    subtitle: "Bridge、Server、Remote 的分层通信"
+    sources: "src/bridge,src/server,src/remote,src/services"
+    prerequisites: ["ch06-query-engine"]
+    outline: |
+      - 开篇：Claude Code 不只是一个本地工具
+      - Bridge：进程间通信的抽象层
+      - Server：HTTP/WebSocket 服务端
+      - Remote：SSH 隧道和远程执行
+      - Services 层：38 个服务的职责划分
+      - 认证与安全：OAuth、API Key、MDM 策略
+
+  # ──────────────────────────────
+  # 第五部分：总结与展望
+  # ──────────────────────────────
+  - id: ch13-design-patterns
+    title: "第13章：设计模式全景"
+    subtitle: "贯穿 50 万行代码的架构智慧"
+    sources: "src/Tool.ts,src/commands.ts,src/QueryEngine.ts,src/tasks"
+    prerequisites: ["ch04-tool-system", "ch07-task-system"]
+    outline: |
+      - Builder 模式 — 工具构建
+      - 策略模式 — 权限系统、模型选择
+      - 观察者模式 — 事件钩子
+      - 工厂模式 — 命令和任务创建
+      - 懒加载模式 — 打破循环依赖
+      - Memoization — 缓存与失效
+      - 中间件模式 — preAction 钩子链
+      - 每个模式配一个精炼的代码示例和使用场景
+
+  - id: ch14-architecture-summary
+    title: "第14章：架构全景与演进"
+    subtitle: "鸟瞰 Claude Code 的设计哲学"
+    sources: "src/main.tsx,src/Tool.ts,src/QueryEngine.ts"
+    prerequisites: ["ch01-what-is-claude-code"]
+    outline: |
+      - 六层架构的全景 Mermaid 图
+      - 数据流完整路径：用户输入 → ... → 屏幕输出
+      - 关键设计决策：为什么用 React 在终端？为什么用 TypeScript？
+      - 可扩展性总结：插件/技能/MCP 三驾马车
+      - 与同类工具对比：Cursor、Copilot、Aider
+      - 未来方向推测
