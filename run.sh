@@ -16,7 +16,7 @@ GOALS_FILE="$HARNESS_DIR/goals.yaml"
 WEBAPP_DIR="$HARNESS_DIR/web-app"
 PROMPTS_DIR="$HARNESS_DIR/prompts"
 LOCK_FILE="$HARNESS_DIR/.harness.lock"
-CLAUDE_CMD="${CLAUDE_CMD:-claude-internal}"
+CLAUDE_CMD="${CLAUDE_CMD:-claude}"
 
 # ── 默认参数 ──
 MAX_HOURS="${MAX_HOURS:-12}"

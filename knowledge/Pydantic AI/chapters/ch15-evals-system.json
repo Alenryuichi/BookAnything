@@ -2,91 +2,90 @@
   "chapter_id": "ch15-evals-system",
   "title": "第15章：评估系统",
   "subtitle": "AI 应用的自动化测试",
-  "chapter_summary": "本章介绍 Pydantic AI 的评估框架，如何通过类型安全的自动化测试确保 AI 应用的可靠性和性能",
-  "opening_hook": "想象你刚刚部署了一个 AI 客服系统，前100个用户反馈都很满意，但第101个用户却得到了完全错误的回答。这种『黑盒』不确定性正是传统 AI 应用开发的痛点。Pydantic AI 的评估系统就像给 AI 应用装上了质量检测仪，让不可预测的 AI 行为变得可测量、可监控、可优化。",
+  "chapter_summary": "本章介绍了 Pydantic AI 的评估系统，这是一个为 AI 应用设计的自动化测试框架，通过 Dataset、Evaluator 和 Report 三层架构，帮助开发者量化 AI 应用的质量。",
+  "opening_hook": "假设你刚刚部署了一个智能客服助手，它能自动回答用户问题。\n\n上线第一周，系统接待了上万名用户。但当你查看日志时，却发现一个严重的问题：你不知道这个助手回答得对不对。\n\n传统软件测试靠断言——`assert expected == actual`。但 AI 的输出是概率性的，同一个问题问两次可能得到不同的答案。你该如何判断这个助手的表现是否合格？\n\n这正是 AI 应用开发中最棘手的挑战：我们失去了传统测试的确定性，却又需要同样严格的质量保证。",
   "sections": [
     {
       "heading": "为什么 AI 应用需要专门的评估",
-      "content": "传统软件测试主要关注代码逻辑的正确性，但 AI 应用测试面临完全不同的挑战。\n\nAI 模型的输出具有概率性，同样的输入可能产生不同的输出，这使得传统的断言测试难以适用。\n\n评估系统需要测量的是回答质量、相关性、安全性等主观指标，而不仅仅是二进制的是非判断。",
-      "callout": {
-        "type": "warning",
-        "text": "重要提醒：AI 评估不是测试代码bug，而是评估模型输出的质量和一致性"
+      "content": "传统软件的测试建立在一个核心假设之上：给定相同的输入，程序总是产生相同的输出。\n\n这个假设让单元测试变得简单直接。你写一个函数，给它几个输入，验证输出是否符合预期。如果今天能通过测试，明天也能通过。\n\n但 AI 破坏了这个假设。语言模型的输出是概率性的，受参数随机性、温度设置、模型版本等多种因素影响。同一个 prompt 今天可能得到精彩的回答，明天却可能偏离主题。\n\n这并不意味着我们无法测试 AI 应用。只是测试的方法需要根本性的转变：从验证「输出是否完全一致」转向评估「输出是否满足质量标准」。\n\nPydantic Evals 系统就是为此而生的。它不追求精确匹配，而是建立了一套可量化、可扩展的评估体系，让 AI 应用的质量可以被系统地衡量。"
+    },
+    {
+      "heading": "评估框架的三大支柱",
+      "content": "Pydantic Evals 的设计围绕三个核心概念展开：Dataset（数据集）、Evaluator（评估器）和 Report（报告）。\n\nDataset 是测试用例的集合，定义了要测试的场景。每个 Case 包含 inputs（输入）、expected_output（期望输出，可选）、metadata（元数据，可选）和 evaluators（专用评估器，可选）。\n\nEvaluator 是评估的核心逻辑，它接收完整的执行上下文——包括输入、输出、期望值、元数据、执行时间和性能指标——然后返回评估结果。\n\n评估结果分为三种类型：Assertion（断言，布尔值）、Score（分数，数值）和 Label（标签，字符串）。这种分类让评估结果既可以是「通过/失败」，也可以是「0-100 分」这样的量化评分。\n\nReport 是所有评估结果的汇总。它不仅包含每个 Case 的详细结果，还可以通过 ReportEvaluator 进行跨 Case 的聚合分析，比如计算整体通过率、平均分数、性能分布等。\n\n这一设计的精妙之处在于它的层次性：Dataset 定义了测什么，Evaluator 定义了怎么测，Report 定义了结果怎么呈现。三者解耦，各司其职。",
+      "diagram": {
+        "title": "评估系统的三层架构",
+        "chart": "graph TD\n    A[Dataset 数据集] --> |包含| B[Case 测试用例]\n    B --> |定义| C[Inputs 输入]\n    B --> |可选| D[ExpectedOutput 期望输出]\n    B --> |可选| E[Metadata 元数据]\n    B --> |可选| F[Evaluators 专属评估器]\n    \n    G[Evaluator 评估器] --> |接收| H[EvaluatorContext 上下文]\n    H --> |包含| I[Inputs]\n    H --> |包含| J[Output 输出]\n    H --> |包含| K[ExpectedOutput]\n    H --> |包含| L[Duration 执行时间]\n    H --> |包含| M[Metrics 性能指标]\n    \n    G --> |返回| N[EvaluationResult 评估结果]\n    N --> |类型1| O[Assertion 断言 bool]\n    N --> |类型2| P[Score 分数 int/float]\n    N --> |类型3| Q[Label 标签 string]\n    \n    R[Report 报告] --> |汇总| S[ReportCase 每个用例的结果]\n    R --> |聚合| T[CaseAggregate 统计信息]\n    R --> |分析| U[Analyses 跨用例洞察]",
+        "description": "评估系统的三层架构展示了 Dataset、Evaluator 和 Report 之间的关系，以及它们各自包含的核心组件。"
       }
     },
     {
-      "heading": "评估系统的三大支柱",
-      "content": "Pydantic AI 的评估框架建立在三个核心概念之上：评估指标、测试数据集和性能监控。\n\n评估指标定义了如何衡量 AI 表现，比如准确性、相关性、安全性得分等。\n\n测试数据集包含精心设计的输入输出对，用于系统化测试各种边界情况。\n\n性能监控则持续跟踪生产环境中的模型表现，实现闭环优化。",
+      "heading": "内置评估器的实用工具箱",
+      "content": "Pydantic Evals 提供了一组内置评估器，覆盖了常见的评估场景。理解这些评估器的设计思路，能帮助你更好地构建自定义评估器。\n\nEquals 和 EqualsExpected 是最简单的评估器，前者验证输出是否等于给定的值，后者验证输出是否等于期望输出。它们适用于确定性结果的场景，比如工具调用的返回值。\n\nContains 更灵活，它检查输出是否包含指定的值。对于字符串是子串检查，对于列表是元素检查，对于字典是键值对检查。它支持大小写不敏感模式和强制字符串转换模式，适应各种数据类型。\n\nIsInstance 验证输出的类型名是否匹配。这在需要确保输出结构正确时很有用，比如确认返回的是一个 BaseModel 实例而不是原始字典。\n\nMaxDuration 检查执行时间是否超过阈值。AI 应用的性能监控同样重要，评估系统可以同时验证功能正确性和性能表现。\n\nHasMatchingSpan 是一个高级评估器，它利用 OpenTelemetry 的 Span 树来检查执行过程中是否出现了特定的操作。比如验证某个 Tool 是否被调用，或者某个 LLM 请求是否满足特定条件。",
+      "callout": {
+        "type": "tip",
+        "text": "评估器可以返回两种形式：简单值或 EvaluationReason。后者允许你同时返回评估结果和原因说明，这对于后续的问题诊断和分析非常有帮助。"
+      },
+      "code": {
+        "title": "使用内置评估器",
+        "description": "展示如何创建 Dataset 并使用内置评估器进行测试",
+        "code": "from pydantic_evals import Case, Dataset\nfrom pydantic_evals.evaluators import Contains, MaxDuration\n\ndataset = Dataset(\n    name='basic_tests',\n    cases=[\n        Case(\n            name='contains_keyword',\n            inputs={'prompt': 'What is Python?'},\n            expected_output='Python is a programming language',\n            evaluators=(Contains('programming language'),)\n        ),\n        Case(\n            name='quick_response',\n            inputs={'prompt': 'Hello'},\n            evaluators=(MaxDuration(seconds=2.0),)\n        ),\n    ],\n)",
+        "language": "python",
+        "annotation": "这个示例展示了如何定义测试用例，并为每个用例附加不同的评估器。Contains 检查响应中是否包含特定关键词，MaxDuration 确保响应时间在阈值内。"
+      }
+    },
+    {
+      "heading": "LLM as a Judge：让 AI 评估 AI",
+      "content": "有些评估任务太复杂了，无法用简单的规则来定义。\n\n比如「这个回答是否礼貌得体？」、「这个总结是否准确抓住了原文要点？」、「这个代码是否遵循了最佳实践？」。这些任务需要语义理解，而这就是 LLMJudge 评估器的用武之地。\n\nLLMJudge 的核心思想是「让 AI 评估 AI」。你提供一个 rubric（评价标准），它用另一个 LLM 来评估输出是否符合这个标准。\n\n这个评估器非常灵活：你可以选择是否包含输入、是否包含期望输出、如何配置评分和断言输出。\n\nLLMJudge 返回一个分数和一个通过/失败的判断，并附带推理过程。这种结构让评估结果既可用于自动化判断（通过/失败），也可用于人工审查（查看推理过程）。\n\n想象一下，这就像在工厂里设置了一个「质量检测机器人」。它不仅能判断产品是否合格，还能告诉你具体哪里有问题。",
+      "code": {
+        "title": "使用 LLM Judge 评估器",
+        "description": "展示如何配置 LLMJudge 来评估 AI 输出的质量",
+        "code": "from pydantic_evals import Case, Dataset\nfrom pydantic_evals.evaluators import LLMJudge\n\ndataset = Dataset(\n    name='politeness_tests',\n    cases=[\n        Case(\n            name='polite_response',\n            inputs={'user_query': 'I need help'},\n        ),\n    ],\n    evaluators=(\n        LLMJudge(\n            rubric='The response should be polite and helpful, using courteous language',\n            include_input=True,\n            assertion={'include_reason': True}\n        ),\n    ),\n)",
+        "language": "python",
+        "annotation": "LLMJudge 通过 rubric 参数定义评估标准。include_input=True 让评估器能看到原始问题，这样它能判断回答是否针对用户的问题。assertion 配置要求返回推理原因，便于问题定位。"
+      },
       "table": {
-        "caption": "AI 评估指标类型对比",
-        "headers": ["指标类型", "测量内容", "适用场景"],
+        "caption": "LLMJudge 的配置选项对比",
+        "headers": ["配置项", "作用", "使用场景"],
         "rows": [
-          ["准确性", "回答的事实正确性", "知识问答类应用"],
-          ["相关性", "回答与问题的匹配程度", "聊天机器人"],
-          ["安全性", "避免有害或偏见内容", "所有面向用户的应用"],
-          ["一致性", "多次询问的答案稳定性", "关键决策系统"]
+          ["rubric", "定义评估标准", "指定输出需要满足的质量要求"],
+          ["include_input", "是否包含输入", "需要判断回答是否针对问题时启用"],
+          ["include_expected_output", "是否包含期望输出", "有标准答案可对比时启用"],
+          ["model_settings", "LLM 配置参数", "自定义 judge 模型的温度、max_tokens 等"],
+          ["score", "分数输出配置", "需要量化评分时启用"],
+          ["assertion", "断言输出配置", "需要通过/失败判断时启用"]
         ]
       }
     },
     {
-      "heading": "评估框架的架构设计",
-      "content": "Pydantic AI 采用装饰器模式实现评估系统，让开发者可以轻松为任何 AI 代理添加评估能力。\n\n核心是一个 Evaluator 基类，定义了评估的标准接口和流水线。\n\n通过类型注解，评估结果也享受 Pydantic 的验证优势，确保评估数据本身的可靠性。",
-      "diagram": {
-        "title": "评估系统架构图",
-        "chart": "graph TD\n    A[用户输入] --> B[AI 代理]\n    B --> C[生成回答]\n    C --> D[评估流水线]\n    D --> E[准确性评估]\n    D --> F[相关性评估] \n    D --> G[安全性评估]\n    E --> H[综合评分]\n    F --> H\n    G --> H\n    H --> I[评估报告]",
-        "description": "评估系统处理流程：从AI生成回答到多维度评估最终生成综合报告"
-      }
-    },
-    {
       "heading": "构建自定义评估器",
-      "content": "开发者可以通过继承 BaseEvaluator 类来创建自定义评估器。\n\n每个评估器需要实现 evaluate 方法，接收模型输入输出并返回评分。\n\n评估器可以组合使用，形成一个评估流水线，从不同维度综合评判AI表现。\n\n通过类型注解，确保评估输入输出的格式正确性，避免运行时错误。",
+      "content": "内置评估器覆盖了大部分常见场景，但真正的威力来自于自定义评估器。\n\n创建自定义评估器只需继承 Evaluator 基类并实现 evaluate 方法。方法接收一个 EvaluatorContext，包含完整执行信息。\n\nevaluate 方法可以返回各种类型：布尔值（变成 Assertion）、数字（变成 Score）、字符串（变成 Label）、字典（合并多个评估结果）或 EvaluationReason（带原因的评估结果）。\n\n评估器可以访问执行时的 Metrics 和 Attributes。这些数据来自 OpenTelemetry Span，包含了 LLM 请求的 token 使用、成本、执行次数等信息。\n\n一个实用的自定义评估器可能检查输出长度、验证 JSON 格式的正确性、计算与期望输出的相似度、或者基于业务规则进行复杂判断。\n\n评估器的可序列化设计让它们可以保存到文件并从文件加载。这意味着你可以在 YAML 中定义测试用例和评估器，实现测试配置的外部化管理。",
       "code": {
-        "title": "自定义安全性评估器示例",
-        "description": "实现一个检查有害内容的评估器",
-        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.evals import BaseEvaluator\nfrom typing import Any\n\nclass SafetyEvaluator(BaseEvaluator):\n    \"\"\"评估生成内容的安全性\"\"\"\n    \n    async def evaluate(self, \n                     input: str, \n                     output: str, \n                     context: Any = None) -> float:\n        # 检查输出是否包含有害内容\n        harmful_keywords = ['仇恨', '暴力', '歧视']\n        \n        score = 1.0  # 初始满分\n        for keyword in harmful_keywords:\n            if keyword in output:\n                score -= 0.3  # 每发现一个有害词扣分\n        \n        return max(0, score)  # 确保分数不为负",
+        "title": "自定义评估器示例",
+        "description": "展示如何创建一个验证 JSON 格式的自定义评估器",
+        "code": "from dataclasses import dataclass\nimport json\nfrom pydantic_evals.evaluators import Evaluator, EvaluatorContext, EvaluationReason\nfrom typing import Any\n\n@dataclass(repr=False)\nclass ValidJSON(Evaluator[Any, Any, Any]):\n    \"\"\"Check if the output is valid JSON.\"\"\"\n    \n    def evaluate(self, ctx: EvaluatorContext[Any, Any, Any]) -> EvaluationReason:\n        try:\n            # Try parse as JSON if output is a string\n            if isinstance(ctx.output, str):\n                json.loads(ctx.output)\n                return EvaluationReason(value=True)\n            # Output is already a dict/list, which is JSON-serializable\n            elif isinstance(ctx.output, (dict, list)):\n                # Try to serialize it back to verify\n                _ = json.dumps(ctx.output)\n                return EvaluationReason(value=True)\n            else:\n                return EvaluationReason(\n                    value=False,\n                    reason=f'Output is not JSON-serializable: {type(ctx.output).__name__}'\n                )\n        except json.JSONDecodeError as e:\n            return EvaluationReason(\n                value=False,\n                reason=f'Invalid JSON: {e}'\n            )",
         "language": "python",
-        "annotation": "这个评估器通过关键词检测来评估内容安全性，返回0-1之间的分数。实际应用中可以使用更复杂的NLP技术。"
+        "annotation": "ValidJSON 评估器验证输出是否是合法的 JSON。它处理了字符串、字典和列表三种情况，并在失败时提供详细的错误原因，便于调试。"
       }
     },
     {
-      "heading": "评估即代码：测试驱动的AI开发",
-      "content": "Pydantic AI 倡导『评估即代码』的理念，将评估测试集成到开发流程中。\n\n开发者可以编写评估测试用例，就像编写单元测试一样确保AI行为符合预期。\n\n评估测试可以在CI/CD流水线中自动运行，每次代码变更都验证AI表现。\n\n这种实践大大提高了AI应用的可靠性和可维护性。",
+      "heading": "从评估到改进的闭环",
+      "content": "评估的最终目的不是为了获得一个漂亮的分数，而是为了改进。\n\nPydantic Evals 的设计支持一个完整的反馈闭环：定义 Dataset → 运行评估 → 查看 Report → 识别问题 → 调整 Agent → 重新评估。\n\n这个循环的关键在于 Report 的可视化输出。报告以表格形式展示每个 Case 的评估结果，包括断言通过率、得分、标签和执行时间。\n\n对于失败的 Case，评估器返回的 failure_reason 会明确指出问题所在。结合 Span 树的追踪信息，你可以精确定位问题是在 Tool 调用、Prompt 设计还是模型选择上。\n\nRepeat 参数允许你对每个 Case 运行多次，用于评估输出的稳定性。如果同一个输入在不同运行下差异很大，可能需要降低模型的温度参数或调整 Prompt。\n\n这个评估系统就像工厂的质量检测线：它不仅告诉你产品是否合格，还告诉你问题出在哪里，让你可以持续改进生产流程。",
       "callout": {
-        "type": "tip",
-        "text": "进阶技巧：使用评估测试驱动开发（ETDD），先定义期望的AI行为，再实现代理逻辑"
+        "type": "warning",
+        "text": "评估不是一次性任务。随着模型更新、Prompt 调整、业务变化，你应该定期运行评估套件，确保 AI 应用的质量不会退化。建立持续评估管道是生产环境的最佳实践。"
       }
     }
   ],
   "key_takeaways": [
-    "AI评估关注输出质量而非代码正确性，需要专门的评估框架",
-    "Pydantic AI通过装饰器模式提供灵活可扩展的评估系统", 
-    "评估器可以组合使用，形成多维度综合评估流水线",
-    "类型安全确保评估数据本身的可靠性",
-    "评估即代码将AI测试集成到标准开发流程中"
+    "AI 应用的评估与传统软件测试有本质区别，需要从验证「完全匹配」转向「满足质量标准」",
+    "Pydantic Evals 通过 Dataset（测什么）、Evaluator（怎么测）、Report（结果呈现）三层架构，构建了系统的评估框架",
+    "内置评估器覆盖了常见场景，LLMJudge 则解决了需要语义理解的复杂评估任务",
+    "自定义评估器可以实现任何业务特定的评估逻辑，支持返回布尔值、分数、标签或带原因的结构化结果",
+    "评估的最终目的不仅是获得分数，而是建立持续改进的闭环，通过识别问题来迭代优化 AI 应用"
   ],
   "further_thinking": [
-    "如何设计评估指标才能既客观又全面？主观性强的指标如何量化？",
-    "在资源有限的情况下，应该优先评估哪些方面的AI表现？"
+    "如何为你的 AI 应用设计一套「关键指标」来量化其业务价值？是用户满意度、问题解决率，还是响应效率？",
+    "在评估成本和评估覆盖面之间如何取得平衡？更多的测试用例意味着更高的置信度，但也意味着更多的评估成本"
   ],
-  "analogies": [
-    "评估系统就像食品质量检测仪，确保AI输出的每个『产品』都安全可靠",
-    "评估流水线如同多道质检工序，从不同角度确保AI应用的整体质量"
-  ],
-  "mermaid_diagrams": [
-    {
-      "title": "评估流水线架构",
-      "chart": "graph LR\n    A[原始输出] --> B[预处理]\n    B --> C[评估器1]\n    B --> D[评估器2]\n    B --> E[评估器3]\n    C --> F[分数聚合]\n    D --> F\n    E --> F\n    F --> G[最终报告]",
-      "description": "多评估器并行处理的流水线架构"
-    }
-  ],
-  "code_snippets": [
-    {
-      "title": "评估器组合使用",
-      "description": "将多个评估器组合成评估流水线",
-      "code": "# 创建评估流水线\nfrom pydantic_ai.evals import EvaluationPipeline\n\npipeline = EvaluationPipeline([\n    AccuracyEvaluator(),\n    RelevanceEvaluator(), \n    SafetyEvaluator()\n])\n\n# 运行综合评估\nreport = await pipeline.evaluate(\n    input=\"用户问题\",\n    output=\"AI回答\",\n    context=additional_context\n)",
-      "language": "python",
-      "annotation": "通过EvaluationPipeline可以轻松组合多个评估器，获得综合评估报告"
-    }
-  ],
-  "word_count": 1580,
-  "prerequisites": ["ch16-deployment"]
+  "word_count": 3800
 }

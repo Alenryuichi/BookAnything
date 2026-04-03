@@ -17,7 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECTS_DIR="$SCRIPT_DIR/projects"
 LOG_DIR="$SCRIPT_DIR/output/logs"
-CLAUDE_CMD="${CLAUDE_CMD:-claude-internal}"
+CLAUDE_CMD="${CLAUDE_CMD:-claude}"
 CLAUDE_TIMEOUT="${CLAUDE_TIMEOUT:-300}"
 
 # macOS 兼容: 优先用 gtimeout

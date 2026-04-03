@@ -10,10 +10,15 @@
 - 默认使用 `projects/claude-code.yaml`
 - 知识数据存储在 `knowledge/{项目名}/chapters/` 下
 
-## ⚠️ Git 安全规则（强制）
-- **禁止** `git push/reset/rebase/checkout ./clean -f/branch -D`
-- **禁止** 在源码仓库中执行任何 git 写操作
-- 只允许 `git status/log/diff`（只读）
+## 硬约束（详见 `.claude/rules/`）
+
+以下规则由 `.claude/rules/` 定义，在 headless 和交互会话中均生效：
+
+- **Git 安全** → `.claude/rules/git-safety.md`
+- **章节 JSON 契约** → `.claude/rules/chapter-json-contract.md`
+- **路径边界** → `.claude/rules/path-boundaries.md`
+- **目录布局** → `.claude/rules/repo-layout.md`
+- **工作流术语** → `.claude/rules/workflow-glossary.md`
 
 ## 写作风格
 
@@ -50,48 +55,7 @@
 参数验证（输入合法吗？）、执行隔离（不同调用之间互不干扰）。
 ```
 
-## 数据格式
-
-### 章节 JSON 格式
-输出必须是**纯 JSON**，不要 markdown 代码块包裹。
-所有文字字段都是**字符串**，不要嵌套对象。
-
-```
-{
-  "chapter_id": "ch04-tool-system",
-  "title": "第4章：工具系统",
-  "subtitle": "核心工具的统一抽象",
-  "opening_hook": "200-400字的开篇引子...",
-  "sections": [
-    {
-      "heading": "小节标题",
-      "content": "500-1000字的叙述...",
-      "code": {
-        "title": "代码标题",
-        "description": "代码说明",
-        "code": "type Tool<Input, Output, Progress> = { ... }",
-        "language": "typescript",
-        "annotation": "代码解读..."
-      },
-      "diagram": {
-        "title": "流程图标题",
-        "chart": "graph TD; A[请求] --> B[权限检查]; ...",
-        "description": "图表说明"
-      }
-    }
-  ],
-  "key_takeaways": ["要点1", "要点2", "要点3"],
-  "further_thinking": ["思考题1", "思考题2"],
-  "analogies": ["比喻1"],
-  "mermaid_diagrams": [...],
-  "code_snippets": [...],
-  "word_count": 3500,
-  "prerequisites": ["ch02-startup-journey"]
-}
-```
-
 ## 文件约定
 - 章节写入: `harness/knowledge/{项目名}/chapters/{chapter-id}.json`
 - 旧模块分析保留在: `harness/knowledge/{项目名}/modules/`（向后兼容）
-- JSON 必须合法可解析
-- 不要在 JSON 前后添加任何文字说明
+- 章节 JSON 格式详见 `.claude/rules/chapter-json-contract.md`
