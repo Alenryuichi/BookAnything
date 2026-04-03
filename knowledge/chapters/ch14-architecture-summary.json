@@ -1,0 +1,109 @@
+{
+  "chapter_id": "ch14-architecture-summary",
+  "title": "第14章：架构全景与演进",
+  "subtitle": "鸟瞰 Claude Code 的设计哲学",
+  "opening_hook": "想象一下，你站在机场的控制塔上俯瞰整个跑道。飞机起飞、降落、滑行，每一条都有清晰的路径和规则。如果不了解整个系统的运作方式，任何一个环节的失误都可能导致混乱。\n\nClaude Code 正是这样一座精密的「控制塔」。用户的一句话指令，历经数个层次的处理，最终转化为精准的工具调用，再把结果优雅地呈现在终端屏幕上。这一章，我们将拉开视角，从全局鸟瞰整个系统的设计哲学，理解那些看似独立却又环环相扣的组件如何协同工作，以及这个架构为未来的演进预留了怎样的空间。",
+  "sections": [
+    {
+      "heading": "六层架构：从输入到输出的完整旅程",
+      "content": "Claude Code 不是单一程序，而是一个精心设计的六层架构。每一层都有明确的职责边界，通过清晰的接口进行通信。这种分层设计让系统既易于理解，又便于扩展和维护。\n\n最底层是「工具层」，这是系统的手脚。每一个工具都是对外部世界的操作接口：读取文件、执行命令、搜索代码、调用 API。工具层屏蔽了底层操作系统的复杂性，向上提供统一的调用接口。比如无论是读取本地文件还是调用 GitHub API，在调用方看来都是一次工具调用，返回标准化的结果结构。\n\n往上是「能力层」，这里定义了 AI 可以做什么。能力层不关心具体怎么做，只关心「可以做什么」。比如「读取文件」是一种能力，「执行 Bash 命令」是另一种能力。这种抽象让系统可以动态地开放或关闭某些能力，而无需修改代码。\n\n第三层是「状态管理层」，负责记住发生了什么。用户的对话历史、工具执行的结果、未完成的任务，都需要在状态中被妥善维护。状态管理采用集中式设计，所有状态变更都通过统一的入口进行，这样可以确保数据的一致性和可追踪性。\n\n第四层是「引擎层」，这是系统的「大脑」。QueryEngine 负责将用户的查询转化为工具调用，再将工具结果整合成响应。它理解用户的意图、规划执行步骤、处理错误和重试、管理并行任务。引擎层是整个系统最复杂的部分，也是体现设计智慧最多的地方。\n\n第五层是「渲染层」，负责将结果呈现给用户。终端界面虽然简陋，但通过精心设计的排版和格式，可以提供出色的阅读体验。渲染层处理颜色、排版、进度条、错误提示等所有视觉元素。\n\n最顶层是「交互层」，处理用户输入和命令路由。斜杠命令、自然语言输入、快捷键操作都在这一层被识别和分发。\n\n这六层架构像一只手的五根手指加一个手掌，各司其职又能协同完成复杂的动作。任何一层的修改都可以独立进行，而不会波及到其他层。",
+      "code": null,
+      "diagram": {
+        "title": "Claude Code 六层架构全景图",
+        "chart": "graph TB\n    subgraph 交互层[交互层 Interaction Layer]\n        A[用户输入 User Input]\n        B[命令解析 Parser]\n    end\n    \n    subgraph 渲染层[渲染层 Rendering Layer]\n        C[终端渲染 Terminal Renderer]\n        D[格式化 Formatter]\n    end\n    \n    subgraph 引擎层[引擎层 Engine Layer]\n        E[QueryEngine 查询引擎]\n        F[任务规划 Task Planner]\n        G[错误处理 Error Handler]\n    end\n    \n    subgraph 状态管理层[状态层 State Layer]\n        H[对话历史 Chat History]\n        I[工具上下文 Tool Context]\n        J[任务队列 Task Queue]\n    end\n    \n    subgraph 能力层[能力层 Capability Layer]\n        K[权限管理 Permission Manager]\n        L[能力检测 Capability Detector]\n    end\n    \n    subgraph 工具层[工具层 Tool Layer]\n        M[文件工具 File Tools]\n        N[命令工具 Command Tools]\n        O[网络工具 Network Tools]\n    end\n    \n    A --> B\n    B --> E\n    E --> F\n    F --> G\n    E --> I\n    I --> K\n    K --> M\n    K --> N\n    K --> O\n    M --> H\n    N --> H\n    O --> H\n    E --> D\n    D --> C\n    \n    style 交互层 fill:#e1f5ff\n    style 渲染层 fill:#f0f0ff\n    style 引擎层 fill:#fff4e1\n    style 状态管理层 fill:#ffe1f0\n    style 能力层 fill:#e1ffe4\n    style 工具层 fill:#ffe1d4",
+        "description": "六层架构展示了从用户输入到最终输出的完整数据流转路径，每层通过清晰的接口进行通信"
+      }
+    },
+    {
+      "heading": "数据流的完整路径：一次请求的生命周期",
+      "content": "当用户在终端输入「帮我分析 src 目录下的模块」时，这个请求会经历一场精准编排的旅程。理解这个过程，就像理解一封信从投递到收到的完整路径。\n\n首先，请求到达交互层。这里的命令解析器会快速判断：这是一条斜杠命令还是自然语言查询？如果是斜杠命令如 `/analyze`，它会直接派发到对应的处理器。如果是自然语言，则继续向上传递。\n\n接着，引擎层接手。QueryEngine 会分析用户的意图：用户想要什么？需要哪些工具？步骤应该如何规划？在我们的例子中，引擎会识别出「分析目录」需要使用探索工具，然后规划出一个执行计划：先列出目录结构，再逐个分析文件。\n\n规划完成后，引擎会检查状态层，看看是否需要加载上下文。比如用户之前可能讨论过某个文件，这些上下文信息对理解当前请求很重要。状态层会返回相关的对话历史和工具上下文。\n\n然后是工具调用的阶段。引擎根据权限配置，向能力层询问是否可以使用某个工具。能力层会检查用户设置、安全策略、环境条件等因素。如果权限被拒绝，引擎会生成合适的错误提示并返回给用户。\n\n如果权限获得批准，引擎会调用工具层的相应工具。工具执行后返回结果，引擎会将结果整合到上下文中，继续下一步的规划或生成响应。这个过程可能会迭代多次，直到任务完成或遇到无法解决的问题。\n\n最后，响应到达渲染层。这里会将结构化的数据转化为人类可读的终端输出。代码需要高亮，错误需要醒目的颜色，进度需要清晰的指示。渲染层确保用户能够快速理解发生了什么。\n\n整个流程像一条精密的流水线，每个环节都有自己的质量控制点。权限检查在工具执行前进行，确保安全性；错误处理在每一步都有，确保可控性；状态更新在每次操作后进行，确保一致性。这种设计让系统既灵活又可靠。",
+      "code": null,
+      "diagram": {
+        "title": "数据流完整路径",
+        "chart": "sequenceDiagram\n    participant U as 用户\n    participant I as 交互层\n    participant E as 引擎层\n    participant S as 状态层\n    participant C as 能力层\n    participant T as 工具层\n    participant R as 渲染层\n    \n    U->>I: 发送请求\n    I->>I: 命令解析\n    I->>E: 传递查询\n    E->>E: 意图识别\n    E->>E: 规划步骤\n    E->>S: 请求上下文\n    S-->>E: 返回历史\n    E->>C: 检查权限\n    C-->>E: 权限结果\n    alt 权限通过\n        E->>T: 调用工具\n        T-->>E: 返回结果\n        E->>S: 更新状态\n    else 权限拒绝\n        E->>E: 生成错误\n    end\n    E->>R: 传递响应\n    R->>U: 展示输出",
+        "description": "序列图展示了用户请求从输入到输出的完整生命周期，包括各层的交互和条件分支"
+      }
+    },
+    {
+      "heading": "关键设计决策：为什么这样设计？",
+      "content": "好的架构背后都有深思熟虑的设计决策。Claude Code 的几个核心选择，每一项都权衡了技术可能性、用户体验、维护成本等多个维度。\n\n第一个也是最重要的问题是：为什么用 React 在终端？终端环境传统上不适合 React 这种前端框架，但团队做出了这个看似反直觉的选择。原因是 React 的声明式 UI 模型在终端环境下同样有价值。你只需要声明「状态是什么」，渲染层会自动处理「如何显示」。这让渲染逻辑变得可预测且易于调试。同时，React 的组件化让复杂的终端界面可以被拆分成可复用的小模块。虽然 React 在终端的性能不如原生方式，但对于文本为主的场景，差异可以接受，而开发效率的提升是巨大的。\n\n第二个问题是：为什么用 TypeScript？这不仅是因为类型安全可以减少错误，更重要的是 TypeScript 作为项目的「文档」。在大型项目中，理解代码最困难的部分往往是搞清楚「这个函数接受什么参数，返回什么结果」。TypeScript 的类型签名就是这些信息的天然载体，它比单独的文档更准确、更及时。另外，TypeScript 与现代 IDE 的配合可以提供强大的自动补全和重构功能，这对提升开发效率至关重要。\n\n第三个决策关乎工具系统的设计：为什么采用统一的工具接口而不是直接调用？统一的工具接口让所有工具看起来都一样，这大大降低了引擎层的复杂度。引擎不需要知道每个工具的具体实现细节，只需要调用「执行」方法并处理结果。这种插拔式设计也让添加新工具变得非常简单——只需实现统一的接口即可。更重要的是，统一的接口为权限管理、日志记录、性能分析等横切关注点提供了统一的接入点。\n\n第四个决策是关于错误处理：为什么使用重试层而不是让每个工具自己处理重试？重试逻辑看似简单，但在实际应用中涉及复杂的策略判断：哪些错误可以重试？重试几次？重试间隔多久？是否需要指数退避？将这些逻辑集中到重试层，可以确保策略的一致性，也便于调优和修改。每个工具只需要专注于自身的业务逻辑，错误处理是基础设施应该提供的能力。\n\n这些设计决策体现了「简单高于复杂」、「约定优于配置」、「组件间低耦合」等经典的设计原则。它们不是一蹴而就的，而是在实践中不断迭代的结果。每一个决策背后，都是对问题本质的深入思考和对权衡的精确把握。",
+      "code": {
+        "title": "工具统一接口设计",
+        "description": "所有工具都实现相同的接口，引擎层无需关心具体实现细节",
+        "code": "interface Tool {\n  name: string\n  description: string\n  \n  execute(\n    context: ToolUseContext,\n    params: Record<string, unknown>\n  ): Promise<ToolResult>\n}\n\n// 权限检查在任何工具执行前进行\nasync function executeToolWithPermission(\n  tool: Tool,\n  context: ToolUseContext,\n  params: Record<string, unknown>\n): Promise<ToolResult> {\n  if (!await canUseTool(tool.name, context)) {\n    return { error: 'Permission denied' }\n  }\n  return tool.execute(context, params)\n}",
+        "language": "typescript",
+        "annotation": "统一的工具接口让权限检查、日志记录、重试等横切逻辑可以在一个地方统一处理"
+      },
+      "diagram": null
+    },
+    {
+      "heading": "可扩展性：插件、技能、MCP 三驾马车",
+      "content": "Claude Code 的设计者深知，一个封闭的系统不可能满足所有用户的需求。因此，他们在架构中预留了多条扩展路径，让系统可以不断进化。这些路径包括插件系统、技能系统和 MCP（Model Context Protocol）协议支持。\n\n技能系统是最轻量级的扩展方式。简单来说，技能就是预先定义好的复杂操作序列。比如「优化代码格式」这个技能，实际上是「格式化代码」「检查语法」「提交变更」等一系列工具调用的组合。用户通过斜杠命令调用技能，系统会按照预定义的步骤执行。技能的好处是实现简单、易于共享，适合解决常见的问题场景。但它不够灵活，如果用户的需求稍有变化，可能就需要新建一个技能。\n\n插件系统提供了更深度的扩展能力。插件是一个完整的代码模块，可以注册新的工具、修改现有的行为、甚至改变渲染方式。插件的优势是几乎可以做任何事情，但相应的复杂度也更高。插件需要被加载、初始化、管理生命周期，这些都需要基础设施的支持。架构插件系统时，设计者选择了最简单可行的方案：插件就是一个导出特定函数的模块，系统在启动时加载所有插件并执行初始化函数。这种方式虽然不如复杂的插件框架功能丰富，但对于 Claude Code 这样的项目已经足够用，而且理解和维护成本很低。\n\nMCP 协议支持则是一个独特的扩展路径。MCP 允许 Claude Code 与外部服务通信，获取额外的能力和数据。比如通过 MCP，系统可以访问数据库、调用第三方 API、读取远程文件系统。这种设计让 Claude Code 可以成为一个客户端，而将复杂的功能委托给专门的服务。MCP 的好处是标准化、模块化、可组合性。不同的服务提供商可以提供不同的 MCP 服务器，用户像搭积木一样组合它们。架构上，MCP 通过服务器连接抽象集成到系统中，就像本地工具一样被调用，但对引擎层来说，MCP 工具和本地工具没有任何区别。\n\n这三条扩展路径互为补充，覆盖了不同场景的需求。技能解决常见问题，插件处理深度定制，MCP 打开外部世界的大门。这种多层次的设计让 Claude Code 既有即开即用的易用性，又有无限可能的扩展空间。",
+      "code": {
+        "title": "技能定义示例",
+        "description": "技能将多个工具调用组合成一个可复用的操作序列",
+        "code": "// 技能定义：优化代码库代码质量\nconst qualityCheckSkill: Skill = {\n  name: 'quality-check',\n  description: 'Run comprehensive quality checks',\n  \n  async execute(context: SkillContext) {\n    // 步骤1：格式检查\n    await formatCode(context.cwd)\n    // 步骤2：类型检查\n    await typeCheck(context.cwd)\n    // 步骤3：运行测试\n    await runTests(context.cwd)\n    // 步骤4：生成报告\n    return generateQualityReport()\n  }\n}",
+        "language": "typescript",
+        "annotation": "技能系统将复杂操作序列封装成可复用的模块，通过简单的命令触发多步骤操作"
+      },
+      "diagram": {
+        "title": "三大扩展系统对比",
+        "chart": "graph LR\n    subgraph 技能系统[Skills 轻量级]\n        S1[斜杠命令]\n        S2[操作序列]\n        S3[易于分享]\n    end\n    \n    subgraph 插件系统[Plugins 深度定制]\n        P1[代码模块]\n        P2[新工具注册]\n        P3[行为修改]\n    end\n    \n    subgraph MCP协议[外部服务]\n        M1[标准化接口]\n        M2[远程服务]\n        M3[能力扩展]\n    end\n    \n    用户[User] -->|简单场景| 技能系统\n    用户 -->|深度定制| 插件系统\n    用户 -->|外部能力| MCP协议\n    \n    style 技能系统 fill:#e1ffe4\n    style 插件系统 fill:#fff4e1\n    style MCP协议 fill:#e1f5ff",
+        "description": "三大扩展系统各有侧重，从轻量级到深度定制，满足不同层次的扩展需求"
+      }
+    },
+    {
+      "heading": "同类工具对比：Claude Code 的独特之处",
+      "content": "AI 编码助手这个领域已经变得拥挤。Cursor、GitHub Copilot、Aider 等工具各有特色，也各有局限。理解这些工具的差异，有助于我们更好地评价 Claude Code 的定位和价值。\n\nCursor 是一个集成了 AI 能力的代码编辑器。它的优势是深度融合：AI 建议直接出现在编辑器中，上下文感知极其精准，多文件编辑能力强大。但 Cursor 的局限也很明显：它是一个完整的编辑器，你必须使用它作为开发环境。如果你习惯使用 Vim、Emacs 或其他编辑器，Cursor 就不太适合。此外，Cursor 是闭源软件，你无法控制 AI 如何工作，也无法自定义其行为。\n\nGitHub Copilot 更简单也更开放。它以插件的形式集成到你喜欢的编辑器中，提供实时的代码补全建议。Copilot 的特点是即时响应，就像有一个更聪明的自动补全。但它的能力相对基础，难以处理复杂的重构任务，也不支持多文件操作。Copilot 是「助手」而非「代理」，它能告诉你怎么写代码，但不能帮你实际写代码。\n\nAider 是一个基于命令行的 AI 编码工具。它和 Claude Code 在形态上最接近，都在终端中工作。Aider 的独特之处是它与 Git 版本控制的紧密集成，每次 AI 修改代码都会创建新的提交，这让变更历史非常清晰。但 Aider 的功能相对单一，主要专注于代码修改，在其他方面如文件搜索、命令执行等能力有限。\n\nClaude Code 的定位是「全能代理」而不是特定场景的工具。它不仅能修改代码，还可以搜索文件、执行命令、调用 API、处理多种格式的文档。这种通用性让 Claude Code 可以处理更广泛的工作流。同时，作为开源项目，它的行为完全透明，你可以深入研究它是如何工作的，也可以通过插件和技能系统自定义它的能力。\n\n架构上，Claude Code 的设计更注重「代理特性」而非「编辑器特性」。它不假设用户使用某个编辑器，可以与任何工具协同工作。它的状态管理和任务规划能力让它可以处理多步骤的复杂任务，这是 Cursor 和 Copilot 都不具备的。这种差异也反映在对权限管理的重视上——一个能自动执行命令的工具必须有完善的权限控制，否则会造成严重的安全隐患。\n\n当然，没有完美的工具。Cursor 的编辑器集成优势、Copilot 的即时响应、Aider 的 Git 集成，都是 Claude Code 需要学习的方向。未来的 Claude Code 可能会提供更好的编辑器集成，更快的响应速度，更紧密的版本控制支持。但它的核心优势——作为通用 AI 代理的能力和灵活性——是其独特价值的来源。",
+      "code": null,
+      "diagram": {
+        "title": "四大工具对比矩阵",
+        "chart": "graph TB\n    subgraph 特性[能力维度]\n        F1[代码编辑 Editing]\n        F2[执行命令 Command]\n        F3[多文件协作 Multi-file]\n        F4[版本控制 Git]\n        F5[开源可定制 Open Source]\n        F6[编辑器独立 Editor Agnostic]\n    end\n    \n    Cursor[Cursor] --> F1\n    Cursor -.-> F2\n    Cursor --> F3\n    Cursor --> F4\n    Cursor -.-> F5\n    Cursor --> F6\n    \n    Copilot[Copilot] --> F1\n    Copilot -.-> F2\n    Copilot -.-> F3\n    Copilot -.-> F4\n    Copilot -.-> F5\n    Copilot -.-> F6\n    \n    Aider[Aider] --> F1\n    Aider --> F2\n    Aider -.-> F3\n    Aider --> F4\n    Aider --> F5\n    Aider --> F6\n    \n    ClaudeCode[Claude Code] --> F1\n    ClaudeCode --> F2\n    ClaudeCode --> F3\n    ClaudeCode --> F4\n    ClaudeCode --> F5\n    ClaudeCode --> F6\n    \n    style Cursor fill:#ffe1e1\n    style Copilot fill:#e1ffe1\n    style Aider fill:#e1e1ff\n    style ClaudeCode fill:#fff4e1",
+        "description": "对比矩阵展示了四大工具在不同能力维度的差异，实线表示具备能力，虚线表示能力有限"
+      }
+    },
+    {
+      "heading": "未来方向：Claude Code 的演进路径",
+      "content": "Claude Code 的发展远未结束。从当前的架构来看，几个清晰的方向已经浮现。这些方向不是空想，而是基于技术趋势和用户需求的合理推测。\n\n第一个方向是更强的协作能力。当前的 Claude Code 主要是一个「单人代理」，未来可能会支持多人协作的场景。比如团队成员可以共享一个对话会话，一起跟踪任务进展；或者多个 Claude Code 实例协同工作，处理更大规模的项目。这需要引入会话共享、冲突解决、权限分层等机制，但架构上已经为此预留了空间——状态管理的抽象可以扩展到远程，引擎层的任务规划也可以处理多人场景。\n\n第二个方向是更智能的自主性。当前的 Claude Code 在大多数情况下是「被动响应」的，用户问什么就做什么。未来的版本可能会支持更主动的观察和建议。比如它可以在你保存文件后主动运行测试，在检测到性能问题时主动分析瓶颈，在发现潜在的安全漏洞时主动报告。这种主动行为需要 careful 的设计，避免过度打扰用户，但一旦做好，将极大提升工作效率。\n\n第三个方向是更丰富的集成生态。MCP 协议的采用是一个起点，未来可能会有更多标准化的集成类型。比如与 CI/CD 系统的集成，让 AI 可以参与代码审查、构建部署；与项目管理的集成，让 AI 可以创建任务、更新状态；与监控系统的集成，让 AI 可以响应告警、分析日志。这些集成不是简单地「调用 API」，而是让 AI 成为整个开发流程中的一环。\n\n第四个方向是更好的学习与适应能力。当前的 Claude Code 每次对话都是相对独立的，上下文不会在不同会话之间传递。未来可能会引入持久化的学习和记忆，比如记住用户的代码风格偏好、记住常见的问题解决模式、记住项目特有的约定。这种能力将让 Claude Code 随着使用而越来越聪明，成为一个真正了解你和你的项目的助手。\n\n最后一个方向是更精细的权限和安全控制。随着 AI 能力的增强，它可以做的事情越来越多，滥用的风险也随之增加。架构上已经预留了权限管理的基础，未来可以发展为更细粒度的控制系统：每个工具可以有自己的权限配置，每个文件可以有自己的访问规则，每个操作类型可以有自己的审批流程。这不仅是为了安全，也是为了让用户对 AI 的行为有完全的掌控感。\n\n这些方向有些可能已经在开发中，有些还在研究阶段，有些可能永远不会实现。但重要的是，当前的架构为这些可能性留出了空间。分层设计让新功能可以在不破坏现有代码的情况下添加，模块化让组件可以独立演进，标准化接口让外部系统可以无缝集成。这就是一个好架构的价值——不是预测未来，而是准备好迎接未来。",
+      "code": null,
+      "diagram": {
+        "title": "Claude Code 演进路线图",
+        "chart": "graph LR\n    subgraph 现在[Current 现在]\n        C1[单人代理]\n        C2[被动响应]\n        C3[命令行界面]\n        C4[基础权限]\n    end\n    \n    subgraph 近期[Near-term 6-12个月]\n        N1[编辑器集成]\n        N2[智能建议]\n        N3[更多 MCP 服务]\n        N4[性能优化]\n    end\n    \n    subgraph 中期[Medium-term 1-2年]\n        M1[会话共享]\n        M2[主动操作]\n        M3[学习记忆]\n        M4[CI/CD 集成]\n    end\n    \n    subgraph 长期[Long-term 2年+]\n        L1[多代理协作]\n        L2[完全自主开发]\n        L3[生态系统平台]\n        L4[标准化协议]\n    end\n    \n    C1 --> N1\n    C2 --> N2\n    C3 --> N3\n    C4 --> N4\n    N1 --> M1\n    N2 --> M2\n    N3 --> M3\n    N4 --> M4\n    M1 --> L1\n    M2 --> L2\n    M3 --> L3\n    M4 --> L4\n    \n    style 现在 fill:#e1e1e1\n    style 近期 fill:#ffe1e1\n    style 中期 fill:#e1ffe1\n    style 长期 fill:#e1e1ff",
+        "description": "演进路线图展示了 Claude Code 从当前状态到未来愿景的可能发展路径"
+      }
+    }
+  ],
+  "key_takeaways": [
+    "Claude Code 采用六层架构：交互层、渲染层、引擎层、状态层、能力层、工具层，每层职责清晰、相互独立",
+    "React 在终端的应用展示了声明式 UI 模型的通用性，而 TypeScript 的类型系统既是安全保障也是活文档",
+    "三大扩展机制——技能、插件、MCP——覆盖了从轻量级到深定制、从本地到远程的不同扩展需求",
+    "与 Cursor、Copilot、Aider 等工具相比，Claude Code 的核心优势在于作为通用 AI 代理的灵活性和可定制性",
+    "架构设计为未来演进预留了空间：协作能力、自主性、集成生态、学习适应、精细权限都可能是发展方向"
+  ],
+  "further_thinking": [
+    "如果要为 Claude Code 设计一个「开发者仪表盘」，让用户可以直观地查看和管理所有技能、插件、MCP 服务器，你会如何设计这个组件？它应该展示哪些信息？",
+    "Claude Code 的六层架构中，哪一层的复杂度最高？如果要优化系统性能，你会首先关注哪个层次的改进？为什么？",
+    "在多人协作的场景下，如何设计会话共享机制既能保证信息实时同步，又能避免冲突和混乱？这会对当前的架构带来哪些挑战？"
+  ],
+  "analogies": [
+    "Claude Code 的六层架构像一只手的五根手指加一个手掌，各司其职又能协同完成复杂的动作"
+  ],
+  "mermaid_diagrams": [
+    {
+      "title": "Claude Code 六层架构全景图",
+      "chart": "graph TB\n    subgraph 交互层[交互层 Interaction Layer]\n        A[用户输入 User Input]\n        B[命令解析 Parser]\n    end\n    \n    subgraph 渲染层[渲染层 Rendering Layer]\n        C[终端渲染 Terminal Renderer]\n        D[格式化 Formatter]\n    end\n    \n    subgraph 引擎层[引擎层 Engine Layer]\n        E[QueryEngine 查询引擎]\n        F[任务规划 Task Planner]\n        G[错误处理 Error Handler]\n    end\n    \n    subgraph 状态管理层[状态层 State Layer]\n        H[对话历史 Chat History]\n        I[工具上下文 Tool Context]\n        J[任务队列 Task Queue]\n    end\n    \n    subgraph 能力层[能力层 Capability Layer]\n        K[权限管理 Permission Manager]\n        L[能力检测 Capability Detector]\n    end\n    \n    subgraph 工具层[工具层 Tool Layer]\n        M[文件工具 File Tools]\n        N[命令工具 Command Tools]\n        O[网络工具 Network Tools]\n    end\n    \n    A --> B\n    B --> E\n    E --> F\n    F --> G\n    E --> I\n    I --> K\n    K --> M\n    K --> N\n    K --> O\n    M --> H\n    N --> H\n    O --> H\n    E --> D\n    D --> C\n    \n    style 交互层 fill:#e1f5ff\n    style 渲染层 fill:#f0f0ff\n    style 引擎层 fill:#fff4e1\n    style 状态管理层 fill:#ffe1f0\n    style 能力层 fill:#e1ffe4\n    style 工具层 fill:#ffe1d4",
+      "description": "六层架构展示了从用户输入到最终输出的完整数据流转路径"
+    }
+  ],
+  "code_snippets": [
+    {
+      "title": "工具统一接口设计",
+      "description": "所有工具都实现相同的接口，引擎层无需关心具体实现细节",
+      "code": "interface Tool {\n  name: string\n  description: string\n  \n  execute(\n    context: ToolUseContext,\n    params: Record<string, unknown>\n  ): Promise<ToolResult>\n}\n\n// 权限检查在任何工具执行前进行\nasync function executeToolWithPermission(\n  tool: Tool,\n  context: ToolUseContext,\n  params: Record<string, unknown>\n): Promise<ToolResult> {\n  if (!await canUseTool(tool.name, context)) {\n    return { error: 'Permission denied' }\n  }\n  return tool.execute(context, params)\n}",
+      "language": "typescript",
+      "annotation": "统一的工具接口让权限检查、日志记录、重试等横切逻辑可以在一个地方统一处理"
+    }
+  ],
+  "word_count": 3650,
+  "prerequisites": []
+}
