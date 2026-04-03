@@ -1,0 +1,92 @@
+{
+  "chapter_id": "ch15-evals-system",
+  "title": "第15章：评估系统",
+  "subtitle": "AI 应用的自动化测试",
+  "chapter_summary": "本章介绍 Pydantic AI 的评估框架，如何通过类型安全的自动化测试确保 AI 应用的可靠性和性能",
+  "opening_hook": "想象你刚刚部署了一个 AI 客服系统，前100个用户反馈都很满意，但第101个用户却得到了完全错误的回答。这种『黑盒』不确定性正是传统 AI 应用开发的痛点。Pydantic AI 的评估系统就像给 AI 应用装上了质量检测仪，让不可预测的 AI 行为变得可测量、可监控、可优化。",
+  "sections": [
+    {
+      "heading": "为什么 AI 应用需要专门的评估",
+      "content": "传统软件测试主要关注代码逻辑的正确性，但 AI 应用测试面临完全不同的挑战。\n\nAI 模型的输出具有概率性，同样的输入可能产生不同的输出，这使得传统的断言测试难以适用。\n\n评估系统需要测量的是回答质量、相关性、安全性等主观指标，而不仅仅是二进制的是非判断。",
+      "callout": {
+        "type": "warning",
+        "text": "重要提醒：AI 评估不是测试代码bug，而是评估模型输出的质量和一致性"
+      }
+    },
+    {
+      "heading": "评估系统的三大支柱",
+      "content": "Pydantic AI 的评估框架建立在三个核心概念之上：评估指标、测试数据集和性能监控。\n\n评估指标定义了如何衡量 AI 表现，比如准确性、相关性、安全性得分等。\n\n测试数据集包含精心设计的输入输出对，用于系统化测试各种边界情况。\n\n性能监控则持续跟踪生产环境中的模型表现，实现闭环优化。",
+      "table": {
+        "caption": "AI 评估指标类型对比",
+        "headers": ["指标类型", "测量内容", "适用场景"],
+        "rows": [
+          ["准确性", "回答的事实正确性", "知识问答类应用"],
+          ["相关性", "回答与问题的匹配程度", "聊天机器人"],
+          ["安全性", "避免有害或偏见内容", "所有面向用户的应用"],
+          ["一致性", "多次询问的答案稳定性", "关键决策系统"]
+        ]
+      }
+    },
+    {
+      "heading": "评估框架的架构设计",
+      "content": "Pydantic AI 采用装饰器模式实现评估系统，让开发者可以轻松为任何 AI 代理添加评估能力。\n\n核心是一个 Evaluator 基类，定义了评估的标准接口和流水线。\n\n通过类型注解，评估结果也享受 Pydantic 的验证优势，确保评估数据本身的可靠性。",
+      "diagram": {
+        "title": "评估系统架构图",
+        "chart": "graph TD\n    A[用户输入] --> B[AI 代理]\n    B --> C[生成回答]\n    C --> D[评估流水线]\n    D --> E[准确性评估]\n    D --> F[相关性评估] \n    D --> G[安全性评估]\n    E --> H[综合评分]\n    F --> H\n    G --> H\n    H --> I[评估报告]",
+        "description": "评估系统处理流程：从AI生成回答到多维度评估最终生成综合报告"
+      }
+    },
+    {
+      "heading": "构建自定义评估器",
+      "content": "开发者可以通过继承 BaseEvaluator 类来创建自定义评估器。\n\n每个评估器需要实现 evaluate 方法，接收模型输入输出并返回评分。\n\n评估器可以组合使用，形成一个评估流水线，从不同维度综合评判AI表现。\n\n通过类型注解，确保评估输入输出的格式正确性，避免运行时错误。",
+      "code": {
+        "title": "自定义安全性评估器示例",
+        "description": "实现一个检查有害内容的评估器",
+        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.evals import BaseEvaluator\nfrom typing import Any\n\nclass SafetyEvaluator(BaseEvaluator):\n    \"\"\"评估生成内容的安全性\"\"\"\n    \n    async def evaluate(self, \n                     input: str, \n                     output: str, \n                     context: Any = None) -> float:\n        # 检查输出是否包含有害内容\n        harmful_keywords = ['仇恨', '暴力', '歧视']\n        \n        score = 1.0  # 初始满分\n        for keyword in harmful_keywords:\n            if keyword in output:\n                score -= 0.3  # 每发现一个有害词扣分\n        \n        return max(0, score)  # 确保分数不为负",
+        "language": "python",
+        "annotation": "这个评估器通过关键词检测来评估内容安全性，返回0-1之间的分数。实际应用中可以使用更复杂的NLP技术。"
+      }
+    },
+    {
+      "heading": "评估即代码：测试驱动的AI开发",
+      "content": "Pydantic AI 倡导『评估即代码』的理念，将评估测试集成到开发流程中。\n\n开发者可以编写评估测试用例，就像编写单元测试一样确保AI行为符合预期。\n\n评估测试可以在CI/CD流水线中自动运行，每次代码变更都验证AI表现。\n\n这种实践大大提高了AI应用的可靠性和可维护性。",
+      "callout": {
+        "type": "tip",
+        "text": "进阶技巧：使用评估测试驱动开发（ETDD），先定义期望的AI行为，再实现代理逻辑"
+      }
+    }
+  ],
+  "key_takeaways": [
+    "AI评估关注输出质量而非代码正确性，需要专门的评估框架",
+    "Pydantic AI通过装饰器模式提供灵活可扩展的评估系统", 
+    "评估器可以组合使用，形成多维度综合评估流水线",
+    "类型安全确保评估数据本身的可靠性",
+    "评估即代码将AI测试集成到标准开发流程中"
+  ],
+  "further_thinking": [
+    "如何设计评估指标才能既客观又全面？主观性强的指标如何量化？",
+    "在资源有限的情况下，应该优先评估哪些方面的AI表现？"
+  ],
+  "analogies": [
+    "评估系统就像食品质量检测仪，确保AI输出的每个『产品』都安全可靠",
+    "评估流水线如同多道质检工序，从不同角度确保AI应用的整体质量"
+  ],
+  "mermaid_diagrams": [
+    {
+      "title": "评估流水线架构",
+      "chart": "graph LR\n    A[原始输出] --> B[预处理]\n    B --> C[评估器1]\n    B --> D[评估器2]\n    B --> E[评估器3]\n    C --> F[分数聚合]\n    D --> F\n    E --> F\n    F --> G[最终报告]",
+      "description": "多评估器并行处理的流水线架构"
+    }
+  ],
+  "code_snippets": [
+    {
+      "title": "评估器组合使用",
+      "description": "将多个评估器组合成评估流水线",
+      "code": "# 创建评估流水线\nfrom pydantic_ai.evals import EvaluationPipeline\n\npipeline = EvaluationPipeline([\n    AccuracyEvaluator(),\n    RelevanceEvaluator(), \n    SafetyEvaluator()\n])\n\n# 运行综合评估\nreport = await pipeline.evaluate(\n    input=\"用户问题\",\n    output=\"AI回答\",\n    context=additional_context\n)",
+      "language": "python",
+      "annotation": "通过EvaluationPipeline可以轻松组合多个评估器，获得综合评估报告"
+    }
+  ],
+  "word_count": 1580,
+  "prerequisites": ["ch16-deployment"]
+}

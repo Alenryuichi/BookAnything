@@ -1,0 +1,89 @@
+{
+  "chapter_id": "ch16-deployment",
+  "title": "第16章：部署与运维",
+  "subtitle": "生产环境的最佳实践",
+  "chapter_summary": "从本地开发到生产部署，Pydantic AI 提供了完整的工具链和协议支持，让代理应用可以像普通 Web 服务一样轻松部署和运维。",
+  "opening_hook": "当你在本地浏览器中看到第一个 AI 代理回复时，一切都很美好。它运行在你的笔记本上，响应迅速，日志清晰。但现在，你面临着最棘手的挑战：如何把这个代理部署到生产环境，让它服务于成千上万的用户？\n\n这不是简单的「复制粘贴」代码。你需要一个可以接受 HTTP 请求的 Web 服务，需要将 AI 的流式输出实时传递给前端，需要处理网络异常和超时，需要监控运行状态以便及时发现问题。就像火箭发射的地面控制中心一样，生产环境的部署和运维需要精心的准备和可靠的系统。",
+  "sections": [
+    {
+      "heading": "从开发到生产：部署面临的挑战",
+      "content": "在开发环境中，代理运行在你的 Jupyter Notebook 或者简单脚本里，一切都在掌控之中。但当应用走向生产，情况变得完全不同。\n\n首先，生产环境需要通过 HTTP API 与外界通信。你不能要求用户安装 Python，他们需要的是可以通过浏览器或 API 调用访问的服务。这意味着你需要将代理包装成一个 Web 应用程序，能够接受请求、处理流式响应、返回结果。\n\n其次，流式响应的处理是一个技术难点。AI 代理的输出是逐字生成的，用户期望能够看到实时的打字机效果。这需要你使用 Server-Sent Events (SSE) 或 WebSocket 等实时通信技术，而不是简单的 HTTP 请求-响应模式。\n\n最后，生产环境需要考虑容错和监控。网络可能中断，模型服务可能故障，请求可能超时。一个可靠的部署方案需要包含错误处理、重试机制、健康检查和监控告警。",
+      "callout": {
+        "type": "warning",
+        "text": "直接将开发环境的代理部署到生产环境是不安全的做法。生产环境需要独立的配置管理、密钥存储和访问控制。"
+      }
+    },
+    {
+      "heading": "UI 协议层：多协议支持的桥梁",
+      "content": "Pydantic AI 的部署架构最精妙之处在于它的协议抽象层。开发者不需要关心前端使用什么协议，只需要关注代理本身的逻辑。\n\n框架内置了三种主流协议支持：Vercel AI SDK、AG-UI 和自定义协议。每种协议都有自己的事件格式和通信方式，但 Pydantic AI 通过 UIEventStream 这个抽象基类将它们统一起来。\n\nUIEventStream 是一个泛型基类，负责将 Pydantic AI 的原生事件转换为目标协议的事件。它定义了一系列生命周期钩子：before_stream、after_stream、before_request、after_request、before_response、after_response，以及各种事件处理方法。\n\n这种设计让你可以轻松支持多种前端框架。一个代理可以同时服务 React 应用（使用 Vercel AI SDK）、Vue 应用（使用 AG-UI）和自定义应用（使用自定义协议），而代理代码本身无需修改。",
+      "diagram": {
+        "title": "UI 协议层架构",
+        "chart": "graph TB;\n    A[前端应用] --> B{协议选择};\n    B --> C[Vercel AI SDK];\n    B --> D[AG-UI];\n    B --> E[自定义协议];\n    C --> F[UIEventStream<br/>Vercel AI 适配器];\n    D --> G[UIEventStream<br/>AG-UI 适配器];\n    E --> H[UIEventStream<br/>自定义适配器];\n    F --> I[Pydantic AI 代理];\n    G --> I;\n    H --> I;\n    I --> J[模型 API];",
+        "description": "前端通过不同协议与代理通信，协议适配器将统一格式的 Pydantic AI 事件转换为目标格式"
+      }
+    },
+    {
+      "heading": "Web UI：开箱即用的部署方案",
+      "content": "Pydantic AI 提供了最简单的部署方式：Web UI。通过 `create_web_app()` 函数，你可以在几分钟内搭建一个功能完整的聊天界面。\n\n这个函数返回一个 Starlette 应用程序，包含了所有必要的路由和端点。它会自动处理 UI HTML 的获取、API 路由的配置、模型和工具的验证。默认情况下，UI HTML 从 CDN 获取并缓存在本地，你只需要一行代码就可以启动服务器。\n\n对于企业环境或离线场景，你可以通过 html_source 参数指定本地的 UI 文件或自定义的 URL。UI HTML 会被缓存到系统缓存目录，避免重复下载。\n\nWeb UI 提供了丰富的功能：模型选择器让用户切换不同的 AI 模型、工具选择器让用户启用或禁用特定工具、配置端点让前端获取可用模型和工具列表、健康检查端点用于负载均衡和服务发现。",
+      "code": {
+        "title": "创建 Web UI 应用",
+        "description": "只需几行代码，就可以创建一个功能完整的 Web UI",
+        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.ui._web import create_web_app\n\n# 创建代理\nagent = Agent('openai:gpt-5', '你是一个有帮助的助手。')\n\n# 创建 Web UI 应用\napp = create_web_app(\n    agent=agent,\n    models=['openai:gpt-5', 'anthropic:claude-sonnet-4-6'],\n)\n\n# 使用 uvicorn 运行\n# uvicorn myapp:app --host 0.0.0.0 --port 8000",
+        "language": "python",
+        "annotation": "create_web_app 返回一个标准的 Starlette 应用，可以与任何 ASGI 服务器兼容。models 参数指定了用户可以选择的模型列表，每个模型的信息会自动传递给前端。"
+      }
+    },
+    {
+      "heading": "事件流处理：实时响应的核心",
+      "content": "事件流是 Pydantic AI 部署架构的核心组件。它负责将代理的执行过程转换成前端可以理解的实时事件流。\n\n事件流处理采用异步迭代器的模式。transform_stream() 方法接收一个 Pydantic AI 原生事件的异步迭代器，然后逐个处理每个事件，将其转换为目标协议的事件并 yield 出去。这种设计让事件处理可以完全异步，不会阻塞主线程。\n\n方法中定义了多种事件类型：PartStartEvent 表示输出的开始、PartDeltaEvent 表示输出的增量、PartEndEvent 表示输出的结束、FunctionToolCallEvent 表示工具调用、FunctionToolResultEvent 表示工具结果。每种事件都有对应的处理方法，子类可以覆盖这些方法来自定义处理逻辑。\n\n一个重要的细节是状态管理。streaming_response() 方法会创建一个 Starlette 的 StreamingResponse 对象，正确设置 content-type 和响应头。对于 SSE，content-type 是 text/event-stream；对于其他协议，content-type 可以根据 Accept 头动态确定。",
+      "code": {
+        "title": "事件流转换方法",
+        "description": "transform_stream 方法将原生事件转换为目标协议事件",
+        "code": "async def transform_stream(\n    self,\n    stream: AsyncIterator[NativeEvent],\n    on_complete: OnCompleteFunc[EventT] | None = None\n) -> AsyncIterator[EventT]:\n    \"\"\"将 Pydantic AI 事件流转换为目标协议事件流。\"\"\"\n    \n    async for e in self.before_stream():\n        yield e\n\n    try:\n        async for event in stream:\n            # 根据事件类型分发到对应的处理方法\n            if isinstance(event, PartStartEvent):\n                async for e in self._turn_to('response'):\n                    yield e\n            elif isinstance(event, FunctionToolCallEvent):\n                async for e in self._turn_to('request'):\n                    yield e\n            \n            async for e in self.handle_event(event):\n                yield e\n    except Exception as e:\n        async for e in self.on_error(e):\n            yield e\n    finally:\n        async for e in self.after_stream():\n            yield e",
+        "language": "python",
+        "annotation": "注意到代码中的生命周期钩子：before_stream 和 after_stream 在事件流处理前后调用，on_error 在异常时调用。_turn_to 方法处理请求-响应状态的切换，确保事件顺序正确。"
+      }
+    },
+    {
+      "heading": "安全与验证：生产环境的守护者",
+      "content": "生产环境的部署必须包含严格的安全验证。Pydantic AI 在 API 层提供了多层防护，防止恶意请求和未授权访问。\n\n第一层防护是模型和工具的白名单机制。只有管理员配置的模型 ID 和工具 ID 才可以被用户使用。validate_request_options 函数会检查用户请求中的 model 和builtin_tools 字段，确保它们在允许的列表中。\n\n第二层防护是参数验证。使用 Pydantic 的 BaseModel 来解析和验证请求参数，确保数据类型和格式正确。ChatRequestExtra 模型使用 extra='ignore' 模式，忽略未知的字段，防止注入攻击。\n\n第三层防护是依赖隔离。每个请求都会获得一份独立的 deps 副本，避免不同请求之间的状态污染。如果 deps 实现了 StateHandler 协议，前端状态会自动注入到 deps.state 字段中。",
+      "table": {
+        "caption": "安全防护层级",
+        "headers": ["防护层级", "措施", "作用"],
+        "rows": [
+          ["白名单机制", "模型和工具 ID 验证", "防止使用未授权的模型和工具"],
+          ["参数验证", "Pydantic 模型验证", "确保请求参数格式正确"],
+          ["依赖隔离", "每个请求独立的 deps 副本", "防止请求间状态污染"],
+          ["CORS 处理", "OPTIONS 预检请求", "支持跨域访问"]
+        ]
+      }
+    },
+    {
+      "heading": "运维最佳实践：让服务更可靠",
+      "content": "部署只是开始，运维才是长期稳定运行的关键。Pydantic AI 提供了多个机制来简化运维工作。\n\n健康检查是运维的基础。Web UI 的 /api/health 端点返回简单的 JSON 确认服务可用，可以配合 Kubernetes 或负载均衡器实现自动故障转移。\n\n日志和监控需要你自己实现，但框架提供了足够的钩子。你可以通过 on_complete 回调函数记录每次代理运行的详细信息，包括使用的消息历史、工具调用次数、Token 使用量等。这些数据可以发送到 Prometheus、Grafana 或你的监控系统。\n\n资源配额和限流是防止过载的重要手段。agent.run() 方法接受 usage_limits 参数，可以限制请求次数和 Token 使用量。你可以在部署层级使用 nginx 或 API Gateway 实现请求限流。",
+      "callout": {
+        "type": "tip",
+        "text": "在生产环境中，建议使用容器化部署（Docker）配合编排系统（Kubernetes），并配置自动扩缩容策略，根据 CPU 使用率和请求队列长度动态调整实例数量。"
+      }
+    }
+  ],
+  "key_takeaways": [
+    "Pydantic AI 通过协议抽象层（UIEventStream）将代理逻辑与前端通信协议解耦，支持多种部署场景",
+    "Web UI 是最快的部署方式，使用 create_web_app() 即可创建完整的聊天界面，支持模型和工具选择",
+    "事件流处理使用异步迭代器模式，将代理执行过程实时转换为前端可以理解的事件流",
+    "安全验证包括模型/工具白名单、参数验证和依赖隔离，确保生产环境的安全性",
+    "运维方面需要关注健康检查、日志监控、资源配额和自动扩缩容，确保服务稳定运行"
+  ],
+  "further_thinking": [
+    "如果你的服务需要处理大量并发请求，应该如何设计代理的状态管理和连接池？考虑无状态架构和有状态的会话存储之间的权衡。",
+    "如何设计一个多租户的部署方案，让不同的用户或组织可以使用不同的模型配置和工具集，同时保证资源隔离和计费准确？"
+  ],
+  "analogies": [
+    "部署运维就像火箭发射的地面控制中心：代理是火箭引擎（提供核心动力），协议层是通信链路（与外界交流），安全验证是发射前检查（确保安全），监控运维是实时监控中心（及时发现问题）。",
+    "事件流就像报纸印刷厂：代理生成的是原始稿件（NativeEvent），协议适配器是印刷机（转换格式），前端是运输车（将报纸送到读者手中），而 UI 就是最终的报纸版面。"
+  ],
+  "mermaid_diagrams": [],
+  "code_snippets": [],
+  "word_count": 4200,
+  "prerequisites": ["ch08-messaging"]
+}
