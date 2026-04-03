@@ -2,168 +2,95 @@
   "chapter_id": "ch14-graph-support",
   "title": "第14章：图支持",
   "subtitle": "复杂工作流的可视化编排",
-  "chapter_summary": "本章介绍 Pydantic AI 的图支持机制，它将 AI 工作流建模为有向图，通过节点和边的类型系统实现类型安全的执行流，并提供状态持久化和可视化能力。",
-  "opening_hook": "想象你正在开发一个智能客服系统，它需要完成一系列任务：理解用户问题、查询知识库、调用支付工具、生成回复。这些任务之间有明确的前后依赖关系，有些可能需要根据条件跳转，有些可能需要重试。\n\n用传统的 if-else 和函数调用来管理这些任务很快会变成混乱的意大利面条代码。你需要一种更结构化的方式来描述这个工作流——既能清晰表达逻辑，又能随时中断和恢复。\n\n这就是 Pydantic AI 图支持要解决的问题。它将复杂的工作流建模为一张有向图，每一步处理一个节点，节点之间的边定义了执行路径。更重要的是，这张图可以通过类型检查自动验证，还能生成漂亮的 Mermaid 图表，让你一眼看懂整个流程。",
+  "chapter_summary": "pydantic-graph 通过图结构支持复杂 AI 工作流的可视化编排，它提供了节点、边、分支/聚合等基础构件，并利用 Mermaid 图表实现工作流的直观呈现和自动执行。",
+  "opening_hook": "想象这样一个场景：你在构建一个智能客服系统，它需要同时处理多个任务——识别用户意图、查询知识库、调用第三方 API、生成回复，还要记录操作日志。这些任务有的需要串行执行，有的可以并行处理，有的需要根据结果进行条件分支。用单独的 Agent 或者简单的链式调用已经难以管理如此复杂的工作流。你需要一种能够清晰描述执行路径、支持并行处理、并且可以可视化的方式来组织这些任务。这正是 pydantic-graph 图支持要解决的问题。",
   "sections": [
     {
-      "heading": "何时需要图结构",
-      "content": "简单的一问一答场景不需要图支持。你调用一个 agent，它返回结果，任务完成。但当工作流变得复杂时，图结构的优势就显现出来了。\n\n典型的场景包括：需要多步骤处理的工作流，比如研究助理需要先搜集信息、再分析汇总、最后生成报告。包含条件分支的场景，比如支付流程需要根据余额决定是直接扣款还是提示充值。\n\n需要人机交互的流程。比如客服系统需要等待用户输入后才能继续。这些场景的共同特点是：执行路径不固定、可能需要中断、状态需要在节点之间传递。\n pydantic-graph 库正是为此而设计。它是一个独立的图和状态机库，不依赖 pydantic-ai，可以在任何 Python 项目中使用。但对于 AI 应用来说，它与 Pydantic AI 的集成让多 agent 协作变得异常优雅。",
+      "heading": "为什么要用图结构",
+      "content": "当 AI 工作流变得复杂时，简单的顺序执行或者链式调用就不够用了。你可能会遇到需要同时处理多个独立任务的情况——同时检查多个数据库、同时调用多个 API。这些任务如果串行执行，会把等待时间累加起来，大幅降低响应速度。\n\n另一个常见需求是条件分支。根据中间结果的不同，工作流可能需要走不同的路径。比如根据错误类型决定是重试、降级还是直接报错。这种 if-else 逻辑如果硬编码在代码里会变得难以维护。\n\n更棘手的是并行任务的聚合。当多个独立任务完成后，通常需要把所有结果收集起来进行汇总处理——比如把多个搜索结果整合在一起。这要求系统能够追踪每个子任务的完成状态，只有当所有任务都完成后才能继续执行。\n\n图结构为这些问题提供了统一的解决思路。节点代表计算单元，边代表数据流动，分支和聚合通过 Fork 和 Join 节点实现。整个工作流的结构一目了然，执行引擎负责按照图定义来调度任务。",
       "callout": {
-        "type": "tip",
-        "text": "图支持是高级特性。如果简单的 agent 足够解决问题，不要为了使用图而使用图。增加复杂度应该有真实的收益，而不是因为「看起来很酷」。"
-      },
-      "diagram": {
-        "title": "复杂工作流与简单流程的对比",
-        "chart": "graph TD;\n    subgraph 简单流程\n        A[User] -->|提问| B[Agent]\n        B -->|回答| A\n    end\n    \n    subgraph 复杂工作流\n        A1[User] -->|提问| B1[意图识别]\n        B1 -->|查询知识库| C1[搜索节点]\n        C1 -->|需要支付| D1[支付节点]\n        D1 -->|余额不足| E1[提示充值]\n        E1 -->|等待输入| A1\n        D1 -->|支付成功| F1[订单处理]\n        F1 -->|生成回复| A1\n    end",
-        "description": "左边是简单的一问一答流，右边是包含条件分支和人机交互的复杂工作流。图结构能够清晰地表示后者。"
-      }
-    },
-    {
-      "heading": "节点、边与执行图",
-      "content": "在 pydantic-graph 中，最核心的概念是节点（Node）。节点是一个执行单元，它接收上下文，执行一些逻辑，然后返回下一个需要执行的节点。这听起来很像函数调用，但关键区别在于：返回的是节点类型，而不是函数调用。\n\n节点必须继承自 `BaseNode` 并实现 `run()` 方法。返回类型注解定义了这个节点可能通往哪些节点，这些「可能路径」就是图的边。框架会在运行时检查节点之间的连接是否合法。\n\nStateT 是状态的类型参数，它在整个图执行过程中共享和传递。你可以把它想象成生产线上流转的产品，每个节点对它进行加工，最后得到成品。DepsT 是依赖的类型，用于注入外部资源，比如数据库连接、HTTP 客户端等。\n\nEnd 是一个特殊的类型，表示图的执行结束。任何返回 `End[T]` 的节点都可以终止图执行，并返回最终结果。
-n图本身（Graph）是节点集合的定义。它不定义执行起点，这意味着你可以从任何节点开始运行图。这为灵活性提供了基础——比如在状态持久化场景下，你可以从中断的节点继续执行。",
-      "code": {
-        "title": "节点的定义与返回类型",
-        "description": "这个简单的计数器图展示了节点、边和 End 的典型用法。",
-        "code": "@dataclass\nclass CountDownState:\n    counter: int\n\n@dataclass\nclass CountDown(BaseNode[CountDownState, None, int]):\n    async def run(\n        self, ctx: GraphRunContext[CountDownState]\n    ) -> CountDown | End[int]:\n        if ctx.state.counter <= 0:\n            return End(ctx.state.counter)\n        ctx.state.counter -= 1\n        return CountDown()",
-        "language": "python",
-        "annotation": "`BaseNode` 的三个泛型参数分别是：状态类型、依赖类型、终止时的返回类型。`run` 方法的返回类型定义了节点的出边，框架会根据这个类型注解来验证图的合法性。"
-      },
-      "diagram": {
-        "title": "计数器图的执行流程",
-        "chart": "stateDiagram-v2\n    [*] --> CountDown\n    CountDown --> CountDown: counter > 0\n    CountDown --> [*]: counter <= 0",
-        "description": "CountDown 节点会持续减少计数器，当计数器归零时返回 End，终止执行。这种自循环模式在重试逻辑中很常见。"
-      }
-    },
-    {
-      "heading": "类型提示编织的合法性验证",
-      "content": "pydantic-graph 最巧妙的设计是其对类型提示的运用。图的合法性完全通过类型系统来保证，不需要额外的配置文件或 DSL。\n\n当一个节点声明其 `run()` 方法返回 `AnotherNode | End[T]` 时，框架会在图构建时验证：`AnotherNode` 确实是这个图中的节点。这不仅仅是语法糖，而是真正的类型检查——如果你试图返回一个不存在的节点，会在运行时立即收到错误。\n\n这种设计还带来了另一个好处：IDE 的智能提示。因为所有的转换都是类型签名的一部分，IDE 可以精确地推断出哪些节点可以跟随当前节点，代码补全会只显示合法选项。这让重构变得安全——修改节点的返回类型，所有受影响的调用都会在静态分析中被发现。\n\n更强大的是，`Edge` 注解允许你给边添加标签，这些标签不仅用于文档，还会出现在生成的 Mermaid 图表中，让流程图更加直观。",
-      "code": {
-        "title": "带边标签和条件分支的节点",
-        "description": "使用 Annotated 和 Edge 来丰富图的语义。",
-        "code": "from typing import Annotated\nfrom pydantic_graph import Edge\n\n@dataclass\nclass Evaluate(BaseNode[QuestionState, None, str]):\n    async def run(\n        self, ctx: GraphRunContext[QuestionState]\n    ) -> Annotated[End[str], Edge(label='成功')] | Reprimand:\n        if is_correct(self.answer):\n            return End('答对了！')\n        else:\n            return Reprimand('再试试')",
-        "language": "python",
-        "annotation": "`Annotated` 类型提示配合 `Edge` 注解给从 Evaluate 节点到 End 节点的边添加了「成功」标签。这个标签会出现在生成的流程图中，帮助理解每条边的含义。"
+        "type": "info",
+        "text": "pydantic-graph 中的'图'不是数学图论中的抽象概念，而是专门为构建可执行工作流设计的实用工具。它关注的是如何描述和控制执行流，而不是图论算法。"
       },
       "table": {
-        "caption": "图中的关键类型参数及其用途",
-        "headers": ["类型参数", "默认值", "用途", "何时需要"],
+        "caption": "传统方式与图结构的对比",
+        "headers": ["需求", "传统方式", "图结构"],
         "rows": [
-          ["StateT", "None", "图的共享状态", "需要在节点间传递数据时"],
-          ["DepsT", "None", "外部依赖注入", "需要数据库、配置等外部资源时"],
-          ["RunEndT", "Never", "图执行结束时的返回类型", "有节点返回 End 时必须指定"],
-          ["NodeRunEndT", "Never", "单个节点的返回类型", "节点返回 End 时必须指定"]
+          ["并行执行", "手动创建线程/进程", "Fork 节点自动分派"],
+          ["条件分支", "if-else 硬编码", "Decision 节点路径选择"],
+          ["结果聚合", "手动收集 Future", "Join 节点自动同步"],
+          ["可视化", "无法直观呈现", "自动生成 Mermaid 图"]
         ]
       }
     },
     {
-      "heading": "Agent 图执行引擎",
-      "content": "Pydantic AI 的每个 agent 内部都有一张执行图。这张图由 `build_agent_graph()` 函数构建，定义了 agent 运行的标准流程。\n\n图中有四个核心节点。`UserPromptNode` 处理用户输入和系统指令，它负责构建并发送给模型的请求消息。这个节点还会处理延迟工具调用的结果，允许你手动提供工具执行结果。\n\n`ModelRequestNode` 执行实际的模型调用。它负责准备请求参数、调用模型、处理流式响应，并在响应返回后将控制权传递给 `CallToolsNode`。\n\n`CallToolsNode` 处理模型的响应，执行工具调用，收集结果，然后根据结果显示下一步。如果有待执行的工具，它会创建新的 `ModelRequestNode` 继续循环；如果获得了最终结果，则返回 `End`。\n\n这三个节点的协作构成了 agent 的核心执行循环：模型请求 → 响应处理 → 工具执行 → 再次请求。这种结构化的设计让流式响应、工具重试、错误处理等功能都有明确的归属点。",
-      "code": {
-        "title": "Agent 执行图的构建",
-        "description": "查看 `build_agent_graph` 如何定义 agent 的标准执行流程。",
-        "code": "def build_agent_graph(\n    name: str | None,\n    deps_type: type[DepsT],\n    output_type: OutputSpec[OutputT],\n) -> Graph[\n    GraphAgentState,\n    GraphAgentDeps[DepsT, OutputT],\n    UserPromptNode[DepsT, OutputT],\n    result.FinalResult[OutputT],\n]:\n    g = GraphBuilder(\n        name=name or 'Agent',\n        state_type=GraphAgentState,\n        deps_type=GraphAgentDeps[DepsT, OutputT],\n        input_type=UserPromptNode[DepsT, OutputT],\n        output_type=result.FinalResult[OutputT],\n        auto_instrument=False,\n    )\n\n    g.add(\n        g.edge_from(g.start_node).to(UserPromptNode),\n        g.node(UserPromptNode),\n        g.node(ModelRequestNode),\n        g.node(CallToolsNode),\n    )\n    return g.build(validate_graph_structure=False)",
-        "language": "python",
-        "annotation": "`GraphBuilder` 提供了更灵活的图构建 API。这里定义了从 start_node 到各个节点的连接，形成了 agent 的标准执行图。边的定义是显式的，这让图的构建过程更加清晰。"
-      },
+      "heading": "核心概念：节点、边与类型",
+      "content": "图由节点和边构成。节点是执行单元，边是数据流动的路径。pydantic-graph 提供了多种预定义节点类型，每种都有特定的用途。StartNode 标记图的入口，EndNode 标记出口。Step 节点承载实际的业务逻辑——它包装一个异步函数，接收输入、产出输出。\n\nFork 节点将执行流分岔成多条并行路径。有两种分叉模式：broadcast 模式将相同数据复制到所有分支，map 模式将序列中的每个元素分配到不同分支执行。Join 节点是 Fork 的反面，它收集并行路径的结果并进行聚合。\n\nDecision 节点实现条件分支逻辑。它根据分支匹配器的测试结果选择下一步的执行路径。每个分支可以指定要匹配的类型或自定义匹配函数，让分支选择变得灵活且类型安全。\n\n类型提示贯穿整个图系统。每个节点都有明确的输入类型和输出类型，边的连接必须类型兼容。这种设计让静态类型检查工具能够在构建阶段就发现类型错误，而不是等到运行时才暴露问题。",
       "diagram": {
-        "title": "Pydantic AI Agent 执行图",
-        "chart": "stateDiagram-v2\n    [*] --> UserPromptNode\n    UserPromptNode --> ModelRequestNode\n    ModelRequestNode --> CallToolsNode\n    CallToolsNode --> ModelRequestNode: 有工具待执行\n    CallToolsNode --> [*]: 获得最终结果",
-        "description": "这是每个 Pydantic AI agent 内部的执行图。用户输入从 UserPromptNode 进入，经过模型请求和工具调用的循环，最终返回结果。"
+        "title": "基本图结构示例",
+        "chart": "graph TB\n    Start(开始) --> Process(处理数据)\n    Process --> Decision{结果类型?}\n    Decision -->|成功| Success[成功分支]\n    Decision -->|失败| Retry[重试]\n    Process --> Fork(并行计算)\n    Fork --> A[任务 A]\n    Fork --> B[任务 B]\n    Fork --> C[任务 C]\n    A --> Join(聚合结果)\n    B --> Join\n    C --> Join\n    Join --> End(结束)",
+        "description": "展示了图的基本结构：串行节点、决策分支、并行分叉与聚合"
       }
     },
     {
-      "heading": "可中断的执行与状态持久化",
-      "content": "有限状态机的一个经典优势是处理中断执行。想象一个订单退货流程：用户发起退货 → 系统准备物流单 → 用户寄出商品 → 商家确认收货 → 退款处理。这个流程可能跨越数天，不可能在一次 HTTP 请求中完成。\n\n使用传统的控制流，你需要为每个「等待点」编写复杂的保存和恢复逻辑，代码会变得难以维护。而图结构的每个节点都可以作为恢复点，状态持久化机制会自动保存每个节点执行前后的快照。\n\npydantic-graph 提供了三种持久化实现：`SimpleStatePersistence` 只保留最新快照、`FullStatePersistence` 保留完整历史、`FileStatePersistence` 将快照保存到文件。生产环境通常会基于 `BaseStatePersistence` 实现自己的持久化，比如存储到数据库。\n\n`iter_from_persistence()` 方法允许从持久化状态恢复执行。你只需要提供持久化对象，引擎会自动加载下一个待执行的节点和状态。这让分布式执行变得简单——不同的机器可以执行图的节点，只要它们共享同一个持久化存储。",
+      "heading": "图的构建与类型安全",
+      "content": "GraphBuilder 是构建图的工具类。它提供了流式 API 来定义节点和边，并在构建过程中进行类型检查。builder.step() 方法创建新的 Step 节点，可以接受一个异步函数作为参数，也可以作为装饰器使用。返回的 Step 对象代表图中的一个节点。\n\n边的连接通过 builder.edge_from().to() 链式调用完成。对于需要并行处理的情况，可以使用 builder.add_mapping_edge() 创建映射边——它自动插入 Fork 节点，将序列元素分配到不同路径。\n\nGraphBuilder 会自动推断类型Hint来构建边。如果 Step 函数的返回类型注解是 Union[NodeA, NodeB]，builder 会自动添加 Decision 节点来处理分支选择。这种基于类型注解的自动推导减少了重复代码。\n\n构建过程的最后一步是调用 builder.build()。这个方法会对图进行全面验证：检查所有节点是否都可以从起点到达、是否有死路节点、每个 Join 是否都有对应的 Fork。只有验证通过，才会返回可执行的 Graph 实例。",
+      "code": {
+        "title": "构建一个简单的并行计算图",
+        "description": "这个示例展示了如何使用 GraphBuilder 创建一个将列表数据并行处理的图",
+        "code": "from pydantic_graph import GraphBuilder\n\nbuilder = GraphBuilder()\n\n@builder.step\ndef process_item(ctx, item: int) -> int:\n    return item * 2\n\nsum_join = builder.join(\n    reducer=lambda current, x: current + x,\n    initial=0,\n)\n\nbuilder.add_mapping_edge(\n    source=builder.start_node,\n    map_to=process_item,\n)\n\nbuilder.add_edge(process_item, sum_join)\nbuilder.add_edge(sum_join, builder.end_node)\n\ngraph = builder.build()\nresult = await graph.run(inputs=range(10))  # 返回 90",
+        "language": "python",
+        "annotation": "GraphBuilder 自动创建 Fork 节点处理映射，join 使用累加器聚合结果，类型检查确保只有 int 类型的数据可以流入"
+      }
+    },
+    {
+      "heading": "执行引擎：GraphRun 的调度艺术",
+      "content": "Graph 类代表一个完整的、可执行的图定义。它的核心方法是 run()——启动执行并返回最终结果。run() 内部创建一个 GraphRun 实例，GraphRun 负责管理整个执行过程的状态。\n\n执行引擎采用异步任务组来管理并行执行。每个节点的执行都被包装成一个任务，fork 分支会产生多个并发任务。引擎通过内存流来传递任务结果和执行请求，确保各个组件之间解耦且可扩展。\n\nGraphRun 维护两个关键的字典结构：active_tasks 记录所有正在执行的任务，active_reducers 记录所有正在等待聚合的 Join 操作。当一个任务完成时，引擎会检查是否有 Join 已经收到该 fork 的所有结果，如果齐全则触发下游执行。\n\nfork 栈是另一个重要的数据结构。它是 ForkStackItem 的元组，每个 item 记录了 fork 节点 ID、该 fork 的运行 ID 以及该分支的索引。这个栈让引擎能够追踪当前执行在图中的“位置”，从而正确判断 Join 是否应该被触发。\n\n执行过程是渐进式的——每次调用 next() 方法触发下一步执行，返回下一批需要执行的任务或最终的 EndMarker。这种设计允许调用者在执行过程中进行干预或检查，也为调试提供了便利。",
       "callout": {
-        "type": "info",
-        "text": "状态持久化不仅用于处理长时间运行的任务，也是实现「人在回路」交互的基础。用户可以在任何需要输入的时刻介入，系统暂停等待响应后继续执行。"
-      },
-      "code": {
-        "title": "基于文件的持久化执行",
-        "description": "一个可以在进程间中断和恢复的图执行示例。",
-        "code": "# 第一次运行：初始化图并执行到需要用户输入的节点\npersistence = FileStatePersistence(Path('question_graph.json'))\nawait graph.initialize(Ask(), state=state, persistence=persistence)\n\nasync with graph.iter_from_persistence(persistence) as run:\n    node = await run.next()\n    if isinstance(node, Answer):\n        print(node.question)  # 打印问题，等待用户回答\n\n# 第二次运行（可能在另一个进程中）：\n# 用户输入了答案，我们从持久化状态恢复并继续执行\npersistence = FileStatePersistence(Path('question_graph.json'))\nnode = Evaluate(user_answer)  # 创建带用户答案的节点\n\nasync with graph.iter(node, state=state, persistence=persistence) as run:\n    final = await run.next()  # 继续执行直到结束",
-        "language": "python",
-        "annotation": "这个模式展示了如何将图执行分解为多个步骤，每一步都可以在不同的进程中完成。文件持久化充当了各步骤之间的通信媒介，使系统能够自然地处理中断和恢复。"
+        "type": "tip",
+        "text": "Graph 同时提供了 iter() 上下文管理器，允许以异步生成器的方式逐步执行图。这对于需要观察中间状态或进行细粒度控制的场景特别有用。"
       }
     },
     {
-      "heading": "可视化：让工作流一目了然",
-      "content": "复杂的工作流如果能用图表展示，会变得容易理解得多。pydantic-graph 内置了 Mermaid 图表生成功能，只需调用一个方法就能得到可视化的流程图。\n\n`mermaid_code()` 方法生成 Mermaid 的 stateDiagram-v2 语法代码，你可以直接渲染为网页图表或保存为图片。`mermaid_image()` 利用 mermaid.ink 服务直接获取 PNG 图片，而 `mermaid_save()` 则将图片保存到本地文件。\n\n生成的图表包含节点、边和起点终点的完整展示。如果你为边添加了 `Edge` 标签，或者在节点上设置了 `docstring_notes`，这些额外信息也会出现在图表中，让流程的含义更加清晰。\n\n更重要的是，这些图表不是静态图片——它们直接反映了图的定义。一旦修改了图的代码结构，重新生成的图表会自动更新。这为文档维护和代码审查提供了强大的可视化工具。",
+      "heading": "Fork 与 Join：并行协作模式",
+      "content": "Fork 节点是并行执行的控制点。当执行流到达 Fork 时，引擎会根据 fork 类型创建多个下游任务。如果是 broadcast 模式，每个分支都会接收到相同的数据副本；如果是 map 模式，序列中的每个元素会被分配到不同分支。\n\nmap 模式的支持尤其强大——它不仅处理普通的可迭代对象，还支持异步迭代器。这意味着你可以用同一个图结构处理同步和异步数据源，无需改动图定义。\n\nJoin 节点是并行执行的汇聚点。它使用一个 reducer 函数来聚合来自各个分支的结果。pydantic-graph 提供了多个内置 reducer：reduce_list_append 把结果追加到列表，reduce_sum 累加数值，reduce_dict_update 合并字典。\n\nreducer 函数可以选择是否接收 ReducerContext 上下文。如果接收，它可以在聚合过程中访问全局状态和依赖对象，甚至调用 cancel_sibling_tasks() 方法提前取消其他分支的执行。这为构建复杂的协作逻辑提供了可能性。\n\nFork 和 Join 之间的关系是通过'支配性'来确定的。一个 Fork F 是 Join J 的支配性 fork，当且仅当从起点到 J 的所有路径都必须经过 F。构建时，graph builder 会计算每个 Join 的支配性 Fork，确保执行引擎能够正确判断何时触发聚合。",
       "code": {
-        "title": "生成并保存 Mermaid 图表",
-        "description": "展示如何生成可视化图并保存为文件。",
-        "code": "# 生成 Mermaid 代码\nmermaid = question_graph.mermaid_code(\n    start_node=Ask,\n    title='问答交互流程',\n    edge_labels=True,\n    notes=True,\n    direction='LR'  # 从左到右布局\n)\nprint(mermaid)\n\n# 直接获取并保存图片\nawait question_graph.mermaid_save(\n    'workflow.png',\n    start_node=Ask,\n    highlighted_nodes=Answer  # 高亮显示 Answer 节点\n)",
+        "title": "Fork/Join 的 early stopping 模式",
+        "description": "这个 reducer 在收到第一个匹配结果后就取消其他分支",
+        "code": "from pydantic_graph.beta.join import ReduceFirstValue\nfrom typing_extensions import Annotated\n\nfast_join = builder.join(\n    reducer=ReduceFirstValue(),\n    initial_factory=lambda: None,\n)\n\n# 当任一分支完成时，其他分支会被自动取消",
         "language": "python",
-        "annotation": "direction 参数控制图表布局方向，TB（默认）是自上而下、LR 是自左而右。highlighted_nodes 可以高亮特定的节点，常用于标记当前执行位置或关键路径上的节点。"
-      },
-      "diagram": {
-        "title": "一个完整的问答交互流程图",
-        "chart": "---\ntitle: 问答交互流程\n---\nstateDiagram-v2\n    direction LR\n    [*] --> Ask\n    Ask --> Answer: 提问\n    Answer --> Evaluate: 用户回答\n    Evaluate --> Ask: 回答错误\n    Evaluate --> [*]: 回答正确\n    \n    note right of Answer\n        等待用户输入\n        这是人机交互点\n    end note",
-        "description": "这个图展示了 Ask、Answer、Evaluate 三个节点的完整循环。Evaluate 节点有两个出边，分别指向 Ask（需要重试）和终点（成功结束）。"
+        "annotation": "ReduceFirstValue 调用 cancel_sibling_tasks() 实现早期终止，适用于'任一成功即可'的场景"
+      }
+    },
+    {
+      "heading": "可视化：用 Mermaid 让图可见",
+      "content": "复杂的执行逻辑如果只有代码描述，很难快速理解。pydantic-graph 内置了 Mermaid 图表生成功能，让你可以把抽象的图结构可视化。\n\ngraph.render() 方法返回 Mermaid 状态图的文本表示。这个文本可以直接嵌入支持 Mermaid 的 Markdown 查看器，或者传给 mermaid.ink 服务生成图片。生成的图表直观地展示了节点关系、执行流程和数据流向。\n\nMermaid 配置提供了丰富的定制选项。你可以设置图表标题、选择布局方向、高亮特定节点、添加节点注释。edge_labels 参数控制是否在边上显示标签，notes 参数控制是否显示节点附带的说明文字。\n\nsave_image() 方法进一步简化了图片生成过程。它根据文件扩展名自动选择正确的图像格式，调用 mermaid.ink API 并将结果保存到本地文件。这对于文档和演示非常实用。\n\n可视化不仅有助于理解，也是调试利器。你可以高亮当前的执行节点，观察执行路径是否符合预期。当图变得复杂时，一张清晰的图表能帮你快速定位问题所在。",
+      "code": {
+        "title": "生成并保存 Mermaid 图",
+        "description": "将图渲染为 Mermaid 图表并保存为文件",
+        "code": "from pydantic_graph import GraphBuilder\n\nbuilder = GraphBuilder()\n# ... 定义图 ...\n\ngraph = builder.build()\n\n# 获取 Mermaid 文本\nmermaid_code = graph.render(\n    title='数据处理流程',\n    direction='LR',  # 从左到右布局\n)\nprint(mermaid_code)\n\n# 直接保存为图片\ngraph.save_image(\n    'workflow.png',\n    highlighted_nodes=['process_data'],\n    background_color='!white',\n)",
+        "language": "python",
+        "annotation": "direction 参数支持 'TB'(从上到下)、'LR'(从左到右)等布局方式；highlighted_nodes 用黄色高亮指定节点"
       }
     }
   ],
   "key_takeaways": [
-    "图支持通过节点和边将复杂工作流结构化，使逻辑更清晰、更容易维护",
-    "类型提示不仅是文档，更是图的合法性验证机制，IDE 可以基于类型提供精确的代码补全",
-    "每个 Pydantic AI agent 内部都有标准的执行图，由 UserPromptNode、ModelRequestNode 和 CallToolsNode 构成",
-    "状态持久化让图的执行可以中断和恢复，这是处理长时间任务和人机交互的基础能力",
-    "内置的 Mermaid 图表生成让工作流可视化成为可能，为文档和调试提供强大工具"
+    "图结构为复杂 AI 工作流提供了统一的抽象，通过节点和边的组合可以自然地表达串行、并行、分支等执行模式",
+    "GraphBuilder 提供类型安全的图构建 API，自动从函数返回类型推导边连接关系，减少重复代码",
+    "执行引擎使用任务组和 fork 栈精心管理并行执行，确保 Join 能够正确聚合所有分支的结果",
+    "内置的 Mermaid 可视化功能让图结构一目了然，便于理解、调试和文档化工作流",
+    "Fork/Join 模式支持 broadcast 和 map 两种分叉方式，配合 reducer 函数可以实现各种聚合策略"
   ],
   "further_thinking": [
-    "如果让你设计一个基于图的多 agent 协作系统，你会如何设计节点间的通信机制？直接在状态中传递消息，还是使用消息队列？",
-    "图的类型安全性在运行时和编译时的权衡是什么？哪些验证应该在图构建时完成，哪些应该在执行时发现？"
+    "如果你的工作流需要处理动态的图结构——比如根据运行时数据动态添加节点和边，当前的 GraphBuilder 模式会如何演进？",
+    "图的执行引擎是否支持断点续办或检查点机制？当分布式执行时，如何保证图状态的一致性？"
   ],
   "analogies": [
-    "图支持就像城市规划的交通网络：节点是路口或地点，边是道路，类型系统是交通规则，确保车辆只能沿着合法的道路前进",
-    "状态持久化就像游戏的存档功能系统，你可以在任何节点「保存」，稍后从完全相同的状态「读取」继续"
+    "图支持就像城市规划的交通网络系统：节点是路口或目的地，边是道路，fork 是多车道分流，join 是多车道汇合，decision 是根据目的地选择不同的道路",
+    "GraphBuilder 像地铁线路设计工具：你规划站点（节点）和线路（边），执行引擎像地铁调度中心，确保列车按照时刻表在正确的轨道上运行，乘客在正确的站点下车"
   ],
-  "mermaid_diagrams": [
-    {
-      "title": "复杂工作流与简单流程的对比",
-      "chart": "graph TD;\n    subgraph 简单流程\n        A[User] -->|提问| B[Agent]\n        B -->|回答| A\n    end\n    \n    subgraph 复杂工作流\n        A1[User] -->|提问| B1[意图识别]\n        B1 -->|查询知识库| C1[搜索节点]\n        C1 -->|需要支付| D1[支付节点]\n        D1 -->|余额不足| E1[提示充值]\n        E1 -->|等待输入| A1\n        D1 -->|支付成功| F1[订单处理]\n        F1 -->|生成回复| A1\n    end"
-    },
-    {
-      "title": "计数器图的执行流程",
-      "chart": "stateDiagram-v2\n    [*] --> CountDown\n    CountDown --> CountDown: counter > 0\n    CountDown --> [*]: counter <= 0"
-    },
-    {
-      "title": "Pydantic AI Agent 执行图",
-      "chart": "stateDiagram-v2\n    [*] --> UserPromptNode\n    UserPromptNode --> ModelRequestNode\n    ModelRequestNode --> CallToolsNode\n    CallToolsNode --> ModelRequestNode: 有工具待执行\n    CallToolsNode --> [*]: 获得最终结果"
-    },
-    {
-      "title": "一个完整的问答交互流程图",
-      "chart": "---\ntitle: 问答交互流程\n---\nstateDiagram-v2\n    direction LR\n    [*] --> Ask\n    Ask --> Answer: 提问\n    Answer --> Evaluate: 用户回答\n    Evaluate --> Ask: 回答错误\n    Evaluate --> [*]: 回答正确\n    \n    note right of Answer\n        等待用户输入\n        这是人机交互点\n    end note"
-    }
-  ],
-  "code_snippets": [
-    {
-      "title": "节点的定义与返回类型",
-      "code": "@dataclass\nclass CountDownState:\n    counter: int\n\n@dataclass\nclass CountDown(BaseNode[CountDownState, None, int]):\n    async def run(\n        self, ctx: GraphRunContext[CountDownState]\n    ) -> CountDown | End[int]:\n        if ctx.state.counter <= 0:\n            return End(ctx.state.counter)\n        ctx.state.counter -= 1\n        return CountDown()",
-      "language": "python"
-    },
-    {
-      "title": "带边标签和条件分支的节点",
-      "code": "from typing import Annotated\nfrom pydantic_graph import Edge\n\n@dataclass\nclass Evaluate(BaseNode[QuestionState, None, str]):\n    async def run(\n        self, ctx: GraphRunContext[QuestionState]\n    ) -> Annotated[End[str], Edge(label='成功')] | Reprimand:\n        if is_correct(self.answer):\n            return End('答对了！')\n        else:\n            return Reprimand('再试试')",
-      "language": "python"
-    },
-    {
-      "title": "Agent 执行图的构建",
-      "code": "def build_agent_graph(\n    name: str | None,\n    deps_type: type[DepsT],\n    output_type: OutputSpec[OutputT],\n) -> Graph[\n    GraphAgentState,\n    GraphAgentDeps[DepsT, OutputT],\n    UserPromptNode[DepsT, OutputT],\n    result.FinalResult[OutputT],\n]:\n    g = GraphBuilder(\n        name=name or 'Agent',\n        state_type=GraphAgentState,\n        deps_type=GraphAgentDeps[DepsT, OutputT],\n        input_type=UserPromptNode[DepsT, OutputT],\n        output_type=result.FinalResult[OutputT],\n        auto_instrument=False,\n    )\n\n    g.add(\n        g.edge_from(g.start_node).to(UserPromptNode),\n        g.node(UserPromptNode),\n        g.node(ModelRequestNode),\n        g.node(CallToolsNode),\n    )\n    return g.build(validate_graph_structure=False)",
-      "language": "python"
-    },
-    {
-      "title": "基于文件的持久化执行",
-      "code": "# 第一次运行：初始化图并执行到需要用户输入的节点\npersistence = FileStatePersistence(Path('question_graph.json'))\nawait graph.initialize(Ask(), state=state, persistence=persistence)\n\nasync with graph.iter_from_persistence(persistence) as run:\n    node = await run.next()\n    if isinstance(node, Answer):\n        print(node.question)  # 打印问题，等待用户回答\n\n# 第二次运行（可能在另一个进程中）：\n# 用户输入了答案，我们从持久化状态恢复并继续执行\npersistence = FileStatePersistence(Path('question_graph.json'))\nnode = Evaluate(user_answer)  # 创建带用户答案的节点\n\nasync with graph.iter(node, state=state, persistence=persistence) as run:\n    final = await run.next()  # 继续执行直到结束",
-      "language": "python"
-    },
-    {
-      "title": "生成并保存 Mermaid 图表",
-      "code": "# 生成 Mermaid 代码\nmermaid = question_graph.mermaid_code(\n    start_node=Ask,\n    title='问答交互流程',\n    edge_labels=True,\n    notes=True,\n    direction='LR'  # 从左到右布局\n)\nprint(mermaid)\n\n# 直接获取并保存图片\nawait question_graph.mermaid_save(\n    'workflow.png',\n    start_node=Ask,\n    highlighted_nodes=Answer  # 高亮显示 Answer 节点\n)",
-      "language": "python"
-    }
-  ],
+  "mermaid_diagrams": [],
+  "code_snippets": [],
   "word_count": 3800,
-  "prerequisites": ["ch08-tools-basics"]
+  "prerequisites": ["ch01-what-is-pydantic-ai", "ch10-type-system"]
 }
