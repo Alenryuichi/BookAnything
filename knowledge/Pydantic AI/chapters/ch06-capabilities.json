@@ -2,181 +2,112 @@
   "chapter_id": "ch06-capabilities",
   "title": "第6章：能力系统",
   "subtitle": "可组合的功能模块",
-  "chapter_summary": "能力系统是 Pydantic AI 的插件机制框架，通过声明式的能力模块组合，让代理获得多样化的生产级功能。",
-  "opening_hook": "想象你正在组装一台电脑。你有显示器、键盘、硬盘、显卡各种组件，但它们直接连在一起会变成一团乱麻。于是你有了主板这个聪明的设备——每个组件都插入主板的标准插槽，系统自动处理供电、信号分配，你只需要决定插哪些插槽。\n\n构建 AI 应用也是类似的故事。你想要代理能联网搜索，能记忆对话历史，能生成图片，能调用数据库，能通过 MCP 协议连接外部工具……如果每个功能都要单独配置、手动管理生命周期，代码很快会变成难以维护的意大利面。Pydantic AI 的能力系统就是你应用架构的「主板」——每个功能模块都是标准的「能力」，代理按需组合，框架自动处理一切。",
+  "chapter_summary": "能力系统是 Pydantic AI 的功能单元抽象，通过可组合的方式为 Agent 提供从简单配置到复杂行为控制的各种功能。",
+  "opening_hook": "想象你正在构建一个智能助手。刚开始，它只需要回答问题，所以一个简单的模型调用就够了。但随着需求增长，你需要它能够搜索互联网、调用数据库、处理图片、记录历史对话⋯⋯如果每次都把这些功能直接写进 Agent 里，代码很快就会变成一团乱麻。\n\nPydantic AI 的解决方案是「能力系统」。就像现代应用程序通过插件模块来扩展功能一样，你可以把 Agent 的各种能力封装成独立的模块，然后像搭积木一样组合使用。想要网络搜索？加一个 WebSearch 能力。想要更强的推理能力？加一个 Thinking 能力。需要调用外部工具？加一个 MCP 能力。每个能力都是独立的，可以单独使用，也可以和其他能力组合。",
   "sections": [
     {
-      "heading": "从单一工具到能力组合",
-      "content": "早期的 AI 应用开发像是在拼图——你手动定义工具函数，手动注册到代理中，手动管理运行时状态。当功能需求变复杂时，这种模式暴露出明显问题：工具注册逻辑散落各处，生命周期管理混乱，复用困难。\n\n能力系统用统一的抽象解决了这个问题。每个能力都是一个独立、可组合的模块，负责一个特定的功能领域：Thinking 控制模型思考深度，WebSearch 赋予联网搜索能力，MCP 连接外部服务，Toolset 提供工具集合，HistoryProcessor 管理对话历史。你不需要关心这些能力如何与代理集成，只需要在构造代理时声明即可。\n\n这种设计让生产级应用的开发变得像搭乐高——基础代理是底板，能力是标准积木，你组合出适合业务需求的完整系统。更重要的是，能力之间互不干扰，你可以随时添加、移除或替换某个能力，而不会影响其他部分的实现。",
-      "callout": {
-        "type": "quote",
-        "text": "能力系统是 Pydantic AI 从「工具集合」迈向「应用平台」的关键一步。"
-      },
-      "diagram": {
-        "title": "能力系统架构",
-        "chart": "graph TB\n    subgraph Agent[代理]\n        subgraph Core[核心引擎]\n            Engine[执行引擎]\n            Graph[节点图]\n        end\n        subgraph Capabilities[能力层]\n            Thinking1[Thinking 思考控制]\n            WebSearch1[WebSearch 联网搜索]\n            MCP1[MCP 外部服务]\n            Toolset1[Toolset 工具集合]\n            History1[History 历史管理]\n        end\n    end\n    \n    Engine --> Thinking1\n    Engine --> WebSearch1\n    Engine --> MCP1\n    Engine --> Toolset1\n    Engine --> History1\n    \n    Thinking1 -->|提供| Settings[模型设置]\n    WebSearch1 -->|提供| SearchTools[搜索工具]\n    MCP1 -->|提供| MCTools[MCP 工具]\n    Toolset1 -->|提供| FuncTools[函数工具]\n    History1 -->|提供| Instructions[系统指令]",
-        "description": "能力系统通过钩子机制与代理核心引擎交互，每个能力提供特定功能并通过统一接口集成。"
-      }
-    },
-    {
-      "heading": "核心概念：能力的契约",
-      "content": "所有能力都继承自 AbstractCapability 基类，这个类定义了能力模块必须遵守的契约。你不需要实现所有方法——只需要提供你关心的功能即可。基类提供了默认实现，未覆盖的方法会优雅地「什么都不做」。",
-      "code": {
-        "title": "AbstractCapability 核心方法",
-        "description": "能力模块可提供的核心功能",
-        "code": "class AbstractCapability(ABC, Generic[AgentDepsT]):\n    # === 静态配置（构造时调用） ===\n    def get_instructions(self) -> AgentInstructions | None:\n        \"\"\"提供系统提示词中的指令\"\"\"\n    def get_model_settings(self) -> AgentModelSettings | None:\n        \"\"\"提供模型设置（如思考级别）\"\"\"\n    def get_toolset(self) -> AgentToolset | None:\n        \"\"\"提供工具集合\"\"\"\n    def get_builtin_tools(self) -> Sequence[AgentBuiltinTool]:\n        \"\"\"提供内置工具\"\"\"\n\n    # === 生命周期钩子（运行时调用） ===\n    async def before_model_request(self, ctx, request_context):\n        \"\"\"模型调用前，可修改请求\"\"\"\n    async def after_model_request(self, ctx, *, response):\n        \"\"\"模型调用后，可修改响应\"\"\"\n    async def before_tool_execute(self, ctx, *, args):\n        \"\"\"工具执行前，可修改参数\"\"\"\n    async def after_tool_execute(self, ctx, *, result):\n        \"\"\"工具执行后，可修改返回值\"\"\"",
-        "language": "python",
-        "annotation": "契约分为两部分：静态配置方法在代理构造时调用一次，生命周期钩子在运行时反复触发。钩子支持「修改」语义——你可以拦截并调整中间过程的任意环节。"
-      },
-      "callout": {
-        "type": "info",
-        "text": "钩子是「事件监听器」，不是「拦截器」。每个能力都能钩入同一事件，按注册顺序依次执行。如果你需要完全控制流程，使用 wrap_* 方法而不是 before_*/after_* 方法。"
-      }
-    },
-    {
-      "heading": "Thinking能力：控制模型思考深度",
-      "content": "Thinking 能力是最简单但非常实用的内置能力。它唯一的目的就是配置模型的「思考」级别——让模型在生成回答前花更多时间进行推理。这对于需要复杂推理的任务特别有用：代码生成、数学证明、架构设计等场景，模型多想两步，结果质量往往大幅提升。\n\nThinking 的实现极其优雅：只有一个 effort 字段，可以是布尔值或字符串。传入 True 使用模型默认思考强度，False 禁用思考（对于始终开启思考的模型，这个设置会被忽略），或者传入 'minimal'、'low'、'medium'、'high'、'xhigh' 精确控制强度。它通过覆盖 get_model_settings 方法，返回包含 thinking 参数的 ModelSettings 对象，框架会自动将这个设置合并到模型调用中。",
-      "code": {
-        "title": "Thinking 能力实现",
-        "description": "不到30行代码，实现了完整的思考控制功能",
-        "code": "@dataclass\nclass Thinking(AbstractCapability[Any]):\n    \"\"\"启用并配置模型思考/推理能力\"\"\"\n\n    effort: ThinkingLevel = True\n    \"\"\"思考强度级别：True/False 或 'minimal'/'low'/'medium'/'high'/'xhigh'\"\"\"\n\n    def get_model_settings(self) -> ModelSettings | None:\n        return ModelSettings(thinking=self.effort)",
-        "language": "python",
-        "annotation": "Thinking 遵循「最小可行抽象」原则——只做一件事，把一件事做好。它不需要生命周期钩子，只需要提供静态配置。通过复用 ModelSettings 的 thinking 字段，它还能跨不同模型提供商工作（OpenAI 的 reasoning_effort、Anthropic 的 thinking 等）。"
-      },
-      "table": {
-        "caption": "Thinking 能级别说明",
-        "headers": ["级别", "说明", "适用场景"],
-        "rows": [
-          ["False", "禁用思考", "简单问答、快速响应"],
-          ["True", "默认强度", "通用场景"],
-          ["minimal", "最低强度", "轻量级推理"],
-          ["low", "低强度", "日常任务（如文本摘要）"],
-          ["medium", "中等强度", "标准推理任务"],
-          ["high", "高强度", "复杂推理（如代码编写）"],
-          ["xhigh", "最高强度", "极复杂问题（如系统设计）"]
-        ]
-      }
-    },
-    {
-      "heading": "更多内置能力：WebSearch、MCP、Toolset",
-      "content": "Thinking 只是能力系统的冰山一角。框架提供了十几个内置能力，覆盖生产级应用的核心需求——WebSearch 赋予联网搜索，MCP 连接 Model Context Protocol 服务，Toolset 批量注册工具集合，ImageGeneration 集成图片生成，HistoryProcessor 管理对话历史……\n\n这些能力的设计哲学一致：配置参数简单、接口语义清晰、开箱即用。WebSearch 只需要传入一个搜索函数，框架会自动创建可被模型调用的搜索工具。MCP 更是强大——你只需连接 MCP 服务器，框架会自动发现并注册所有可用工具。这意味着你不需要了解 MCP 协议的细节，也不需要手动实现工具注册，一行代码就能让代理访问数百个外部服务。",
-      "code": {
-        "title": "使用多个能力组合代理",
-        "description": "声明式的能力组合，代码清晰易读",
-        "code": "# 定义一个具备思考、搜索和图片生成能力的代理\nagent = Agent(\n    'gpt-4o',\n    capabilities=[\n        Thinking(effort='high'),      # 开启高强度思考\n        WebSearch(search=my_search),   # 集成网络搜索\n        ImageGeneration(gen=my_gen),   # 集成图片生成\n    ]\n)\n\n# 使用 MCP 连接外部服务\nagent = Agent(\n    'gpt-4o',\n    capabilities=[\n        MCP(mcp_server_url='http://localhost:3000'),\n    ]\n)",
-        "language": "python",
-        "annotation": "能力列表的顺序会影响行为——当多个能力提供同类型资源（如工具）时，后面的能力可以覆盖前面的。大多数情况下顺序不重要，但当你需要精确控制覆盖关系时，记得注意这个细节。"
-      },
-      "diagram": {
-        "title": "能力组合示例",
-        "chart": "graph LR\n    subgraph UserInput[用户输入]\n        Prompt[分析当前天气并画一张配图]\n    end\n    \n    subgraph Agent[代理执行流程]\n        Step1[Thinking 启动思考] --> Step2[推理需要天气数据]\n        Step2 --> Step3[WebSearch 调用搜索API]\n        Step3 --> Step4[获取天气信息]\n        Step4 --> Step5[继续推理生成描述]\n        Step5 --> Step6[ImageGeneration 调用图片API]\n        Step6 --> Step7[生成配图]\n    end\n    \n    subgraph Response[最终输出]\n        Result[天气描述 + 配图下载链接]\n    end\n    \n    Prompt --> Step1\n    Step7 --> Result",
-        "description": "多个能力协作完成复杂任务：Thinking 控制推理深度，WebSearch 提供实时数据，ImageGeneration 生成多媒体内容。"
-      }
-    },
-    {
-      "heading": "生命周期钩子：拦截代理运行的每个环节",
-      "content": "静态配置（如 Thinking）适合不变的设置，但很多场景需要动态行为。能力系统的生命周期钩子填补了这个空白——你可以在代理运行的任意时刻插入自定义逻辑：模型调用前修改请求参数，工具执行后过滤或转换结果，运行出错时进行恢复，甚至在完整运行周期内跨步骤维护状态。",
-      "code": {
-        "title": "自定义能力：日志记录和错误恢复",
-        "description": "通过钩子能力为代理添加横切关注点",
-        "code": "@dataclass\nclass LoggingAndRetry(AbstractCapability[Any]):\n    \"\"\"记录日志并在模型错误时自动重试\"\"\"\n\n    async def before_model_request(self, ctx, request_context):\n        print(f\"[请求] 步骤 {ctx.run_step}\")\n        return request_context\n\n    async def after_model_request(self, ctx, *, response):\n        print(f\"[响应] 返回 {len(response.content)} 个部分\")\n        return response\n\n    async def on_model_request_error(self, ctx, *, error):\n        print(f\"[错误] {type(error).__name__}: {error}\")\n        if isinstance(error, RateLimitError) and ctx.run_step < 3:\n            await asyncio.sleep(2 ** ctx.run_step)  # 指数退避\n            return ModelResponse.from_text(\"请继续\")\n        raise error\n\n# 使用自定义能力\nagent = Agent('gpt-4o', capabilities=[LoggingAndRetry()])",
-        "language": "python",
-        "annotation": "on_*_error 钩子是错误处理的利器——你可以选择传播异常（raise error），返回替代值让执行继续，或者返回 ModelRetry 让模型重试。这个例子展示了生产级应用常见的模式：指数退避重试，超过最大尝试次数后放弃。"
-      },
-      "table": {
-        "caption": "主要生命周期钩子",
-        "headers": ["钩子", "触发时机", "典型用途"],
-        "rows": [
-          ["before_run/after_run", "代理运行开始/结束", "资源分配/释放、全局统计"],
-          ["before_model_request/after_model_request", "每个模型请求前/后", "请求过滤、响应转换、成本追踪"],
-          ["before_tool_execute/after_tool_execute", "每个工具执行前/后", "参数验证、结果过滤、审计日志"],
-          ["on_model_request_error", "模型调用失败", "错误重试、降级策略"],
-          ["on_tool_execute_error", "工具执行失败", "工具错误恢复、调用重试"]
-        ]
-      }
-    },
-    {
-      "heading": "高级模式：Wrap能力和WrapperCapability",
-      "content": ".before_*/after_* 钩子适合「先做X，再做Y」的场景，但如果你想完全控制某个环节——捕获异常、条件执行、测量耗时、实现熔断——就需要 wrap_* 方法。这些方法接收一个 handler 参数，调用它会执行原始操作，你可以选择调用零次、一次或多次，或者完全不调用直接返回替代结果。\n\nWrap 能力是强大的拦截模式。你可以用它实现请求级别的重试逻辑（捕获异常后调用 handler 重试），性能监控（记录 handler 调用前后的时间差），访问控制（检查权限后在决定是否调用 handler），甚至 A/B 测试（交替调用不同 handler 实现比较效果）。WrapperCapability 抽象了包装器能力，让你专注于实现 wrap_* 方法而无需处理其他细节。",
-      "code": {
-        "title": "Wrap能力：带超时和重试的模型调用",
-        "description": "完全控制模型调用的执行流程",
-        "code": "@dataclass\nclass TimeoutWithRetry(AbstractCapability[Any]):\n    \"\"\"为模型请求添加超时和重试\"\"\"\n    timeout: float = 30.0\n    max_retries: int = 2\n\n    async def wrap_model_request(\n        self,\n        ctx,\n        *,\n        request_context,\n        handler,\n    ) -> ModelResponse:\n        last_error = None\n        for attempt in range(self.max_retries + 1):\n            try:\n                return await asyncio.wait_for(\n                    handler(request_context),\n                    timeout=self.timeout,\n                )\n            except Exception as e:\n                last_error = e\n                if attempt == self.max_retries:\n                    break\n                await asyncio.sleep(1)\n        raise last_error or Exception(\"Unknown error\")",
-        "language": "python",
-        "annotation": "Wrap 方法的返回值会替换原始结果，你可以返回完全不同的值来改变执行流向。这个例子实现了最实用的错误恢复策略：超时后重试，达到最大重试次数后抛出最后一个异常。"</think>```json
-      "callout": {
-        "type": "warning",
-        "text": "wrap_* 方法应该谨慎使用。它给了你完全的控制权，但也意味着你需要手动处理所有边缘情况（取消、资源清理、并发竞争）。大多数场景下，before_*/after_* 钩子或 on_*_error 钩子是更安全的选择。"
-      }
-    },
-    {
-      "heading": "自定义能力：扩展你的功能模块",
-      "content": "内置能力覆盖了大部分通用场景，但你的应用可能有独特需求。能力系统的设计充分考虑了扩展性——你只需要继承 AbstractCapability 并实现感兴趣的方法，就能无缝集成到代理中。框架会自动调用你覆盖的方法，忽略未实现的部分。\n\n一个实用的能力扩展示例是「成本追踪」。你在 before_model_request 中记录请求信息，在 after_model_request 中计算 token 成本，在 after_run 中汇总总花费。这不需要修改任何现有代码，只需要一个独立的能力模块。你可以这样为每个环境配置不同的成本阈值，甚至实时通知团队预算使用情况。",
-      "code": {
-        "title": "自定义能力：成本追踪",
-        "description": "追踪代理运行的 token 成本",
-        "code": "@dataclass\nclass CostTracker(AbstractCapability[Any]):\n    \"\"\"追踪并记录模型调用的 token 成本\"\"\"\n    price_per_1k_input: float = 0.005\n    price_per_1k_output: float = 0.015\n    max_total_cost: float = 1.0\n\n    def __post_init__(self):\n        self.total_cost = 0.0\n        self.request_costs = []\n\n    async def after_model_request(self, ctx, *, response):\n        cost = (\n            response.usage.input_tokens * self.price_per_1k_input / 1000 +\n            response.usage.output_tokens * self.price_per_1k_output / 1000\n        )\n        self.total_cost += cost\n        self.request_costs.append({\n            'step': ctx.run_step,\n            'cost': cost,\n            'tokens': response.usage.total_tokens,\n        })\n        \n        if self.total_cost > self.max_total_cost:\n            raise ModelRetry(\"成本超预算，请简化任务\")\n        return response",
-        "language": "python",
-        "annotation": "这个能力展示了能力系统的真正威力——横切关注点（成本、日志、监控、安全）可以完全独立于业务逻辑。你可以为生产环境和开发环境分别配置能力，或者通过配置文件动态组合。"
-      },
-      "diagram": {
-        "title": "能力扩展示例",
-        "chart": "graph TB\n    subgraph Abstract[AbstractCapability]\n        GetSet[get_* 方法群]\n        Lifecycle[生命周期钩子]\n        Wrap[wrap_* 方法群]\n    end\n    \n    subgraph Builtin[内置能力]\n        ThinkingC[Thinking]\n        WebSearchC[WebSearch]\n        MCPC[MCP]\n    end\n    \n    subgraph Custom[自定义能力]\n        CostC[成本追踪]\n        LoggingC[日志审计]\n        SecurityC[安全过滤]\n    end\n    \n    Builtin -->|继承| Abstract\n    Custom -->|继承| Abstract\n    \n    ThinkingC -->|覆盖| GetSet\n    CostC -->|覆盖| Lifecycle\n    SecurityC -->|覆盖| Lifecycle",
-        "description": "自定义能力可以复用基类的任何抽象，选择性地覆盖需要的方法。内置能力和自定义能力遵循相同的接口契约，完全平等地参与代理构建。"
-      }
-    },
-    {
-      "heading": "能力组合与序列化",
-      "content": "能力系统的另一个强大特性是可组合性。你可以使用 CombinedCapability 组合多个能力，PrefixTools 为能力中的工具添加命名前缀避免冲突，CombineAndPrefixTools 更是同时提供两种功能。这让多代理场景变得简单——每个代理可以有自己的工具前缀，互不干扰地共享同一个能力集合。\n\n序列化是能力系统的杀手特性。为了支持「从配置文件加载代理」，所有可序列化的能力都实现了 get_serialization_name 和 from_spec 方法。框架维护了一个 CAPABILITY_TYPES 注册表，将能力名称映射到类。这意味着你可以在 YAML 或 JSON 中配置代理的所有能力，代码只需一行 Agent.from_spec(config) 就能构建完整系统。",
-      "code": {
-        "title": "能力组合与序列化",
-        "description": "组合能力并从配置加载",
-        "code": "# --- 能力组合 ---\ncombined = CombinedCapability([\n    Thinking(effort='high'),\n    WebSearch(search=my_search),\n])\n\n# 为工具添加命名前缀\nwith_prefix = PrefixTools(\n    wrapped=combined,\n    prefix='weather_',  #工具名会变成 weather_search, weather_get_forecast\n)\n\n# --- 序列化配置 ---\n# config.yaml\n\"\"\"\ncapabilities:\n  - name: Thinking\n    args:\n      effort: high\n  - name: WebSearch\n    args:\n      search_func: my_search\n\"\"\"\n\n# 从配置加载\nwith open('config.yaml') as f:\n    config = yaml.safe_load(f)\nagent = Agent.from_spec(config)\n\n# --- 能力注册表 ---\nCAPABILITY_TYPES = {\n    'Thinking': Thinking,\n    'WebSearch': WebSearch,\n    'MCP': MCP,\n    # ...\n}",
-        "language": "python",
-        "annotation": "序列化框架默认使用 __init__ 签名，如果你的能力有非序列化参数（如函数对象），需要覆盖 from_spec 方法进行自定义构造。大多数内置能力已经处理了这个问题，WebSearch 的 search_func 参数就可以通过函数名称字符串从模块导入。"
-      },
-      "table": {
-        "caption": "能力组合类型",
-        "headers": ["类型", "说明", "典型用途"],
-        "rows": [
-          ["CombinedCapability", "组合多个能力为一个", "将相关功能打包复用"],
-          ["PrefixTools", "为工具添加命名前缀", "避免多代理工具名冲突"],
-          ["CombineAndPrefixTools", "同时提供组合和前缀功能", "综合需求场景"]
-        ]
-      }
-    },
-    {
-      "heading": "能力系统的设计哲学",
-      "content": "能力系统的设计体现了 Pydantic AI 的核心理念：**类型安全、声明式、可组合**。每个能力都是强类型的 dataclass，静态类型检查能在编译时发现错误。能力是声明式的——你描述「需要什么功能」而不是「如何实现」，框架负责细节组装。可组合性意味着你可以用小的、专注的能力构建任意复杂的系统，而不是依赖一个庞大的、难以理解的「全能类」。",
+      "heading": "从单一功能到能力组合",
+      "content": "早期的 AI 框架通常把所有功能都塞进 Agent 类里：工具注册、参数校验、错误处理、日志记录⋯⋯这导致代码难以维护和复用。当你有两个 Agent，一个需要日志记录，另一个需要网络搜索，你就不能简单地共享代码——要么复制粘贴，要么创建一个带有所有功能的「万能 Agent」。能力系统通过解耦和抽象解决了这个问题。一个能力就是一个功能单元，它知道如何完成某件事，但不关心什么时候被调用、被谁调用。Agent 可以声明它需要哪些能力，框架会把它们整合到一起。这就像做菜：每种调料都是一个独立的「能力」，你可以根据菜谱（Agent 的需求）选择性地添加它们。",
       "callout": {
         "type": "tip",
-        "text": "能力不是「魔法」，它只是良好设计的抽象。当你理解了钩子机制和契约模型，你会发现能力系统其实就是一组精心设计的模式——观察者模式装饰器模式、策略模式的和谐统一。"
-      },
+        "text": "能力系统的核心价值在于组合性。每个能力都是原子化的，可以自由组合，这使得功能复用变得极其简单。"
+      }
+    },
+    {
+      "heading": "什么是能力？",
+      "content": "在 Pydantic AI 中，能力是继承自 `AbstractCapability` 的类。一个能力可以做很多事情：为 Agent 提供系统提示指令、调整模型配置、注册工具集、处理响应错误……甚至拦截和修改整个运行流程。这种设计让能力可以从「被动配置」到「主动控制」之间自由发挥。Thinking 能力就是一个简单的例子——它只负责配置模型的思考级别。通过覆盖 `get_model_settings()` 方法，它能把思考设置注入到 Agent 的配置中。当模型发起请求时，这个设置会生效。更复杂的能力可以覆盖更多的生命周期钩子，比如在模型响应之前检查内容、在工具执行失败时尝试恢复、或者在每次运行前后记录日志。",
       "diagram": {
-        "title": "能力系统设计理念",
-        "chart": "graph TD\n    subgraph Values[设计理念]\n        TypeSafe[类型安全]\n        Declarative[声明式]\n        Composable[可组合]\n        Extensible[可扩展]\n    end\n    \n    subgraph Patterns[设计模式]\n        Observer[观察者模式<br/>生命周期钩子]\n        Decorator[装饰器模式<br/>Wrap 能力]\n        Strategy[策略模式<br/>可配置参数]\n        Plugin[插件模式<br/>能力注册表]\n    end\n    \n    subgraph Benefits[实践价值]\n        Test[易于测试]\n        Maintain[易于维护]\n        Reuse[易于复用]\n        Scale[易于扩展]\n    end\n    \n    Values --> Patterns\n    Patterns --> Benefits",
-        "description": "能力系统的设计理念通过经典设计模式实现，最终转化为实际的工程价值。"
+        "title": "能力系统架构",
+        "chart": "graph TD\n    A[Agent] --> B[CombinedCapability]\n    B --> C[Capability 1<br/>Thinking]\n    B --> D[Capability 2<br/>WebSearch]\n    B --> E[Capability 3<br/>Custom]\n    C --> F[get_model_settings]\n    D --> G[get_toolset]\n    E --> H[get_instructions]\n    E --> I[before_model_request]\n    E --> J[after_model_request]\n    F & G & H --> K[Agent Configuration]\n    I & J --> L[Run-time Interception]",
+        "description": "图显示了多个能力如何被组合，每个能力提供不同的配置和钩子方法，共同构建 Agent 的行为。"
+      }
+    },
+    {
+      "heading": "能力组合：中间件链",
+      "content": "当多个能力同时作用于一个 Agent 时，它们是如何协同工作的？答案是通过中间件链。`CombinedCapability` 把每个能力串联起来，形成一个调用链。当模型发起请求时，请求会依次通过每个能力的 `before_model_request` 钩子。每个能力都可以观察或修改请求，然后传递给下一个能力。响应回来时，顺序是反的——先经过最后一个能力，再依次向前传递。这种设计模式在很多框架中都能看到，比如 Express.js 的中间件、ASP.NET Core 的管道。Pydantic AI 的能力系统继承了这一模式的优势：顺序可控、职责清晰、易于测试。",
+      "code": {
+        "title": "CombinedCapability 如何调用链",
+        "description": "这段代码展示了 CombinedCapability 如何将多个能力串联起来，形成一个执行链。注意 for_run 使用正序，而 after_run 使用反序——这是一个巧妙的设计，让先注册的能力在「后处理」时优先执行。",
+        "code": "async def before_model_request(\n    self,\n    ctx: RunContext[AgentDepsT],\n    request_context: ModelRequestContext,\n) -> ModelRequestContext:\n    # 正序调用：每层都能看到并修改请求\n    for capability in self.capabilities:\n        request_context = await capability.before_model_request(\n            ctx, request_context\n        )\n    return request_context\n\nasync def after_model_request(\n    self,\n    ctx: RunContext[AgentDepsT],\n    *,\n    request_context: ModelRequestContext,\n    response: ModelResponse,\n) -> ModelResponse:\n    # 反序调用：响应的处理顺序与请求相反\n    for capability in reversed(self.capabilities):\n        response = await capability.after_model_request(\n            ctx, request_context=request_context, response=response\n        )\n    return response",
+        "language": "python",
+        "annotation": "请求在能力链中从前向后传递，响应则从后向前返回，形成类似「洋葱模型」的执行流程。"
+      }
+    },
+    {
+      "heading": "Thinking 能力：配置模型推理",
+      "content": "Thinking 是一个简单但有用的内置能力。它的作用是配置模型的「思考级别」——即模型在回答问题前会进行多深程度的推理。不同的模型提供商对「思考」有不同的实现和名称，比如 Anthropic 的 `thinking`、OpenAI 的 `reasoning_effort`。Thinking 能力通过统一的接口抽象了这些差异，让开发者可以用相同的配置控制不同模型。",
+      "table": {
+        "caption": "思考级别选项",
+        "headers": ["级别", "说明", "适用场景"],
+        "rows": [
+          ["False", "禁用思考", "对回答速度要求极高，不需要深度推理的任务"],
+          ["True", "启用默认思考", "一般问答任务，平衡速度和质量"],
+          ["minimal", "最小思考", "简单任务，只需轻微推理"],
+          ["low", "低级思考", "常规任务"],
+          ["medium", "中级思考", "复杂任务，需要较多推理"],
+          ["high", "高级思考", "非常复杂的任务"],
+          ["xhigh", "最高思考", "极其复杂，对推理质量要求极高的任务"]
+        ]
+      },
+      "code": {
+        "title": "Thinking 能力的实现",
+        "description": "Thinking 能力的代码非常简洁，只需要一个字段和一个方法。它通过覆盖 get_model_settings() 返回一个包含 thinking 配置的 ModelSettings 对象。这个设置会在模型请求时生效。",
+        "code": "@dataclass\nclass Thinking(AbstractCapability[Any]):\n    \"\"\"启用并配置模型的思考/推理功能。\"\"\"\n\n    effort: ThinkingLevel = True\n    \"\"\"思考努力级别。\"\"\"\n\n    def get_model_settings(self) -> ModelSettings | None:\n        return ModelSettings(thinking=self.effort)",
+        "language": "python",
+        "annotation": "这个类只有十多行代码，却提供了跨模型提供商的统一思考配置接口。"
+      }
+    },
+    {
+      "heading": "生命周期钩子：控制每个环节",
+      "content": "能力的强大之处在于它可以参与到 Agent 运行的每个环节。从整个运行的生命周期到每次模型请求，甚至每个工具调用，都有对应的钩子。这些钩子可以让你实现各种各样的功能：记录日志、监控性能、处理错误、重试失败的操作、注入上下文信息……一个能力可以只覆盖它关心的钩子，其他钩子使用默认的空实现。这种设计遵循了「最小惊讶」原则——当你只关心某个环节时，不需要去管其他环节。更强大的是 `wrap_*` 类型的钩子。它们不是简单的「之前/之后」通知，而是真正的控制权交接——你可以决定是否执行被包装的操作、修改输入和输出、甚至完全替换它。这为高级用例如缓存、限流、A/B 测试等提供了基础。",
+      "callout": {
+        "type": "warning",
+        "text": "生命周期钩子的顺序很重要！因为多个能力会串联在一起，每个能力都能看到并修改前一个能力的结果。如果你需要能力之间有特定的执行顺序，就要注意注册的顺序。"
+      }
+    },
+    {
+      "heading": "自定义能力：扩展你的功能",
+      "content": "Pydantic AI 提供了很多内置能力，但真正的威力在于你可以创建自己的能力。继承 `AbstractCapability`，覆盖你关心的方法，就能实现自定义功能。假设你想监控 Agent 的每次模型请求，记录请求和响应的内容。你可以创建一个 `LoggingCapability`，覆盖 `before_model_request` 和 `after_model_request` 钩子，在其中记录日志。假设你想为 Agent 添加一个「回退方案」——当主要模型失败时，自动切换到备用模型。你可以创建一个 `FailoverCapability`，在 `on_model_request_error` 钩子中捕获错误，尝试调用备用模型。自定义能力不仅可以复用，还可以分享。如果你的团队需要统一的功能（比如日志格式、错误处理策略），就可以封装成能力，然后在所有 Agent 中复用。",
+      "callout": {
+        "type": "info",
+        "text": "能力支持通过 YAML/JSON 配置反序列化。覆盖 `get_serialization_name()` 和 `from_spec()` 方法，就可以在配置文件中声明式地创建能力。"
       }
     }
   ],
   "key_takeaways": [
-    "能力系统是 Pydantic AI 的插件机制，每个能力负责一个特定功能领域，支持声明式组合",
-    "内置能力包括 Thinking（思考控制）、WebSearch（联网搜索）、MCP（外部服务）、Toolset（工具集合）等，开箱即用",
-    "生命周期钩子（before_*/after_*）允许拦截代理运行的任意阶段，而 wrap_* 方法可以完全控制某个环节",
-    "自定义能力只需继承 AbstractCapability 并覆盖感兴趣的方法，框架会自动调用并忽略未实现部分",
-    "能力支持序列化和组合，可以从配置文件加载完整代理配置，多个能力可以组合使用并添加工具命名前缀"
+    "能力是 Pydantic AI 的功能单元抽象，可组合、可复用、可共享",
+    "AbstractCapability 定义了完整的能力接口，包括配置提供和生命周期钩子",
+    "Multiple capabilities combine via middleware chain with ordered execution",
+    "Thinking 是一个简单的内置能力，用于配置模型的思考/推理级别",
+    "自定义能力只需继承 AbstractCapability 并覆盖相关方法即可"
   ],
   "further_thinking": [
-    "能力系统与传统的中间件模式有何异同？为什么 Pydantic AI 选择使用能力而不是 Flask/Django 风格的中间件？",
-    "如果让你为 Pydantic AI 设计一个新的内置能力，你会选择什么功能？请说明设计思路和实现方案。"
+    "如果两个能力修改了同一个配置项，后执行的会覆盖前面的。如何设计一个机制让能力能够「协商」配置的合并方式？",
+    "能力系统类似于中间件模式，但它有一个独特的特性：可以提供静态配置（如 get_model_settings）。这种混合设计有什么利弊？"
   ],
   "analogies": [
-    "能力系统像电脑主板——每个能力是标准插槽的组件，系统自动处理连接和供电，你只决定插哪些插槽",
-    "生命周期钩子像事件监听器——你可以在任意时刻「捕获」事件并执行自定义逻辑，不影响其他监听器",
-    "Wrap 方法像拦截器——你可以选择执行原生操作、修改后执行、多次重试或完全替代执行"
+    "能力系统就像专业厨师的调料盒——盐、胡椒、蒜粉都是独立的调料，厨师可以根据不同的菜品组合使用它们，每种调料都有自己独特的作用和用法。",
+    "能力组合就像音乐家的乐器架子——吉他、贝斯、鼓、键盘都是独立的乐器，乐队成员可以自由组合，创造出无限的音乐风格。"
   ],
-  "mermaid_diagrams": [],
-  "code_snippets": [],
-  "word_count": 4200,
-  "prerequisites": ["ch03-agent-structure", "ch04-tools"]
+  "mermaid_diagrams": [
+    "graph TD\n    A[Agent] --> B[CombinedCapability]\n    B --> C[Capability 1<br/>Thinking]\n    B --> D[Capability 2<br/>WebSearch]\n    B --> E[Capability 3<br/>Custom]\n    C --> F[get_model_settings]\n    D --> G[get_toolset]\n    E --> H[get_instructions]\n    E --> I[before_model_request]\n    E --> J[after_model_request]\n    F & G & H --> K[Agent Configuration]\n    I & J --> L[Run-time Interception]"
+  ],
+  "code_snippets": [
+    {
+      "title": "CombinedCapability 如何调用链",
+      "description": "这段代码展示了 CombinedCapability 如何将多个能力串联起来，形成一个执行链。",
+      "code": "async def before_model_request(\n    self,\n    ctx: RunContext[AgentDepsT],\n    request_context: ModelRequestContext,\n) -> ModelRequestContext:\n    # 正序调用：每层都能看到并修改请求\n    for capability in self.capabilities:\n        request_context = await capability.before_model_request(\n            ctx, request_context\n        )\n    return request_context\n\nasync def after_model_request(\n    self,\n    ctx: RunContext[AgentDepsT],\n    *,\n    request_context: ModelRequestContext,\n    response: ModelResponse,\n) -> ModelResponse:\n    # 反序调用：响应的处理顺序与请求相反\n    for capability in reversed(self.capabilities):\n        response = await capability.after_model_request(\n            ctx, request_context=request_context, response=response\n        )\n    return response",
+      "language": "python",
+      "annotation": "请求在能力链中从前向后传递，响应则从后向前返回，形成类似「洋葱模型」的执行流程。"
+    },
+    {
+      "title": "Thinking 能力的实现",
+      "description": "Thinking 能力的代码非常简洁，只需要一个字段和一个方法。",
+      "code": "@dataclass\nclass Thinking(AbstractCapability[Any]):\n    \"\"\"启用并配置模型的思考/推理功能。\"\"\"\n\n    effort: ThinkingLevel = True\n    \"\"\"思考努力级别。\"\"\"\n\n    def get_model_settings(self) -> ModelSettings | None:\n        return ModelSettings(thinking=self.effort)",
+      "language": "python",
+      "annotation": "这个类只有十多行代码，却提供了跨模型提供商的统一思考配置接口。"
+    }
+  ],
+  "word_count": 3800,
+  "prerequisites": []
 }
