@@ -1,0 +1,28 @@
+# Harness 运行产物
+output/
+state.json
+!state.json.example
+.harness.lock
+
+# 分析中间产物
+knowledge/modules/*.json
+knowledge/architecture.json
+knowledge/relationships.json
+knowledge/*/modules/*.json
+knowledge/*/architecture.json
+knowledge/*/relationships.json
+!knowledge/.gitkeep
+
+# Web app 构建产物
+web-app/.next/
+web-app/out/
+web-app/node_modules/
+web-app/tsconfig.tsbuildinfo
+web-app/playwright-report/
+web-app/test-results/
+web-app/.vercel/
+
+# 本地环境文件
+.DS_Store
+.env
+.env.*
