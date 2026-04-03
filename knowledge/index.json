@@ -1,0 +1,34 @@
+{
+  "books": [
+    {
+      "id": "pydantic-ai",
+      "name": "Pydantic AI",
+      "dirName": "Pydantic AI",
+      "description": "基于 Pydantic 的类型安全 GenAI 代理框架，为 Python 开发者提供生产级的 AI 应用开发体验",
+      "language": "Python",
+      "chapterCount": 18,
+      "writtenCount": 18,
+      "lastUpdated": "2026-04-03T10:58:51Z",
+      "score": 0,
+      "stats": {
+        "files": 1703,
+        "lines": 242799
+      }
+    },
+    {
+      "id": "claude-code",
+      "name": "深入理解 Claude Code",
+      "dirName": "深入理解 Claude Code",
+      "description": "AI 编程助手 CLI 工具",
+      "language": "TypeScript",
+      "chapterCount": 14,
+      "writtenCount": 14,
+      "lastUpdated": "2026-04-03T10:58:51Z",
+      "score": 0,
+      "stats": {
+        "files": 1900,
+        "lines": 512000
+      }
+    }
+  ]
+}

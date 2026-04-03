@@ -2,29 +2,30 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { Sun, Moon } from "lucide-react";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
+  
+  if (!mounted) {
+    return <div className="w-9 h-9" />; // Placeholder to avoid layout shift
+  }
 
   return (
     <button
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        padding: "6px 12px",
-        cursor: "pointer",
-        color: "var(--text-primary)",
-        fontSize: 14,
-      }}
-      aria-label="Toggle theme"
+      className="flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-border"
+      title="Toggle theme"
     >
-      {theme === "dark" ? "☀️ 亮色" : "🌙 暗色"}
+      <span className="sr-only">切换浅色/深色模式</span>
+      {theme === "dark" ? (
+        <Sun className="w-[1.1rem] h-[1.1rem]" strokeWidth={1.5} />
+      ) : (
+        <Moon className="w-[1.1rem] h-[1.1rem]" strokeWidth={1.5} />
+      )}
     </button>
   );
 }

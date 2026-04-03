@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 
 interface Node {
@@ -29,6 +29,7 @@ interface SimNode extends d3.SimulationNodeDatum {
 }
 
 export function DependencyGraph({ nodes, edges }: Props) {
+  const [selectedNode, setSelectedNode] = useState<SimNode | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -106,6 +107,55 @@ export function DependencyGraph({ nodes, edges }: Props) {
           }) as never
       );
 
+    
+    // Hover interactions
+    node.on("mouseover", (event, d) => {
+      if (selectedNode) return;
+      const connected = new Set<string>();
+      connected.add(d.id);
+      simEdges.forEach(e => {
+        if ((e.source as any).id === d.id) connected.add((e.target as any).id);
+        if ((e.target as any).id === d.id) connected.add((e.source as any).id);
+      });
+      
+      node.style("opacity", n => connected.has(n.id) ? 1 : 0.2);
+      link.style("stroke-opacity", l => 
+        ((l.source as any).id === d.id || (l.target as any).id === d.id) ? 0.8 : 0.1
+      ).attr("stroke", l => 
+        ((l.source as any).id === d.id || (l.target as any).id === d.id) ? "var(--foreground)" : "var(--border)"
+      );
+    }).on("mouseout", () => {
+      if (selectedNode) return;
+      node.style("opacity", 1);
+      link.style("stroke-opacity", 0.6).attr("stroke", "var(--border)");
+    });
+
+    // Click interactions
+    node.on("click", (event, d) => {
+      event.stopPropagation();
+      setSelectedNode(d);
+      
+      const connected = new Set<string>();
+      connected.add(d.id);
+      simEdges.forEach(e => {
+        if ((e.source as any).id === d.id) connected.add((e.target as any).id);
+        if ((e.target as any).id === d.id) connected.add((e.source as any).id);
+      });
+      
+      node.style("opacity", n => connected.has(n.id) ? 1 : 0.1);
+      link.style("stroke-opacity", l => 
+        ((l.source as any).id === d.id || (l.target as any).id === d.id) ? 0.8 : 0.05
+      ).attr("stroke", l => 
+        ((l.source as any).id === d.id || (l.target as any).id === d.id) ? "var(--foreground)" : "var(--border)"
+      );
+    });
+
+    svg.on("click", () => {
+      setSelectedNode(null);
+      node.style("opacity", 1);
+      link.style("stroke-opacity", 0.6).attr("stroke", "var(--border)");
+    });
+
     node
       .append("circle")
       .attr("r", (d) => d.radius)
@@ -132,9 +182,41 @@ export function DependencyGraph({ nodes, edges }: Props) {
 
       node.attr("transform", (d) => `translate(${d.x},${d.y})`);
     });
+    
+    // Remove old listeners on cleanup to avoid duplicates
+    return () => {
+      simulation.stop();
+      node.on("mouseover", null).on("mouseout", null).on("click", null);
+      svg.on("click", null);
+    };
 
-    return () => { simulation.stop(); };
+    
   }, [nodes, edges]);
 
-  return <svg ref={svgRef} style={{ width: "100%", height: "100%" }} />;
+  return (
+    <div className="relative w-full h-full">
+      <svg ref={svgRef} style={{ width: "100%", height: "100%" }} className="cursor-grab active:cursor-grabbing" />
+      {selectedNode && (
+        <div className="absolute top-4 right-4 w-72 bg-background border border-border rounded-xl shadow-lg p-5 z-10">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedNode.color }} />
+            <h3 className="font-bold tracking-tight truncate">{selectedNode.name}</h3>
+          </div>
+          <div className="text-xs text-muted-foreground mb-4">
+            Module ID: <span className="font-mono text-foreground">{selectedNode.id}</span>
+          </div>
+          <button 
+            onClick={() => {
+              setSelectedNode(null);
+              d3.select(svgRef.current).selectAll("g > g").style("opacity", 1);
+              d3.select(svgRef.current).selectAll("line").style("stroke-opacity", 0.6).attr("stroke", "var(--border)");
+            }}
+            className="w-full py-2 bg-muted hover:bg-muted/80 text-foreground text-sm font-medium rounded-lg transition-colors"
+          >
+            清除选中
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }

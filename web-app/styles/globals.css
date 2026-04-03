@@ -1,38 +1,63 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
-:root {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-card: #1e293b;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --accent: #06b6d4;
-  --accent-2: #3b82f6;
-  --border: #334155;
-  --sidebar-width: 280px;
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
+  --color-muted: var(--bg-secondary);
+  --color-muted-foreground: var(--text-secondary);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
 }
 
-[data-theme="light"] {
-  --bg-primary: #f8fafc;
-  --bg-secondary: #ffffff;
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
   --bg-card: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --accent: #0891b2;
-  --accent-2: #2563eb;
-  --border: #e2e8f0;
+  --text-primary: #000000;
+  --text-secondary: #666666;
+  --accent: #000000;
+  --accent-2: #333333;
+  --border: #eaeaea;
+  --sidebar-width: 260px;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-card: #000000;
+  --text-primary: #ededed;
+  --text-secondary: #a1a1aa;
+  --accent: #ffffff;
+  --accent-2: #cccccc;
+  --border: #333333;
 }
 
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Fix prose text colors in dark mode */
+.dark\:prose-invert {
+  color: var(--text-primary) !important;
+}
+.dark\:prose-invert :where(p, h1, h2, h3, h4, strong, a, code, th, td) {
+  color: var(--text-primary) !important;
+}
+.dark\:prose-invert :where(blockquote, li, figcaption) {
+  color: var(--text-secondary) !important;
+}
+.dark\:prose-invert :where(hr) {
+  border-color: var(--border) !important;
 }
 
 /* Sidebar */
 .sidebar {
   width: var(--sidebar-width);
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border-right: 1px solid var(--border);
   height: 100vh;
   position: fixed;
@@ -61,14 +86,13 @@ body {
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 24px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.15s ease;
 }
 
 .card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.1);
+  border-color: var(--text-primary);
 }
 
 /* Layer colors */
@@ -87,21 +111,15 @@ body {
 }
 
 /* Code blocks */
-.shiki {
-  border-radius: 8px;
+.shiki, .code-block-shiki pre {
+  border-radius: 6px;
+  border: 1px solid var(--border);
   padding: 16px;
   overflow-x: auto;
   font-size: 13px;
   line-height: 1.6;
-}
-
-.code-block-shiki pre {
+  background: var(--bg-secondary) !important;
   margin: 0;
-  border-radius: 8px;
-  padding: 16px;
-  overflow-x: auto;
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 /* Callout hover */
@@ -138,6 +156,7 @@ h2:hover a span {
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -152,17 +171,18 @@ h2:hover a span {
   padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
   color: var(--text-secondary);
   font-size: 14px;
 }
 .nav-item:hover {
-  background: var(--border);
+  background: var(--bg-secondary);
   color: var(--text-primary);
 }
 .nav-item.active {
-  background: rgba(6, 182, 212, 0.15);
-  color: var(--accent);
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 /* Responsive */
@@ -170,4 +190,57 @@ h2:hover a span {
   .sidebar { transform: translateX(calc(-1 * var(--sidebar-width))); }
   .sidebar.mobile-open { transform: translateX(0); }
   .main-content { margin-left: 0; }
+}
+
+
+/* CMDK Styles */
+[cmdk-dialog] {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: 640px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 70px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+[cmdk-input] {
+  font-family: inherit;
+  border: none;
+  width: 100%;
+  font-size: 16px;
+  padding: 16px;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+[cmdk-input]::placeholder {
+  color: var(--text-secondary);
+}
+[cmdk-list] {
+  max-height: 400px;
+  overflow: auto;
+  padding: 8px;
+}
+[cmdk-group-heading] {
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+[cmdk-item] {
+  cursor: pointer;
+}
+[cmdk-empty] {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
 }

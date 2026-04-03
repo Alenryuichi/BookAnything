@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "@/styles/globals.css";
-import { Sidebar } from "@/components/Sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { SearchTrigger, MobileSearchTrigger } from "@/components/SearchTrigger";
+import { TopNavLinks } from "@/components/TopNavLinks";
+import Link from "next/link";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { loadKnowledge, loadParts, loadBookTitle } from "@/lib/load-knowledge";
 
-const bookTitle = loadBookTitle();
+const inter = Inter({ subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: bookTitle,
-  description: `一本由浅入深的交互式技术书`,
+  title: "BookAnything",
+  description: "把任何仓库变成一本交互式技术书",
 };
 
 export default function RootLayout({
@@ -17,37 +19,24 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const knowledge = loadKnowledge();
-  const parts = loadParts();
-
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body>
+      <body className={`${inter.className} bg-background text-foreground antialiased`}>
         <ThemeProvider>
-          <Sidebar chapters={knowledge.chapters} parts={parts} bookTitle={bookTitle} />
-          <div className="main-content">
-            <header
-              style={{
-                position: "sticky",
-                top: 0,
-                zIndex: 30,
-                background: "var(--bg-primary)",
-                borderBottom: "1px solid var(--border)",
-                padding: "12px 24px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <h1 style={{ fontSize: 16, fontWeight: 700 }}>
-                📖 {bookTitle}
-              </h1>
+          <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-3 border-b border-border bg-background/80 backdrop-blur-md">
+            <div className="flex items-center gap-8">
+              <Link href="/books" className="text-base font-bold tracking-tight no-underline text-foreground">
+                BookAnything
+              </Link>
+              <TopNavLinks />
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <SearchTrigger />
+              <MobileSearchTrigger />
               <ThemeToggle />
-            </header>
-            <main style={{ padding: "24px 24px 80px" }}>
-              {children}
-            </main>
-          </div>
+            </div>
+          </header>
+          {children}
         </ThemeProvider>
       </body>
     </html>

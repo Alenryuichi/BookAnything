@@ -1,5 +1,13 @@
 import type { ModuleAnalysis, ChapterContent } from "./types";
 
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\u4e00-\u9fff]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export interface SearchEntry {
   id: string;
   title: string;
@@ -10,46 +18,39 @@ export interface SearchEntry {
 
 export function buildSearchEntries(
   modules: Record<string, ModuleAnalysis>,
-  chapters: Record<string, ChapterContent>
+  chapters: Record<string, ChapterContent>,
+  bookId?: string
 ): SearchEntry[] {
   const entries: SearchEntry[] = [];
+  const chapterBase = bookId ? `/books/${bookId}/chapters` : "/chapters";
+  const moduleBase = bookId ? `/books/${bookId}/modules` : "/modules";
 
-  // Index chapters (primary content now)
   for (const [id, ch] of Object.entries(chapters)) {
-    // Chapter overview
     entries.push({
       id,
       title: ch.title,
-      content: [
-        ch.subtitle,
-        ch.opening_hook,
-        ...(ch.key_takeaways || []),
-        ...(ch.analogies || []),
-      ].join(" "),
+      content: [ch.subtitle, ch.opening_hook, ...(ch.key_takeaways || []), ...(ch.analogies || [])].join(" "),
       type: "chapter",
-      href: `/chapters/${id}`,
+      href: `${chapterBase}/${id}`,
     });
-
-    // Each section is searchable
     for (const [i, section] of (ch.sections || []).entries()) {
       entries.push({
         id: `${id}:section:${i}`,
         title: `${ch.title} › ${section.heading}`,
         content: section.content,
         type: "section",
-        href: `/chapters/${id}`,
+        href: `${chapterBase}/${id}#${slugify(section.heading)}`,
       });
     }
   }
 
-  // Index legacy modules
   for (const [id, mod] of Object.entries(modules)) {
     entries.push({
       id: `mod:${id}`,
       title: mod.module_name,
       content: [mod.overview, mod.design_philosophy, ...mod.design_patterns].join(" "),
       type: "module",
-      href: `/modules/${id}`,
+      href: `${moduleBase}/${id}`,
     });
   }
 

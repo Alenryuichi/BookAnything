@@ -2,47 +2,31 @@ import type { Callout as CalloutType } from "@/lib/types";
 
 const CALLOUT_CONFIG: Record<
   CalloutType["type"],
-  { icon: string; label: string; bg: string; bgLight: string; border: string; borderLight: string; accent: string; accentLight: string }
+  { icon: string; label: string; wrapperClass: string; iconClass: string }
 > = {
   tip: {
     icon: "💡",
     label: "提示",
-    bg: "rgba(6, 182, 212, 0.08)",
-    bgLight: "rgba(6, 182, 212, 0.06)",
-    border: "rgba(6, 182, 212, 0.25)",
-    borderLight: "rgba(6, 182, 212, 0.3)",
-    accent: "#06b6d4",
-    accentLight: "#0891b2",
+    wrapperClass: "bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/50 border-l-blue-500",
+    iconClass: "text-blue-500",
   },
   warning: {
     icon: "⚠️",
     label: "注意",
-    bg: "rgba(245, 158, 11, 0.08)",
-    bgLight: "rgba(245, 158, 11, 0.06)",
-    border: "rgba(245, 158, 11, 0.25)",
-    borderLight: "rgba(245, 158, 11, 0.3)",
-    accent: "#f59e0b",
-    accentLight: "#d97706",
+    wrapperClass: "bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50 border-l-amber-500",
+    iconClass: "text-amber-500",
   },
   info: {
     icon: "ℹ️",
     label: "信息",
-    bg: "rgba(59, 130, 246, 0.08)",
-    bgLight: "rgba(59, 130, 246, 0.06)",
-    border: "rgba(59, 130, 246, 0.25)",
-    borderLight: "rgba(59, 130, 246, 0.3)",
-    accent: "#3b82f6",
-    accentLight: "#2563eb",
+    wrapperClass: "bg-zinc-50 dark:bg-zinc-900/30 border-zinc-200 dark:border-zinc-800 border-l-zinc-500",
+    iconClass: "text-zinc-500",
   },
   quote: {
     icon: "📝",
     label: "引用",
-    bg: "rgba(148, 163, 184, 0.08)",
-    bgLight: "rgba(100, 116, 139, 0.06)",
-    border: "rgba(148, 163, 184, 0.25)",
-    borderLight: "rgba(100, 116, 139, 0.2)",
-    accent: "#94a3b8",
-    accentLight: "#64748b",
+    wrapperClass: "bg-muted/30 border-border border-l-foreground",
+    iconClass: "text-foreground",
   },
 };
 
@@ -55,23 +39,15 @@ export function Callout({ callout }: CalloutProps) {
 
   return (
     <div
-      className="callout"
-      style={{
-        background: config.bg,
-        border: `1px solid ${config.border}`,
-        borderLeft: `4px solid ${config.accent}`,
-        borderRadius: 8,
-        padding: "16px 20px",
-        marginTop: 16,
-        marginBottom: 16,
-        fontSize: 15,
-        lineHeight: 1.8,
-      }}
+      className={`callout border rounded-r-lg border-l-4 p-5 my-6 ${config.wrapperClass}`}
     >
-      <div style={{ fontWeight: 600, marginBottom: 4, color: config.accent }}>
-        {config.icon} {config.label}
+      <div className={`font-semibold mb-2 flex items-center gap-2 ${config.iconClass}`}>
+        <span>{config.icon}</span> 
+        <span>{config.label}</span>
       </div>
-      <div style={{ color: "var(--text-primary)" }}>{callout.text}</div>
+      <div className="text-foreground/90 leading-relaxed text-sm">
+        {callout.text}
+      </div>
     </div>
   );
 }
