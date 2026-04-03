@@ -7,26 +7,66 @@ interface CodeBlockProps {
   lang?: string;
 }
 
-async function highlightCode(code: string, lang: string): Promise<string | null> {
-  try {
-    const { codeToHtml } = await import("shiki");
+// 预加载 Shiki 以提高性能
+let shikiLoaded = false;
+let shikiPromise: Promise<any> | null = null;
 
-    // 修复主题和语言配置
+async function loadShiki() {
+  if (shikiLoaded) return;
+  if (shikiPromise) return shikiPromise;
+
+  shikiPromise = import("shiki").then((module) => {
+    shikiLoaded = true;
+    return module;
+  });
+
+  return shikiPromise;
+}
+
+// 缓存已高亮的代码
+const highlightCache = new Map<string, string>();
+
+function getCacheKey(code: string, lang: string): string {
+  return `${lang}:${code}`;
+}
+
+async function highlightCode(code: string, lang: string): Promise<string | null> {
+  const cacheKey = getCacheKey(code, lang);
+  if (highlightCache.has(cacheKey)) {
+    return highlightCache.get(cacheKey) || null;
+  }
+
+  try {
+    const shiki = await loadShiki();
+    const { codeToHtml } = shiki;
+
+    // 根据当前主题选择高亮主题
+    const theme = typeof window !== "undefined" &&
+                  document.documentElement.getAttribute("data-theme") === "light"
+                  ? "github-light"
+                  : "github-dark";
+
     const html = await codeToHtml(code, {
       lang: lang || "typescript",
-      theme: "github-dark",
+      theme,
     });
+
+    highlightCache.set(cacheKey, html);
     return html;
   } catch (error) {
     console.warn("Shiki highlighting failed:", error);
 
     // 回退方案：使用简单的语法高亮
     try {
-      const { codeToHtml } = await import("shiki");
+      const shiki = await loadShiki();
+      const { codeToHtml } = shiki;
+
       const html = await codeToHtml(code, {
         lang: "text",
         theme: "github-dark",
       });
+
+      highlightCache.set(cacheKey, html);
       return html;
     } catch (fallbackError) {
       console.warn("Shiki fallback also failed:", fallbackError);
@@ -75,15 +115,16 @@ export function CodeBlock({ code, lang = "typescript" }: CodeBlockProps) {
   if (loading) {
     return (
       <pre style={{
-        background: "#0d1117",
+        background: "var(--bg-card)",
         borderRadius: 8,
         padding: 16,
         overflow: "auto",
         fontSize: 13,
         lineHeight: 1.6,
         border: "1px solid var(--border)",
-        color: "#e6edf3",
-        fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace"
+        color: "var(--text-primary)",
+        fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace",
+        margin: "16px 0"
       }}>
         <code>{code}</code>
       </pre>
@@ -99,23 +140,29 @@ export function CodeBlock({ code, lang = "typescript" }: CodeBlockProps) {
           borderRadius: 8,
           overflow: "auto",
           border: "1px solid var(--border)",
+          margin: "16px 0",
+          background: "var(--bg-card)",
         }}
       />
     );
   }
 
-  // Fallback: plain text
+  // Fallback: plain text with better styling
   return (
     <pre style={{
-      background: "#0d1117",
+      background: "var(--bg-card)",
       borderRadius: 8,
       padding: 16,
       overflow: "auto",
       fontSize: 13,
       lineHeight: 1.6,
       border: "1px solid var(--border)",
+      margin: "16px 0",
     }}>
-      <code style={{ color: "#e6edf3", fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace" }}>
+      <code style={{
+        color: "var(--text-primary)",
+        fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace"
+      }}>
         {code}
       </code>
     </pre>
