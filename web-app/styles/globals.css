@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-card: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --accent: #06b6d4;
+  --accent-2: #3b82f6;
+  --border: #334155;
+  --sidebar-width: 280px;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --accent: #0891b2;
+  --accent-2: #2563eb;
+  --border: #e2e8f0;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  overflow-y: auto;
+  z-index: 40;
+  transition: transform 0.3s ease;
+}
+
+.sidebar-collapsed {
+  transform: translateX(calc(-1 * var(--sidebar-width)));
+}
+
+.main-content {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-hidden {
+  margin-left: 0;
+}
+
+/* Cards */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.1);
+}
+
+/* Layer colors */
+.layer-entry { border-left: 4px solid #3b82f6; }
+.layer-cli { border-left: 4px solid #8b5cf6; }
+.layer-logic { border-left: 4px solid #06b6d4; }
+.layer-engine { border-left: 4px solid #10b981; }
+.layer-ui { border-left: 4px solid #f59e0b; }
+.layer-infra { border-left: 4px solid #ef4444; }
+
+/* Progress ring */
+.progress-ring circle {
+  transition: stroke-dashoffset 0.35s;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* Code blocks */
+.shiki {
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.code-block-shiki pre {
+  margin: 0;
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Callout hover */
+.callout {
+  transition: border-color 0.2s;
+}
+
+/* Heading anchor hover */
+h2 a span {
+  transition: opacity 0.2s;
+}
+h2:hover a span {
+  opacity: 0.8 !important;
+}
+
+/* Reading progress bar */
+@media print {
+  .reading-progress { display: none; }
+}
+
+/* Mermaid */
+.mermaid-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Search */
+.search-highlight {
+  background: rgba(6, 182, 212, 0.3);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* Nav tree */
+.nav-item {
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.nav-item:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+.nav-item.active {
+  background: rgba(6, 182, 212, 0.15);
+  color: var(--accent);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(calc(-1 * var(--sidebar-width))); }
+  .sidebar.mobile-open { transform: translateX(0); }
+  .main-content { margin-left: 0; }
+}
