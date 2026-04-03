@@ -63,8 +63,15 @@ async function main() {
     deviceScaleFactor: 2,
   });
 
-  const errors = [];
   const results = {};
+
+  // Console error categorization by component
+  const categorizeError = (msg) => {
+    if (/mermaid/i.test(msg)) return 'mermaid';
+    if (/shiki|hljs|highlight|prism/i.test(msg)) return 'shiki';
+    if (/search|fuse|lunr|filter/i.test(msg)) return 'search';
+    return 'other';
+  };
 
   // Core pages to test
   const pages = [
@@ -101,15 +108,22 @@ async function main() {
   for (const { name, path: pagePath, desc } of pages) {
     const page = await context.newPage();
     const pageErrors = [];
+    const categorizedErrors = { mermaid: [], shiki: [], search: [], other: [] };
 
     page.on('console', msg => {
-      if (msg.type() === 'error') pageErrors.push(msg.text());
+      if (msg.type() === 'error') {
+        const text = msg.text();
+        pageErrors.push(text);
+        categorizedErrors[categorizeError(text)].push(text);
+      }
     });
-    page.on('pageerror', err => pageErrors.push(err.message));
+    page.on('pageerror', err => {
+      pageErrors.push(err.message);
+      categorizedErrors[categorizeError(err.message)].push(err.message);
+    });
 
     try {
       await page.goto(`${baseUrl}${pagePath}`, { waitUntil: 'networkidle', timeout: 15000 });
-      // Wait a bit for Mermaid/D3 to render
       await page.waitForTimeout(2000);
 
       // Desktop screenshot
@@ -124,8 +138,9 @@ async function main() {
         path: join(screenshotDir, `${name}-mobile.png`),
         fullPage: true,
       });
+      await page.setViewportSize({ width: 1440, height: 900 });
 
-      // Collect page metrics
+      // Collect page metrics (unchanged from before)
       const metrics = await page.evaluate(() => ({
         title: document.title,
         h1Count: document.querySelectorAll('h1').length,
@@ -143,17 +158,83 @@ async function main() {
         hasDarkModeToggle: !!document.querySelector('[data-theme-toggle], .theme-toggle, button[aria-label*="theme"]'),
       }));
 
+      // Collect mermaid diagnostics
+      const mermaidDiag = await page.evaluate(() => {
+        const jsLoaded = typeof window.mermaid !== 'undefined';
+        const containers = document.querySelectorAll('.mermaid, .mermaid-container');
+        const containersFound = containers.length;
+        let svgsRendered = 0;
+        containers.forEach(c => { svgsRendered += c.querySelectorAll('svg').length; });
+        const errorEls = document.querySelectorAll('.mermaid-error');
+        const renderErrors = Array.from(errorEls).map(el => el.textContent.trim()).filter(Boolean);
+        return { jsLoaded, containersFound, svgsRendered, renderErrors };
+      });
+      mermaidDiag.consoleErrors = categorizedErrors.mermaid;
+
+      // Collect code block diagnostics
+      const codeBlockDiag = await page.evaluate(() => {
+        const preTagCount = document.querySelectorAll('pre').length;
+        const codeTagCount = document.querySelectorAll('code').length;
+        const highlighted = document.querySelectorAll(
+          'pre[data-language], code[data-language], [class*="language-"], [class*="shiki"], [class*="hljs"]'
+        );
+        const shikiClassesFound = highlighted.length > 0;
+        const highlightedBlockCount = highlighted.length;
+        return { preTagCount, codeTagCount, shikiClassesFound, highlightedBlockCount };
+      });
+
+      // Collect search diagnostics (active interaction on search page only)
+      let searchDiag = { inputFound: false, queryTyped: false, resultsAfterQuery: 0, cardCountAfterQuery: 0 };
+      if (name === 'search') {
+        const inputEl = await page.$('input[type="text"], input[type="search"], input[placeholder]');
+        if (inputEl) {
+          searchDiag.inputFound = true;
+          try {
+            // Determine test query: use first chapter title or fallback
+            let testQuery = 'tool';
+            const firstChapter = Object.keys(results).find(k => k.startsWith('chapter-'));
+            if (firstChapter && results[firstChapter]?.metrics?.title) {
+              const title = results[firstChapter].metrics.title;
+              if (title && title.length > 2) testQuery = title.split(/[—\-:|]/)[0].trim().substring(0, 20);
+            }
+            await inputEl.fill(testQuery);
+            searchDiag.queryTyped = true;
+            await page.waitForTimeout(3000);
+            const afterMetrics = await page.evaluate(() => ({
+              cardCount: document.querySelectorAll('.card, [class*="result"], [class*="search-item"]').length,
+              resultElements: document.querySelectorAll('[class*="result"], [class*="search-item"], .card').length,
+            }));
+            searchDiag.resultsAfterQuery = afterMetrics.resultElements;
+            searchDiag.cardCountAfterQuery = afterMetrics.cardCount;
+          } catch (e) {
+            searchDiag.queryTyped = false;
+          }
+        }
+      }
+
+      const diagnostics = {
+        mermaid: mermaidDiag,
+        codeBlock: codeBlockDiag,
+        search: searchDiag,
+      };
+
       results[name] = {
         desc,
         path: pagePath,
         errors: pageErrors,
+        categorizedErrors,
         metrics,
+        diagnostics,
         screenshots: [`${name}-desktop.png`, `${name}-mobile.png`],
       };
 
-      console.log(`✓ ${name}: ${pageErrors.length} errors, ${metrics.cardCount} cards, ${metrics.codeBlockCount} code blocks, ${metrics.mermaidCount} mermaid`);
+      console.log(`✓ ${name}: ${pageErrors.length} errors, ${metrics.cardCount} cards, ${metrics.codeBlockCount} code blocks, ${metrics.mermaidCount} mermaid | diag: mermaid.svgs=${mermaidDiag.svgsRendered} code.pre=${codeBlockDiag.preTagCount} search.cards=${searchDiag.cardCountAfterQuery}`);
     } catch (err) {
-      results[name] = { desc, path: pagePath, errors: [err.message], metrics: null, screenshots: [] };
+      results[name] = {
+        desc, path: pagePath, errors: [err.message], categorizedErrors: { mermaid: [], shiki: [], search: [], other: [err.message] },
+        metrics: null, diagnostics: { mermaid: { jsLoaded: false, containersFound: 0, svgsRendered: 0, renderErrors: [], consoleErrors: [] }, codeBlock: { preTagCount: 0, codeTagCount: 0, shikiClassesFound: false, highlightedBlockCount: 0 }, search: { inputFound: false, queryTyped: false, resultsAfterQuery: 0, cardCountAfterQuery: 0 } },
+        screenshots: [],
+      };
       console.log(`✗ ${name}: ${err.message}`);
     }
 

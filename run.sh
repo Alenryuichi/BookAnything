@@ -476,22 +476,160 @@ step_improve_webapp() {
   local iteration="$1"
   local last_eval="${2:-}"
 
-  # 读取上轮截图报告
-  local visual_report=""
+  # ── Component file path map ──
+  local MERMAID_FILE="web-app/components/MermaidDiagram.tsx"
+  local CODEBLOCK_FILE="web-app/components/CodeBlock.tsx"
+  local SEARCH_FILE="web-app/components/SearchClient.tsx"
+
   local screenshot_report="$HARNESS_DIR/output/screenshots/report.json"
-  if [ -f "$screenshot_report" ]; then
-    visual_report=$(jq '.' "$screenshot_report" 2>/dev/null || echo "{}")
+
+  # ── Task 3.1: Extract diagnostic signals from eval JSON ──
+  local diagnostic_block=""
+  local has_eval_data=false
+
+  # Find the latest eval files for this or previous iteration
+  local eval_visual_file="" eval_interaction_file=""
+  for i in $(seq "$iteration" -1 1); do
+    if [ -z "$eval_visual_file" ] && [ -f "$LOG_DIR/eval_visual_iter${i}.json" ]; then
+      eval_visual_file="$LOG_DIR/eval_visual_iter${i}.json"
+    fi
+    if [ -z "$eval_interaction_file" ] && [ -f "$LOG_DIR/eval_interaction_iter${i}.json" ]; then
+      eval_interaction_file="$LOG_DIR/eval_interaction_iter${i}.json"
+    fi
+    [ -n "$eval_visual_file" ] && [ -n "$eval_interaction_file" ] && break
+  done
+
+  if [ -n "$eval_visual_file" ] || [ -n "$eval_interaction_file" ]; then
+    has_eval_data=true
+
+    # ── Task 3.2: Build structured diagnostic JSON block ──
+    # Extract issues and suggestions from eval files
+    local visual_issues="" visual_suggestions="" visual_mermaid_score=0
+    local interaction_issues="" interaction_suggestions=""
+    local interaction_code_score=0 interaction_search_score=0
+
+    if [ -n "$eval_visual_file" ]; then
+      visual_issues=$(jq -c '.issues // []' "$eval_visual_file" 2>/dev/null || echo "[]")
+      visual_suggestions=$(jq -c '.suggestions // []' "$eval_visual_file" 2>/dev/null || echo "[]")
+      visual_mermaid_score=$(jq '.breakdown.mermaid // 0' "$eval_visual_file" 2>/dev/null || echo "0")
+    fi
+    if [ -n "$eval_interaction_file" ]; then
+      interaction_issues=$(jq -c '.issues // []' "$eval_interaction_file" 2>/dev/null || echo "[]")
+      interaction_suggestions=$(jq -c '.suggestions // []' "$eval_interaction_file" 2>/dev/null || echo "[]")
+      interaction_code_score=$(jq '.breakdown.code_highlight // 0' "$eval_interaction_file" 2>/dev/null || echo "0")
+      interaction_search_score=$(jq '.breakdown.search // 0' "$eval_interaction_file" 2>/dev/null || echo "0")
+    fi
+
+    [[ "$visual_mermaid_score" =~ ^[0-9]+$ ]] || visual_mermaid_score=0
+    [[ "$interaction_code_score" =~ ^[0-9]+$ ]] || interaction_code_score=0
+    [[ "$interaction_search_score" =~ ^[0-9]+$ ]] || interaction_search_score=0
+
+    # Build per-component diagnostic objects, ordered by score impact (mermaid 8 > code 5 > search 4)
+    local components_json="["
+
+    # Mermaid component (8 pts potential)
+    local mermaid_status="OK"
+    local mermaid_diagnosis="" mermaid_hint=""
+    (( visual_mermaid_score == 0 )) && mermaid_status="BROKEN"
+    (( visual_mermaid_score > 0 && visual_mermaid_score < 8 )) && mermaid_status="DEGRADED"
+    if [ "$mermaid_status" != "OK" ]; then
+      mermaid_diagnosis=$(echo "$visual_issues" | jq -r '.[] | select(test("MermaidDiagram|mermaid"; "i"))' 2>/dev/null | head -1)
+      mermaid_hint=$(echo "$visual_suggestions" | jq -r '.[] | select(test("MermaidDiagram|mermaid"; "i"))' 2>/dev/null | head -1)
+    fi
+    components_json="${components_json}{\"component\":\"MermaidDiagram\",\"file\":\"${MERMAID_FILE}\",\"status\":\"${mermaid_status}\",\"score_impact\":8,\"diagnosis\":$(echo "${mermaid_diagnosis:-No issues detected}" | jq -Rs .),\"fix_hint\":$(echo "${mermaid_hint:-N/A}" | jq -Rs .)},"
+
+    # CodeBlock component (5 pts potential)
+    local code_status="OK"
+    local code_diagnosis="" code_hint=""
+    (( interaction_code_score == 0 )) && code_status="BROKEN"
+    if [ "$code_status" != "OK" ]; then
+      code_diagnosis=$(echo "$interaction_issues" | jq -r '.[] | select(test("CodeBlock|code|pre"; "i"))' 2>/dev/null | head -1)
+      code_hint=$(echo "$interaction_suggestions" | jq -r '.[] | select(test("CodeBlock|shiki|highlight"; "i"))' 2>/dev/null | head -1)
+    fi
+    components_json="${components_json}{\"component\":\"CodeBlock\",\"file\":\"${CODEBLOCK_FILE}\",\"status\":\"${code_status}\",\"score_impact\":5,\"diagnosis\":$(echo "${code_diagnosis:-No issues detected}" | jq -Rs .),\"fix_hint\":$(echo "${code_hint:-N/A}" | jq -Rs .)},"
+
+    # SearchClient component (4 pts potential)
+    local search_status="OK"
+    local search_diagnosis="" search_hint=""
+    (( interaction_search_score < 8 )) && search_status="BROKEN"
+    (( interaction_search_score >= 4 && interaction_search_score < 8 )) && search_status="DEGRADED"
+    if [ "$search_status" != "OK" ]; then
+      search_diagnosis=$(echo "$interaction_issues" | jq -r '.[] | select(test("SearchClient|search"; "i"))' 2>/dev/null | head -1)
+      search_hint=$(echo "$interaction_suggestions" | jq -r '.[] | select(test("SearchClient|search"; "i"))' 2>/dev/null | head -1)
+    fi
+    components_json="${components_json}{\"component\":\"SearchClient\",\"file\":\"${SEARCH_FILE}\",\"status\":\"${search_status}\",\"score_impact\":4,\"diagnosis\":$(echo "${search_diagnosis:-No issues detected}" | jq -Rs .),\"fix_hint\":$(echo "${search_hint:-N/A}" | jq -Rs .)}]"
+
+    diagnostic_block=$(echo "$components_json" | jq '.' 2>/dev/null || echo "$components_json")
   fi
 
-  # 获取截图文件列表（供 Claude 读取）
+  # ── Task 3.3: Extract and filter console errors from report.json ──
+  local console_errors_section=""
+  if [ -f "$screenshot_report" ]; then
+    local mermaid_console_errors code_console_errors other_console_errors
+    mermaid_console_errors=$(jq -r '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.categorizedErrors.mermaid // [] | .[]] | unique | .[]' "$screenshot_report" 2>/dev/null || true)
+    code_console_errors=$(jq -r '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.categorizedErrors.shiki // [] | .[]] | unique | .[]' "$screenshot_report" 2>/dev/null || true)
+    # Filter noise from other errors (favicon, empty, etc.)
+    other_console_errors=$(jq -r '[.pages | to_entries[] | .value.categorizedErrors.other // [] | .[]] | unique | map(select(test("favicon|ERR_FILE_NOT_FOUND"; "i") | not)) | .[]' "$screenshot_report" 2>/dev/null || true)
+
+    if [ -n "$mermaid_console_errors" ] || [ -n "$code_console_errors" ] || [ -n "$other_console_errors" ]; then
+      console_errors_section="## Console Errors (from visual test)
+"
+      if [ -n "$mermaid_console_errors" ]; then
+        console_errors_section="${console_errors_section}
+### Mermaid-related errors:
+${mermaid_console_errors}
+"
+      fi
+      if [ -n "$code_console_errors" ]; then
+        console_errors_section="${console_errors_section}
+### Code highlighting errors:
+${code_console_errors}
+"
+      fi
+      if [ -n "$other_console_errors" ]; then
+        console_errors_section="${console_errors_section}
+### Other console errors:
+${other_console_errors}
+"
+      fi
+    fi
+  fi
+
+  # 获取截图文件列表
   local screenshot_files=""
   if [ -d "$HARNESS_DIR/output/screenshots" ]; then
     screenshot_files=$(ls "$HARNESS_DIR/output/screenshots"/*.png 2>/dev/null | head -10 | tr '\n' '\n')
   fi
 
   local prompt_file="$LOG_DIR/_prompt_improve_iter${iteration}.md"
+
+  # ── Task 3.5: Fallback for missing eval data ──
+  local diagnostic_section=""
+  if [ "$has_eval_data" = true ]; then
+    # ── Task 3.4: Structured diagnostic block replaces generic guidance ──
+    diagnostic_section="## Component Diagnostics (from eval — FIX THESE)
+
+The following diagnostics identify exactly which components are broken and why. Fix components marked BROKEN first (highest score impact first). Skip components marked OK.
+
+\`\`\`json
+${diagnostic_block}
+\`\`\`
+
+${console_errors_section}"
+  else
+    diagnostic_section="## Component Diagnostics (first iteration — no eval data yet)
+
+No previous evaluation data available. Check each component file for basic rendering:
+
+1. **MermaidDiagram** at \`${MERMAID_FILE}\` (8pts): Verify mermaid is imported, initialized in useEffect, and renders SVGs in .mermaid containers
+2. **CodeBlock** at \`${CODEBLOCK_FILE}\` (5pts): Verify shiki/highlight.js is imported and applies syntax highlighting to <pre>/<code> elements
+3. **SearchClient** at \`${SEARCH_FILE}\` (4pts): Verify chapter data is loaded for indexing and filter function produces results
+
+${console_errors_section}"
+  fi
+
   cat > "$prompt_file" <<PROMPT
-你是一个 Web 前端修复专家。你需要根据视觉测试报告和评估反馈，修复 Web App 的 bug。
+你是一个 Web 前端修复专家。你需要根据精确的组件诊断数据，修复 Web App 中特定组件的 bug。
 
 ## ⚠️ 重要限制
 - 你只能修改 ${WEBAPP_DIR}/ 下的文件
@@ -504,8 +642,7 @@ step_improve_webapp() {
 - Web App 目录: ${WEBAPP_DIR}
 - 这是一个 Next.js 14 静态站点
 
-## 上轮视觉测试报告
-${visual_report}
+${diagnostic_section}
 
 ## 上轮评估反馈
 ${last_eval:-无}
@@ -513,19 +650,12 @@ ${last_eval:-无}
 ## 截图文件（你可以用 Read 工具查看）
 ${screenshot_files}
 
-## 常见问题和修复方向
-1. **搜索不工作**: 检查 search 页面的数据加载和过滤逻辑
-2. **Mermaid 渲染错误**: 检查 mermaid 图表语法和渲染组件
-3. **布局问题**: 检查 CSS/Tailwind 样式
-4. **暗色模式**: 检查 theme toggle 逻辑
-5. **导航问题**: 检查 sidebar/nav 组件链接
-6. **Console errors**: 修复 JS 运行时错误
-
 ## 步骤
-1. 先用 Read 读取截图（如果有的话），了解视觉问题
-2. 用 Glob/Grep 定位相关组件代码
+1. 对于每个 BROKEN 组件，先用 Read 读取诊断中指定的文件
+2. 根据 diagnosis 和 fix_hint 定位问题根因
 3. 用 Edit/Write 修复 bug
-4. 每次修改都要确保不破坏现有功能
+4. 按 score_impact 从高到低修复（先修 mermaid 8pts，再修 code 5pts，最后 search 4pts）
+5. 每次修改都要确保不破坏现有功能
 
 ## 输出
 完成修改后，输出纯 JSON 总结：
@@ -767,10 +897,21 @@ eval_visual() {
   local build_score=0
   [ -d "$WEBAPP_DIR/out" ] && build_score=10
 
+  # ── Component file path map (static, update if components are renamed) ──
+  local MERMAID_FILE="web-app/components/MermaidDiagram.tsx"
+  local CODEBLOCK_FILE="web-app/components/CodeBlock.tsx"
+  local SEARCH_FILE="web-app/components/SearchClient.tsx"
+
   # 从 report.json 提取 metrics
   local total_errors=0 mermaid_rendered=0 mermaid_errors=0
   local has_sidebar="false" has_dark_mode="false"
   local home_card_count=0 home_body_text=0
+
+  # Diagnostic aggregates across chapter pages
+  local diag_mermaid_js_loaded="false"
+  local diag_mermaid_containers=0 diag_mermaid_svgs=0
+  local diag_mermaid_render_errors=""
+  local diag_mermaid_console_errors=""
 
   if [ -f "$screenshot_report" ]; then
     total_errors=$(jq '.summary.totalErrors // 0' "$screenshot_report" 2>/dev/null || echo "0")
@@ -780,6 +921,13 @@ eval_visual() {
     has_dark_mode=$(jq -r '.pages.home.metrics.hasDarkModeToggle // false' "$screenshot_report" 2>/dev/null || echo "false")
     home_card_count=$(jq '.pages.home.metrics.cardCount // 0' "$screenshot_report" 2>/dev/null || echo "0")
     home_body_text=$(jq '.pages.home.metrics.bodyText // 0' "$screenshot_report" 2>/dev/null || echo "0")
+
+    # Aggregate mermaid diagnostics across chapter-* pages (task 2.1)
+    diag_mermaid_js_loaded=$(jq -r '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.diagnostics.mermaid.jsLoaded // false] | any' "$screenshot_report" 2>/dev/null || echo "false")
+    diag_mermaid_containers=$(jq '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.diagnostics.mermaid.containersFound // 0] | add // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    diag_mermaid_svgs=$(jq '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.diagnostics.mermaid.svgsRendered // 0] | add // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    diag_mermaid_render_errors=$(jq -r '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.diagnostics.mermaid.renderErrors // [] | .[]] | unique | join("; ")' "$screenshot_report" 2>/dev/null || echo "")
+    diag_mermaid_console_errors=$(jq -r '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.diagnostics.mermaid.consoleErrors // [] | .[]] | unique | join("; ")' "$screenshot_report" 2>/dev/null || echo "")
   fi
 
   [[ "$total_errors" =~ ^[0-9]+$ ]] || total_errors=0
@@ -787,6 +935,8 @@ eval_visual() {
   [[ "$mermaid_errors" =~ ^[0-9]+$ ]] || mermaid_errors=0
   [[ "$home_card_count" =~ ^[0-9]+$ ]] || home_card_count=0
   [[ "$home_body_text" =~ ^[0-9]+$ ]] || home_body_text=0
+  [[ "$diag_mermaid_containers" =~ ^[0-9]+$ ]] || diag_mermaid_containers=0
+  [[ "$diag_mermaid_svgs" =~ ^[0-9]+$ ]] || diag_mermaid_svgs=0
 
   # Console 无错 (10分): 每个 error 扣 2 分
   local no_errors_score=$(( 10 - total_errors * 2 ))
@@ -809,7 +959,7 @@ eval_visual() {
 
   local visual_score=$((build_score + no_errors_score + mermaid_score + layout_score))
 
-  # 生成 issues/suggestions
+  # 生成 issues/suggestions — component-level with file paths (tasks 2.2, 2.6)
   local issues="[]" suggestions="[]"
   if (( build_score == 0 )); then
     issues=$(echo "$issues" | jq '. + ["网站未构建成功"]')
@@ -820,8 +970,33 @@ eval_visual() {
     suggestions=$(echo "$suggestions" | jq '. + ["修复 JavaScript 运行时错误"]')
   fi
   if (( mermaid_score < 8 )); then
-    issues=$(echo "$issues" | jq --arg m "Mermaid: $mermaid_rendered rendered, $mermaid_errors errors" '. + [$m]')
-    suggestions=$(echo "$suggestions" | jq '. + ["检查 Mermaid 图表语法和渲染组件"]')
+    # Produce component-level mermaid issue with root cause diagnosis
+    local mermaid_issue=""
+    if [[ "$diag_mermaid_js_loaded" == "false" ]]; then
+      mermaid_issue="MermaidDiagram at ${MERMAID_FILE}: ${diag_mermaid_svgs} SVGs rendered, mermaid JS not loaded — check if mermaid.initialize() is called and if the mermaid library is imported correctly"
+    elif (( diag_mermaid_containers > 0 && diag_mermaid_svgs == 0 )); then
+      if [ -n "$diag_mermaid_render_errors" ]; then
+        mermaid_issue="MermaidDiagram at ${MERMAID_FILE}: ${diag_mermaid_containers} containers found but 0 SVGs rendered, render errors: ${diag_mermaid_render_errors} — chart syntax may be invalid or mermaid version incompatible"
+      else
+        mermaid_issue="MermaidDiagram at ${MERMAID_FILE}: ${diag_mermaid_containers} containers found but 0 SVGs rendered, no error text found — check if mermaid.run() or mermaid.contentLoaded() is being called after DOM mount"
+      fi
+    elif (( diag_mermaid_containers == 0 )); then
+      mermaid_issue="MermaidDiagram at ${MERMAID_FILE}: 0 mermaid containers found in DOM — component may not be rendering .mermaid or .mermaid-container elements at all"
+    else
+      mermaid_issue="MermaidDiagram at ${MERMAID_FILE}: ${diag_mermaid_svgs}/${diag_mermaid_containers} SVGs rendered with ${mermaid_errors} errors"
+    fi
+    if [ -n "$diag_mermaid_console_errors" ]; then
+      mermaid_issue="${mermaid_issue}. Console errors: ${diag_mermaid_console_errors}"
+    fi
+    issues=$(echo "$issues" | jq --arg m "$mermaid_issue" '. + [$m]')
+    # File-path-specific suggestion
+    if [[ "$diag_mermaid_js_loaded" == "false" ]]; then
+      suggestions=$(echo "$suggestions" | jq --arg m "In ${MERMAID_FILE}, verify that 'import mermaid from mermaid' and mermaid.initialize() are present and executed client-side (useEffect)" '. + [$m]')
+    elif (( diag_mermaid_containers > 0 && diag_mermaid_svgs == 0 )); then
+      suggestions=$(echo "$suggestions" | jq --arg m "In ${MERMAID_FILE}, verify that mermaid.run() or mermaid.contentLoaded() is called after the component mounts; check mermaid chart syntax in chapter JSON data" '. + [$m]')
+    else
+      suggestions=$(echo "$suggestions" | jq --arg m "In ${MERMAID_FILE}, check mermaid initialization and chart syntax" '. + [$m]')
+    fi
   fi
   if (( layout_score < 5 )); then
     issues=$(echo "$issues" | jq '. + ["布局指标不完整"]')
@@ -847,9 +1022,20 @@ eval_interaction() {
   local iteration="$1"
   local screenshot_report="$HARNESS_DIR/output/screenshots/report.json"
 
+  # ── Component file path map ──
+  local MERMAID_FILE="web-app/components/MermaidDiagram.tsx"
+  local CODEBLOCK_FILE="web-app/components/CodeBlock.tsx"
+  local SEARCH_FILE="web-app/components/SearchClient.tsx"
+
   local search_has_input="false" search_card_count=0
   local has_sidebar="false" nav_item_count=0 home_link_count=0
   local max_code_blocks=0 pages_with_errors=0
+
+  # Code block diagnostic aggregates (task 2.3)
+  local diag_code_pre_total=0 diag_code_shiki_found="false" diag_code_highlighted=0
+  # Search diagnostic data (task 2.5)
+  local diag_search_input="false" diag_search_typed="false"
+  local diag_search_results=0 diag_search_cards=0
 
   if [ -f "$screenshot_report" ]; then
     search_has_input=$(jq -r '.pages.search.metrics.hasSearchInput // false' "$screenshot_report" 2>/dev/null || echo "false")
@@ -858,8 +1044,18 @@ eval_interaction() {
     nav_item_count=$(jq '.pages.home.metrics.navItemCount // 0' "$screenshot_report" 2>/dev/null || echo "0")
     home_link_count=$(jq '.pages.home.metrics.linkCount // 0' "$screenshot_report" 2>/dev/null || echo "0")
     pages_with_errors=$(jq '.summary.pagesWithErrors // 0' "$screenshot_report" 2>/dev/null || echo "0")
-    # Find max codeBlockCount across all pages
     max_code_blocks=$(jq '[.pages[].metrics.codeBlockCount // 0] | max // 0' "$screenshot_report" 2>/dev/null || echo "0")
+
+    # Aggregate code block diagnostics across chapter pages (task 2.3)
+    diag_code_pre_total=$(jq '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.diagnostics.codeBlock.preTagCount // 0] | add // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    diag_code_shiki_found=$(jq -r '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.diagnostics.codeBlock.shikiClassesFound // false] | any' "$screenshot_report" 2>/dev/null || echo "false")
+    diag_code_highlighted=$(jq '[.pages | to_entries[] | select(.key | startswith("chapter-")) | .value.diagnostics.codeBlock.highlightedBlockCount // 0] | add // 0' "$screenshot_report" 2>/dev/null || echo "0")
+
+    # Extract search diagnostics (task 2.5)
+    diag_search_input=$(jq -r '.pages.search.diagnostics.search.inputFound // false' "$screenshot_report" 2>/dev/null || echo "false")
+    diag_search_typed=$(jq -r '.pages.search.diagnostics.search.queryTyped // false' "$screenshot_report" 2>/dev/null || echo "false")
+    diag_search_results=$(jq '.pages.search.diagnostics.search.resultsAfterQuery // 0' "$screenshot_report" 2>/dev/null || echo "0")
+    diag_search_cards=$(jq '.pages.search.diagnostics.search.cardCountAfterQuery // 0' "$screenshot_report" 2>/dev/null || echo "0")
   fi
 
   [[ "$search_card_count" =~ ^[0-9]+$ ]] || search_card_count=0
@@ -867,6 +1063,10 @@ eval_interaction() {
   [[ "$home_link_count" =~ ^[0-9]+$ ]] || home_link_count=0
   [[ "$max_code_blocks" =~ ^[0-9]+$ ]] || max_code_blocks=0
   [[ "$pages_with_errors" =~ ^[0-9]+$ ]] || pages_with_errors=0
+  [[ "$diag_code_pre_total" =~ ^[0-9]+$ ]] || diag_code_pre_total=0
+  [[ "$diag_code_highlighted" =~ ^[0-9]+$ ]] || diag_code_highlighted=0
+  [[ "$diag_search_results" =~ ^[0-9]+$ ]] || diag_search_results=0
+  [[ "$diag_search_cards" =~ ^[0-9]+$ ]] || diag_search_cards=0
 
   # 搜索功能 (8分)
   local search_score=0
@@ -889,20 +1089,44 @@ eval_interaction() {
 
   local interaction_score=$((search_score + nav_score + code_score + routing_score))
 
-  # 生成 issues/suggestions
+  # 生成 issues/suggestions — component-level with file paths (tasks 2.4, 2.5, 2.6)
   local issues="[]" suggestions="[]"
+
+  # Search issues with component file path (task 2.5)
   if (( search_score < 8 )); then
-    issues=$(echo "$issues" | jq --arg m "搜索功能: input=$search_has_input, cards=$search_card_count" '. + [$m]')
-    suggestions=$(echo "$suggestions" | jq '. + ["改进搜索页面的数据加载和结果展示"]')
+    local search_issue=""
+    if [[ "$diag_search_input" == "false" ]]; then
+      search_issue="SearchClient at ${SEARCH_FILE}: no search input element found on the search page — component may not be rendering an <input> element"
+    elif [[ "$diag_search_typed" == "true" ]] && (( diag_search_cards == 0 )); then
+      search_issue="SearchClient at ${SEARCH_FILE}: search input exists but 0 results after typing query — check if search data is loaded and filtering logic works"
+    elif [[ "$diag_search_typed" == "false" ]]; then
+      search_issue="SearchClient at ${SEARCH_FILE}: search input found but could not type query — input may be disabled or not interactive"
+    else
+      search_issue="SearchClient at ${SEARCH_FILE}: input=$diag_search_input, results=$diag_search_results, cards=$diag_search_cards"
+    fi
+    issues=$(echo "$issues" | jq --arg m "$search_issue" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq --arg m "In ${SEARCH_FILE}, verify that chapter data is fetched/imported for search indexing and that the filter function matches against the query string" '. + [$m]')
   fi
+
   if (( nav_score < 5 )); then
     issues=$(echo "$issues" | jq --arg m "导航: sidebar=$has_sidebar, navItems=$nav_item_count, links=$home_link_count" '. + [$m]')
     suggestions=$(echo "$suggestions" | jq '. + ["确保 sidebar 和导航链接完整"]')
   fi
+
+  # Code block issues with component file path (task 2.4)
   if (( code_score == 0 )); then
-    issues=$(echo "$issues" | jq '. + ["无代码高亮: 所有页面 codeBlockCount=0"]')
-    suggestions=$(echo "$suggestions" | jq '. + ["检查 CodeBlock 组件和 shiki 渲染"]')
+    local code_issue=""
+    if (( diag_code_pre_total == 0 )); then
+      code_issue="CodeBlock at ${CODEBLOCK_FILE}: 0 <pre> tags detected across all chapter pages — component is not rendering code blocks at all, check if the component receives code data and renders a <pre> element"
+    elif [[ "$diag_code_shiki_found" == "false" ]]; then
+      code_issue="CodeBlock at ${CODEBLOCK_FILE}: ${diag_code_pre_total} <pre> tags found but no shiki/highlighting classes detected (0 highlighted blocks) — code renders but syntax highlighting is not applied"
+    else
+      code_issue="CodeBlock at ${CODEBLOCK_FILE}: ${diag_code_pre_total} <pre> tags, ${diag_code_highlighted} highlighted, shiki=${diag_code_shiki_found}"
+    fi
+    issues=$(echo "$issues" | jq --arg m "$code_issue" '. + [$m]')
+    suggestions=$(echo "$suggestions" | jq --arg m "In ${CODEBLOCK_FILE}, verify that shiki/highlight.js is imported and applied to the <pre>/<code> output; check that the highlighting runs client-side" '. + [$m]')
   fi
+
   if (( routing_score < 5 )); then
     issues=$(echo "$issues" | jq --arg m "页面错误: $pages_with_errors 个页面有 errors" '. + [$m]')
     suggestions=$(echo "$suggestions" | jq '. + ["修复页面加载错误"]')
