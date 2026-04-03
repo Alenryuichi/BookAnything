@@ -1,0 +1,122 @@
+{
+  "chapter_id": "ch10-human-in-the-loop",
+  "title": "第10章：人机协作",
+  "subtitle": "工具调用的人工审批",
+  "chapter_summary": "本章介绍Pydantic AI的人机协作机制，通过ApprovalRequiredToolset实现工具调用的人工审批，确保AI代理在执行敏感操作时获得人工授权。",
+  "opening_hook": "想象一下，你的AI助手正在分析公司财务数据。突然，它决定：'我需要向供应商发送一笔付款，金额是5万美元。'\n\n如果是你的个人银行账户，你一定希望有一个「确认」按钮出现在屏幕上。但在企业环境中，这个过程更加复杂：需要审批流、权限检查、审计记录。\n\n这就是Pydantic AI的人机协作机制设计的目标：让AI能够智能地决定何时需要人类介入，同时保持整个过程的可控和可追溯。本章将深入探讨这套机制如何工作，以及如何将它集成到你的应用中。",
+  "sections": [
+    {
+      "heading": "为什么需要人工审批",
+      "content": "在实际应用中，AI代理做出的某些决策可能带来不可逆的后果。删除数据库记录、发送电子邮件、调用支付接口——这些操作一旦执行，就无法撤销。\n\n完全信任AI的选择是危险的。即使是最先进的模型，也可能产生幻觉、误解意图，或者在边界条件下做出错误的决策。当这些决策直接影响真实世界时，人工干预就变得必要。\n\nPydantic AI的设计理念是：「默认自动化，关键介入」。这意味着大部分常规操作可以自动执行，但敏感操作必须有明确的授权流程。",
+      "callout": {
+        "type": "warning",
+        "text": "不要将人工审批与简单的「弹窗确认」混淆。企业级的审批机制需要考虑审批链、权限继承、审计追踪等多重维度。"
+      },
+      "code": {
+        "title": "识别敏感操作的决策函数",
+        "description": "approval_required_func是审批机制的「守门员」——它决定每个工具调用是否需要人工授权",
+        "code": "def approval_required(ctx, tool_def, tool_args):\n    # 删除类操作总是需要审批\n    if 'delete' in tool_def.name.lower():\n        return True\n    # 涉及金额的操作需要审批\n    if 'amount' in tool_args and tool_args['amount'] > 1000:\n        return True\n    return False",
+        "language": "python",
+        "annotation": "这个函数接收运行上下文、工具定义和调用参数，返回一个布尔值表示是否需要审批。你可以根据业务规则灵活定义，比如工具名称、参数值、甚至历史行为都可以作为判断依据。"
+      }
+    },
+    {
+      "heading": "ApprovalRequiredToolset：包装器模式",
+      "content": "Pydantic AI使用包装器模式来实现审批机制。ApprovalRequiredToolset本身不提供任何工具，而是包装另一个toolset，为其中的工具调用添加审批逻辑。\n\n这种设计的优势在于：你不需要修改现有工具的代码就可以添加审批功能。就像给一把锁加装一个钥匙扣，锁的功能不受影响，但多了一层控制。\n\n当工具调用发生时，Wrapper会先检查审批状态。如果需要审批且未获得授权，就抛出ApprovalRequired异常。这个异常不是错误，而是一个信号——告诉调用者「暂停，等待人类决策」。",
+      "diagram": {
+        "title": "审批机制的执行流程",
+        "chart": "graph TD;\n    A[AI调用工具] --> B{ApprovalRequiredToolset};\n    B -->|检查| C{approval_required_func};\n    C -->|返回True, 未批准| D[抛出ApprovalRequired];\n    C -->|返回False 或 已批准| E[执行工具];\n    D --> F[暂停并等待人工介入];\n    F -->|人工批准| G[重新调用approved=True];\n    G --> E;\n    E --> H[返回结果]",
+        "description": "流程展示了审批机制的决策路径。当工具被调用时，Wrapper会检查两个条件：该工具是否需要审批、是否已经获得批准。只有两个条件都不触发时，工具才会实际执行。"
+      },
+      "callout": {
+        "type": "tip",
+        "text": "WrapperToolset是一个强大的抽象模式。除了审批，你还可以用它实现日志记录、性能监控、参数转换等功能——所有这些都不需要修改被包装的工具代码。"
+      }
+    },
+    {
+      "heading": "审批状态传递",
+      "content": "审批机制的核心在于RunContext的两个字段：tool_call_approved和tool_call_metadata。前者标记工具调用是否已批准，后者存储审批相关的元数据。\n\n当工具调用被批准后，你可以传递额外的信息，比如审批人的身份、审批时间、审批意见等。这些信息会通过context传递给工具，让工具能够记录审计日志或执行审批相关的业务逻辑。\n\nToolManager负责管理这个状态的传递。在构建工具调用上下文时，它会将approved和metadata注入到RunContext中，确保工具执行时能够访问这些信息。",
+      "code": {
+        "title": "ApprovalRequiredToolset的检查逻辑",
+        "description": "这段代码展示了审批检查的核心逻辑——简洁而强大",
+        "code": "async def call_tool(\n    self, name: str, tool_args: dict[str, Any], \n    ctx: RunContext[AgentDepsT], tool: ToolsetTool[AgentDepsT]\n) -> Any:\n    # 检查两个条件：是否需要审批 && 是否已批准\n    if not ctx.tool_call_approved and \\\n       self.approval_required_func(ctx, tool.tool_def, tool_args):\n        raise ApprovalRequired\n\n    return await super().call_tool(name, tool_args, ctx, tool)",
+        "language": "python",
+        "annotation": "只有当审批函数返回True（需要审批）且tool_call_approved为False（未批准）时，才会抛出异常。这意味着：要么审批函数说不需要审批，要么已经有人工批准了，工具就可以继续执行。"
+      }
+    },
+    {
+      "heading": "人机协作的最佳实践",
+      "content": "建立有效的人机协作流程需要考虑多个方面。首先是审批粒度——太细了会频繁打断工作流，太粗了又可能遗漏必要的安全检查。建议从「影响范围」来划分：影响生产环境、涉及资金、操作核心数据的工具应该更严格。\n\n其次是审批响应时间。某些操作需要实时批准，比如聊天机器人中的敏感操作；某些操作可以异步处理，比如夜间批量任务需要的数据修改。Pydantic AI通过ApprovalRequired异常支持这两种模式：你可以立即重新调用，也可以将调用 deferred 到稍后处理。\n\n最后是容错设计。AI决策可能会被拒绝，这时候需要让模型理解原因并调整策略。通过工具返回的错误信息，模型可以学习哪些操作需要什么条件，从而在下一次做出更好的决策。",
+      "table": {
+        "caption": "不同场景下的审批策略对比",
+        "headers": ["场景", "审批时机", "响应方式", "典型应用"],
+        ["交互式聊天", "即时同步", "阻塞等待用户点击", "个人助理、客服机器人"],
+        ["批量处理", "批量异步", "预先批准全部操作", "夜间数据清洗、报表生成"],
+        ["关键操作", "逐个同步", "人工逐步确认", "财务审批、配置变更"]
+      },
+      "callout": {
+        "type": "info",
+        "text": "ApprovalRequired可以携带metadata，这为审批流程的扩展提供了空间。你可以存储审批人ID、审批链信息、关联的工单号等，将AI操作与企业现有的审批系统无缝集成。"
+      }
+    },
+    {
+      "heading": "安全与合规",
+      "content": "人机协作机制不仅是功能特性，更是安全合规的必要手段。在金融、医疗、政府等领域，监管部门往往要求关键操作必须有明确的责任人记录。\n\n通过审批机制，你可以建立完整的操作审计链：AI提出建议，人工审批执行，所有步骤都有时间戳和操作者信息。当发生问题时，可以追溯到是谁批准了某个操作、为什么批准、审批时看到了什么上下文。\n\n此外，审批机制也是一种「人工在环」的安全策略。即使模型被攻击或产生有害输出，最后一道人工防线仍然可能阻止灾难性后果。这在对抗AI安全攻击时尤为重要。",
+      "code": {
+        "title": "审计友好的审批处理",
+        "description": "在工具中使用审批元数据建立完整的审计记录",
+        "code": "async def delete_user(ctx, user_id: str) -> str:\n    # 记录操作信息\n    if ctx.tool_call_approved:\n        approver = ctx.tool_call_metadata.get('approver_id', 'unknown')\n        audit_log.delete_action(\n            user_id=user_id,\n            approved_by=approver,\n            approved_at=ctx.tool_call_metadata.get('timestamp'),\n            context=f'Run {ctx.run_id}'\n        )\n    # 执行删除\n    return f'用户 {user_id} 已删除'",
+        "language": "python",
+        "annotation": "在工具内部，你可以根据tool_call_approved来判断是否是被批准的调用，并使用tool_call_metadata记录审批人、时间等信息。这些记录可以被存入审计系统，满足合规要求。"
+      }
+    },
+    {
+      "heading": "本章小结",
+      "content": "人机协作是连接AI自主性与人工控制的桥梁。在Pydantic AI中，这个机制通过ApprovalRequiredToolset优雅地实现，既保持了工具调用的流畅性，又确保了关键操作的安全性。\n\n要记住的是，审批不是要阻碍自动化，而是要在恰当的地方建立护栏。就像交通信号灯不会阻碍车流，而是让交通更安全、更高效。随着AI应用越来越深入生产环境，这种平衡艺术变得越来越重要。\n\n下一章，我们将探讨如何让AI代理与不同的大模型交互，实现模型无关的开发体验。"
+    }
+  ],
+  "key_takeaways": [
+    "ApprovalRequiredToolset使用Wrapper模式包装现有工具，无损添加审批逻辑",
+    "审批决策通过approval_required_func制定，可以根据工具名称、参数等因素灵活判断",
+    "RunContext的tool_call_approved标志传递审批状态，tool_call_metadata存储额外审计信息",
+    "ApprovalRequired异常不是错误，而是「暂停等待」的信号，支持同步和异步审批流程",
+    "人机协作兼顾自动化效率和安全合规要求，是生产级AI应用的必要机制"
+  ],
+  "further_thinking": [
+    "如何设计多层审批机制（比如金额越大需要更多级别的审批）？审批函数如何与外部审批系统集成？",
+    "当AI工具调用被拒绝后，如何让模型理解原因并调整策略，而不是陷入无限试错循环？"
+  ],
+  "analogies": [
+    " ApprovalRequiredToolset就像汽车的「自动启停」系统——平时自动航行，关键时刻需要人工踩下刹车",
+    "人机协作就像现代飞机的自动驾驶系统：大部分飞行由AI控制，但起飞、降落和异常情况始终有飞行员监控"
+  ],
+  "mermaid_diagrams": [
+    {
+      "title": "审批机制的执行流程",
+      "chart": "graph TD;\n    A[AI调用工具] --> B{ApprovalRequiredToolset};\n    B -->|检查| C{approval_required_func};\n    C -->|返回True, 未批准| D[抛出ApprovalRequired];\n    C -->|返回False 或 已批准| E[执行工具];\n    D --> F[暂停并等待人工介入];\n    F -->|人工批准| G[重新调用approved=True];\n    G --> E;\n    E --> H[返回结果]",
+      "description": "流程展示了审批机制的决策路径"
+    }
+  ],
+  "code_snippets": [
+    {
+      "title": "识别敏感操作的决策函数",
+      "code": "def approval_required(ctx, tool_def, tool_args):\n    # 删除类操作总是需要审批\n    if 'delete' in tool_def.name.lower():\n        return True\n    # 涉及金额的操作需要审批\n    if 'amount' in tool_args and tool_args['amount'] > 1000:\n        return True\n    return False",
+      "language": "python"
+    },
+    {
+      "title": "ApprovalRequiredToolset的检查逻辑",
+      "code": "async def call_tool(\n    self, name: str, tool_args: dict[str, Any], \n    ctx: RunContext[AgentDepsT], tool: ToolsetTool[AgentDepsT]\n) -> Any:\n    # 检查两个条件：是否需要审批 && 是否已批准\n    if not ctx.tool_call_approved and \\\n       self.approval_required_func(ctx, tool.tool_def, tool_args):\n        raise ApprovalRequired\n\n    return await super().call_tool(name, tool_args, ctx, tool)",
+      "language": "python"
+    },
+    {
+      "title": "审计友好的审批处理",
+      "code": "async def delete_user(ctx, user_id: str) -> str:\n    # 记录操作信息\n    if ctx.tool_call_approved:\n        approver = ctx.tool_call_metadata.get('approver_id', 'unknown')\n        audit_log.delete_action(\n            user_id=user_id,\n            approved_by=approver,\n            approved_at=ctx.tool_call_metadata.get('timestamp'),\n            context=f'Run {ctx.run_id}'\n        )\n    # 执行删除\n    return f'用户 {user_id} 已删除'",
+      "language": "python"
+    }
+  ],
+  "word_count": 4200,
+  "prerequisites": [
+    "ch06-tool-system",
+    "ch09-capabilities"
+  ]
+}
