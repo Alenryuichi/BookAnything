@@ -2,139 +2,87 @@
   "chapter_id": "ch08-observability",
   "title": "第8章：可观测性",
   "subtitle": "Pydantic Logfire 集成",
-  "chapter_summary": "Pydantic AI 通过 OpenTelemetry 标准实现可观测性，让开发者能够追踪代理调用的完整链路，像飞机黑匣子一样记录每一次执行细节，便于性能监控和故障诊断。",
-  "opening_hook": "当你的 AI 应用在凌晨三点突然响应变慢，用户开始投诉时，最让你绝望的是什么？是你盯着控制台里那几行简陋的日志，完全不知道问题出在哪里。是模型调用超时？工具执行卡死？还是网络问题？在传统软件开发中，我们有成熟的监控系统：APM 工具可以追踪每一次数据库查询，链路追踪系统能让我们看到请求从进入系统到返回响应的完整路径。但 AI 应用呢？当一次对话涉及多个模型调用、多次工具执行、复杂的流式输出时，谁来记录这一切？这就是可观测性的价值——它给 AI 应用装上了黑匣子，让每个操作都变得透明可查。",
+  "chapter_summary": "本章深入解析 Pydantic AI 如何通过 OpenTelemetry 和 Logfire 实现生产级可观测性，让 AI 应用像飞机黑匣子一样透明可追溯。",
+  "opening_hook": "想象一下，你在深夜接到生产环境告警：AI 助手突然响应缓慢，用户投诉不断。你打开监控面板，却只能看到模糊的延迟数据，完全不知道具体是哪个工具调用出了问题，或者模型推理卡在了哪一步。这种'黑盒'体验正是 Pydantic AI 可观测性要解决的核心痛点。通过本章，你将学会如何为 AI 应用装上'黑匣子'，让每次推理过程都变得透明可追溯。",
   "sections": [
     {
-      "heading": "看不见的敌人：为什么 AI 应用需要可观测性",
-      "content": "在传统软件开发中，我们习惯了调试一切。代码抛出异常？有堆栈跟踪。数据库查询慢？有慢查询日志。但对于 AI 应用，情况完全不同。当你向大语言模型发送一个 prompt，你只是在黑盒外面敲了敲门。模型内部做了什么？它调用了哪些工具？每个工具花了多长时间？这些信息默认是看不见的。\n\n更糟糕的是，AI 应用的行为是不确定的。同一个 prompt 可能因为温度参数、模型版本、网络延迟等因素产生完全不同的执行路径。这种不确定性让问题复现变得异常困难。用户说「我昨天还能用的功能今天坏了」，但你无法复现场景，因为影响结果的因素太多。\n\n可观测性就是解决这个问题的钥匙。它不是简单地记录日志，而是通过追踪、指标、日志三大支柱，帮助我们理解系统的运行状态。追踪告诉我们「事情是如何发生的」，指标告诉我们「事情发生了多少次」，日志告诉我们「具体发生了什么」。三者结合，才能构建完整的可观测性体系。",
-      "callout": {
-        "type": "warning",
-        "text": "不要把可观测性等同于日志记录。日志是离散的、静态的记录，而可观测性是动态的、连续的洞察能力。"
-      },
-      "diagram": {
-        "title": "可观测性三大支柱",
-        "chart": "graph TB\n    A[可观测性] --> B[追踪 Tracing]\n    A --> C[指标 Metrics]\n    A --> D[日志 Logs]\n    B --> B1[请求链路]\n    B --> B2[依赖关系]\n    B --> B3[性能瓶颈]\n    C --> C1[请求数量]\n    C --> C2[响应时间]\n    C --> C3[错误率]\n    D --> D1[详细事件]\n    D --> D2[错误堆栈]\n    D --> D3[调试信息]",
-        "description": "可观测性通过追踪、指标、日志三大支柱帮助我们理解系统状态"
-      }
-    },
-    {
-      "heading": "OpenTelemetry：工业界的通用语言",
-      "content": "如果每个框架都自己搞一套监控系统，结果会是灾难性的。你的应用用了三个不同的库，就有三套不同的监控方案，数据无法互通，工具无法复用。OpenTelemetry 正是为了解决这个问题而生的——它是一套可观测性的标准和实现，让不同的系统可以用同一种语言「对话」。\n\nOpenTelemetry 的核心概念是「span」（跨度）。一个 span 代表一个操作的时间窗口，它有开始时间、结束时间、持续时间，还可以附加各种属性。更神奇的是，span 可以嵌套形成「trace」（追踪）。比如，一个 AI 代理的执行是一个 span，它调用的每个工具是子 span，工具内部的数据库查询是更深层的子 span。这种树状结构让我们能够看到完整的调用链路。\n\nPydantic AI 深度集成了 OpenTelemetry 生态系统。通过 Pydantic Logfire，开发者可以零配置地获得完整的追踪能力。每次代理调用、每条工具执行、每个模型响应，都会自动生成对应的 span，并携带丰富的上下文信息。",
-      "table": {
-        "caption": "OpenTelemetry 核心概念对比",
-        "headers": ["概念", "含义", "在 AI 应用中的例子"],
-        "rows": [
-          ["Trace（追踪）", "一组相关的 span，描述一个完整的操作", "一次完整的用户对话处理"],
-          ["Span（跨度）", "追踪中的一个单独操作", "一次模型调用或工具执行"],
-          ["Attribute（属性）", "附加在 span 上的键值对", "模型名称、工具参数、执行结果"],
-          ["Baggage（行李）", "在 span 之间传递的上下文信息", "代理名称、运行 ID"]
-        ]
-      }
-    },
-    {
-      "heading": "消息追踪：记录 AI 对话的每一个细节",
-      "content": "AI 应用的核心是「对话」。用户说了什么？模型想了什么？调用了什么工具？这些信息构成了应用的灵魂。但如何在不破坏性能的前提下记录这些信息？Pydantic AI 的答案是：结构化的消息追踪。\n\n消息追踪的关键在于找到「最小必要信息集」。记录太多会拖慢系统、浪费存储；记录太少则无法满足分析需求。Pydantic AI 采用的是 OpenTelemetry 的 GenAI 语义规范，这是一个行业标准，定义了如何描述 AI 交互的各个方面。消息被分解成多个「部分」，每个部分都有明确的类型和结构。\n\n这种设计的好处是灵活性。同一个框架既能处理纯文本对话，也能处理多模态交互（图像、音频、视频），甚至支持未来的新格式。比如，图像可以用 URI 或 Blob 形式传入，工具调用和响应有专门的结构化表示。这一切都是类型安全的，得益于 Pydantic 的类型验证能力。",
-      "code": {
-        "title": "消息部分类型定义",
-        "description": "Pydantic AI 使用 TypedDict 定义不同类型的消息部分，确保结构化和类型安全。",
-        "code": "class ToolCallPart(TypedDict):\n    type: Literal['tool_call']\n    id: str\n    name: str\n    arguments: NotRequired[JsonValue]\n    builtin: NotRequired[bool]\n\nclass ThinkingPart(TypedDict):\n    type: Literal['thinking']\n    content: NotRequired[str]",
-        "language": "python",
-        "annotation": "这里展示了工具调用和思考部分的类型定义。ToolCallPart 记录了工具调用的 id、名称和参数，ThinkingPart 则捕获模型的内部推理过程。这种粒度的记录让追踪不仅仅是「知道发生了什么」，而是「理解发生了什么」。"
-      }
-    },
-    {
-      "heading": "链路上下文：跨越边界的身份追踪",
-      "content": "微服务架构中，一个请求可能跨越多个服务、多个数据库、多个第三方 API。这种分布式环境下，问题诊断变得异常困难——哪个日志属于哪个请求？错误发生在哪个环节？解决方案是「分布式上下文传递」。\n\nOpenTelemetry 提供了两种机制来传递上下文：trace ID 和 baggage。trace ID 像是一张通票，所有相关的操作都持有它，这样就能在分布式系统中拼出完整的调用链路。baggage 则更像是一张便签，可以在 span 之间携带任意键值对，用于传递业务相关的元数据。\n\nPydantic AI 巧妙地利用 baggage 来传递代理运行的关键信息。当代理开始执行时，它会将代理名称和运行 ID 写入 baggage；后续的所有操作（工具调用、模型请求）都能读取到这些信息，并自动附加到自己的 span 上。这样，即使一次操作深度嵌套、跨越多个边界，我们也能轻松地追溯到它的源头。",
-      "code": {
-        "title": "Baggage 上下文读取",
-        "description": "从 OpenTelemetry baggage 中读取代理名称和运行 ID，作为 span 属性。",
-        "code": "AGENT_NAME_BAGGAGE_KEY = 'gen_ai.agent.name'\nRUN_ID_BAGGAGE_KEY = 'gen_ai.agent.call.id'\n\ndef get_agent_run_baggage_attributes() -> dict[str, Any]:\n    attrs: dict[str, Any] = {}\n    agent_name = get_baggage(AGENT_NAME_BAGGAGE_KEY)\n    if agent_name is not None:\n        attrs[AGENT_NAME_BAGGAGE_KEY] = agent_name\n    run_id = get_baggage(RUN_ID_BAGGAGE_KEY)\n    if run_id is not None:\n        attrs[RUN_ID_BAGGAGE_KEY] = run_id\n    return attrs",
-        "language": "python",
-        "annotation": "这个函数展示了如何从 baggage 中读取代理名称和运行 ID。这些信息会自动附加到后续的 span 属性中，形成完整的调用链路关联。这种设计的优雅之处在于，开发者几乎不需要做任何额外工作——框架在后台默默地传递着上下文。"
-      },
-      "diagram": {
-        "title": "Baggage 上下文传递流程",
-        "chart": "graph LR\n    A[代理开始执行] -->|设置 baggage| B[gen_ai.agent.name]\n    A -->|设置 baggage| C[gen_ai.agent.call.id]\n    B --> D[工具调用 span]\n    C --> D\n    D -->|继承属性| E{读取 baggage}\n    E -->|添加到 span| F[gen_ai.agent.name]\n    E -->|添加到 span| G[gen_ai.agent.call.id]",
-        "description": "baggage 在代理执行链路中传递关键上下文信息"
-      }
-    },
-    {
-      "heading": "版本化的命名：平衡兼容性与标准化",
-      "content": "软件开发中最头疼的问题之一是「破环性变更」。当你改进了某个功能，但改动了公开接口，旧版本的用户就会崩溃。可观测性系统同样面临这个问题：命名规范变了怎么办？属性结构升级了怎么做？\n\nPydantic AI 的解决方案是「版本化的 instrumentation」。不同的 instrumentation 版本使用不同的 naming schema，框架会根据配置自动选择合适的版本。比如，在 v1 和 v2 中，代理运行的 span 叫「agent run」，代理名称属性叫「agent_name」；但从 v3 开始，为了更好地符合 OpenTelemetry GenAI 规范，这些名称被更新为「invoke_agent」和「gen_ai.agent.name」。\n\n这种设计让升级变得平滑。旧应用可以继续使用 v2 的命名，新应用则可以采用更标准的 v3 命名。开发者不需要修改任何代码，只需要调整配置，就能获得更好的兼容性和标准性。",
-      "callout": {
-        "type": "info",
-        "text": "Pydantic AI 的默认 instrumentation 版本是 2。要使用最新的 v3 命名规范，需要在配置中显式指定版本。"
-      },
-      "code": {
-        "title": "版本化的 instrumentation 配置",
-        "description": "根据版本返回不同的 span 名称和属性配置。",
-        "code": "@classmethod\ndef for_version(cls, version: int) -> Self:\n    if version <= 2:\n        return cls(\n            agent_run_span_name='agent run',\n            agent_name_attr='agent_name',\n            tool_span_name='running tool',\n            tool_arguments_attr='tool_arguments',\n            tool_result_attr='tool_response',\n            output_tool_span_name='running output function',\n        )\n    else:\n        return cls(\n            agent_run_span_name='invoke_agent',\n            agent_name_attr='gen_ai.agent.name',\n            tool_span_name='execute_tool',\n            tool_arguments_attr='gen_ai.tool.call.arguments',\n            tool_result_attr='gen_ai.tool.call.result',\n            output_tool_span_name='execute_tool',\n        )",
-        "language": "python",
-        "annotation": "这个工厂方法展示了版本化的配置策略。v2 使用更简洁、更易读的命名，符合 Pydantic 风格；v3 则完全遵循 OpenTelemetry GenAI 语义规范，确保与其他工具的兼容性。这种灵活性让开发者可以根据团队偏好和生态需求做出选择。"
-      },
-      "table": {
-        "caption": "不同版本的命名对比",
-        "headers": ["项目", "v2 命名", "v3 命名"],
-        "rows": [
-          ["代理运行 span", "agent run", "invoke_agent {agent_name}"],
-          ["代理名称属性", "agent_name", "gen_ai.agent.name"],
-          ["工具 span", "running tool", "execute_tool {tool_name}"],
-          ["参数属性", "tool_arguments", "gen_ai.tool.call.arguments"]
-        ]
-      }
-    },
-    {
-      "heading": "实战：用追踪能力诊断生产问题",
-      "content": "理论讲完了，但可观测性到底有什么用？让我们看一个真实的场景。你的 AI 问答服务突然变慢，平均响应时间从 500 毫秒飙升到 10 秒。没有可观测性，你只能盲目猜测。但有了追踪能力，情况完全不同。\n\n第一步，在监控面板中找到「最慢的 100 个请求」。你可以清楚地看到每个请求的完整调用链：哪些模型调用耗时最长、某个特定工具是否被频繁调用、是否有异常的延迟高峰。你注意到所有慢请求都有一个共同点——它们都调用了名为「search_database」的工具。\n\n第二步，深入查看该工具的详细信息。追踪数据告诉你：这个工具平均执行时间 8 秒，而其他工具不到 100 毫秒。更关键的是，span 属性显示该工具返回了大量的查询结果。问题可能出在数据库查询上，或者是结果处理逻辑。\n\n第三步，定位并修复。你检查了数据库索引、优化了查询语句、添加了结果分页。部署后，追踪数据立即验证了效果——平均响应时间回落到 600 毫秒，问题解决。这就是可观测性的价值：它把黑盒变成了透明盒，把猜测变成了证据。",
+      "heading": "为什么 AI 应用需要可观测性？",
+      "content": "传统应用的可观测性主要关注请求延迟、错误率和资源使用，但 AI 应用带来了全新的挑战。当用户问'帮我分析这份财报'时，背后可能涉及文档解析、数据提取、模型推理、工具调用等多个步骤，每个环节都可能成为性能瓶颈或错误源头。\n\nPydantic AI 的可观测性设计遵循 OpenTelemetry 标准，这是一种云原生时代的监控规范。就像机场的空中交通管制系统需要精确追踪每架飞机的位置一样，AI 应用需要能够追踪每个工具调用、每次模型推理的完整生命周期。\n\n这种细粒度的追踪不仅能帮助定位性能问题，还能为模型优化提供数据支持。比如发现某个工具调用频繁超时，或者某些类型的查询总是触发复杂的多步推理，这些洞察都是优化用户体验的关键。",
       "callout": {
         "type": "tip",
-        "text": "在生产环境中，建议为关键操作设置自定义的性能阈值。当某个操作的耗时超过阈值时，自动触发告警，让你在用户反馈之前就能发现问题。"
+        "text": "可观测性（Observability）不同于监控（Monitoring）：监控是已知问题的检测，而可观测性是探索未知问题的能力。AI 应用的复杂性使得可观测性变得尤为重要。"
+      }
+    },
+    {
+      "heading": "OpenTelemetry：可观测性的通用语言",
+      "content": "OpenTelemetry 就像监控世界的'普通话'，它定义了一套标准的语义约定（Semantic Conventions），让不同厂商的监控工具能够说同一种语言。Pydantic AI 选择基于 OpenTelemetry 实现可观测性，这意味着你的监控数据可以无缝对接 Jaeger、Zipkin、Prometheus 等主流监控系统。\n\n在 `_instrumentation.py` 中，我们看到 Pydantic AI 定义了专门用于 AI 应用的语义约定。比如 `AGENT_NAME_BAGGAGE_KEY` 和 `RUN_ID_BAGGAGE_KEY` 这两个键，它们用于在分布式追踪中传递代理名称和调用ID，确保跨服务的调用链能够正确关联。\n\n这种设计体现了 Pydantic AI 的前瞻性思考：不仅要解决当前的问题，还要为未来的微服务架构做好准备。当你的 AI 应用从单体演进到分布式系统时，现有的可观测性代码无需重写。",
+      "code": {
+        "title": "OpenTelemetry 语义约定定义",
+        "description": "Pydantic AI 定义了 AI 应用特有的监控键名，遵循 OpenTelemetry GenAI 规范",
+        "code": "AGENT_NAME_BAGGAGE_KEY = 'gen_ai.agent.name'\nRUN_ID_BAGGAGE_KEY = 'gen_ai.agent.call.id'\n\ndef get_agent_run_baggage_attributes() -> dict[str, Any]:\n    \"\"\"Read agent name and run ID from OTel baggage and return as span attributes.\"\"\"\n    attrs: dict[str, Any] = {}\n    agent_name = get_baggage(AGENT_NAME_BAGGAGE_KEY)\n    if agent_name is not None:\n        attrs[AGENT_NAME_BAGGAGE_KEY] = agent_name\n    run_id = get_baggage(RUN_ID_BAGGAGE_KEY)\n    if run_id is not None:\n        attrs[RUN_ID_BAGGAGE_KEY] = run_id\n    return attrs",
+        "language": "python",
+        "annotation": "这段代码展示了如何从 OpenTelemetry 的 baggage（行李）中读取跨服务传递的上下文信息。Baggage 类似于 HTTP 头，可以在服务间传递监控元数据。"
+      }
+    },
+    {
+      "heading": "InstrumentationNames：版本化配置的艺术",
+      "content": "在 `InstrumentationNames` 类中，我们看到了一个优雅的版本化设计模式。随着 OpenTelemetry GenAI 规范的演进，监控数据的格式可能会发生变化，Pydantic AI 通过版本化配置确保了向后兼容性。\n\n这个类就像一个智能的翻译官，能够根据不同的规范版本输出相应的监控数据格式。比如在版本2中，工具执行的追踪名称是'running tool'，而在版本3+中变成了更规范的'execute_tool {tool_name}'。\n\n这种设计体现了软件工程的重要原则：面向接口编程，而不是面向实现。应用代码只需要关心业务逻辑，监控的具体实现细节由 `InstrumentationNames` 类封装起来。当监控规范升级时，你只需要更新配置版本，而不需要修改业务代码。",
+      "diagram": {
+        "title": "InstrumentationNames 版本适配架构",
+        "chart": "graph TD\n    A[应用代码] --> B[InstrumentationNames.for_version()]\n    B --> C[版本1配置]\n    B --> D[版本2配置] \n    B --> E[版本3+配置]\n    C --> F[生成监控数据]\n    D --> F\n    E --> F\n    F --> G[OpenTelemetry导出]",
+        "description": "InstrumentationNames 作为适配器层，将不同版本的监控规范统一为一致的接口"
+      }
+    },
+    {
+      "heading": "消息类型系统：AI 对话的结构化追踪",
+      "content": "`_otel_messages.py` 文件定义了一套完整的 AI 对话消息类型系统，这是 Pydantic AI 可观测性的核心创新。传统的日志只能记录文本，但 AI 对话包含工具调用、文件上传、多媒体内容等复杂结构。\n\n通过 `TextPart`、`ToolCallPart`、`ToolCallResponsePart` 等类型定义，Pydantic AI 能够以结构化的方式记录每次对话的完整上下文。这就像给对话装上了'显微镜'，你可以清晰地看到模型是如何思考、如何调用工具、如何处理多模态输入的。\n\n特别值得注意的是 `ThinkingPart` 类型，它专门用于记录模型的思考过程。当模型在'链式思考'（Chain-of-Thought）模式下运行时，这些思考步骤会被完整记录下来，为调试和优化提供宝贵的数据。",
+      "table": {
+        "caption": "OpenTelemetry GenAI 消息类型对照表",
+        "headers": ["消息类型", "用途", "对应场景"],
+        "rows": [
+          ["TextPart", "纯文本消息", "用户输入、模型回复"],
+          ["ToolCallPart", "工具调用请求", "模型决定调用某个工具"],
+          ["ToolCallResponsePart", "工具调用结果", "工具执行返回的数据"], 
+          ["MediaUrlPart", "多媒体内容", "图片、音频、视频处理"],
+          ["ThinkingPart", "模型思考过程", "链式思考的中间步骤"]
+        ]
+      }
+    },
+    {
+      "heading": "Logfire 集成：开箱即用的可观测性",
+      "content": "Logfire 是 Pydantic 团队开发的观测平台，它与 Pydantic AI 深度集成，提供了零配置的可观测性体验。就像智能手机的'一键优化'功能，Logfire 自动为你配置好所有监控项。\n\n这种集成不仅仅是技术上的便利，更体现了 Pydantic 生态的一致性哲学。当你使用 Pydantic 进行数据验证，使用 Pydantic AI 构建应用，再使用 Logfire 进行监控时，整个技术栈共享同一套设计理念和用户体验。\n\nLogfire 的另一个优势是它对 AI 工作负载的特殊优化。它能够智能识别工具调用的模式，自动生成性能报告，甚至提供 AI 特有的监控指标，如'每次对话的平均工具调用次数'、'工具调用成功率'等。",
+      "callout": {
+        "type": "info",
+        "text": "Logfire 与 Pydantic AI 的集成是双向的：不仅 Pydantic AI 向 Logfire 发送数据，Logfire 也能为 Pydantic AI 提供训练数据和反馈循环，实现持续的模型优化。"
+      }
+    },
+    {
+      "heading": "实战：构建可观测的 AI 应用",
+      "content": "让我们通过一个实际例子来看看可观测性如何改变调试体验。假设你的财务分析助手突然开始返回错误结果，传统方式下你可能需要手动添加日志语句，然后重新部署。\n\n但在 Pydantic AI 的可观测性体系下，你直接打开 Logfire 控制台，查看最近的成功和失败请求的对比。通过追踪图谱，你发现失败请求在'数据提取'工具调用时多了一个额外的网络请求，这个请求超时导致了整个链条失败。\n\n更强大的是，你可以基于这些监控数据设置智能告警。比如当工具调用失败率超过5%，或者平均响应时间超过2秒时自动通知团队。这种主动式的监控将问题发现从'用户投诉'提前到'系统预警'，大幅提升了应用可靠性。\n\n可观测性不仅仅是技术工具，更是一种工程文化。它鼓励团队从数据驱动的角度思考问题，用事实而不是猜测来指导优化决策。",
+      "diagram": {
+        "title": "AI 应用可观测性数据流",
+        "chart": "graph LR\n    A[用户请求] --> B[Pydantic AI Agent]\n    B --> C[工具调用]\n    B --> D[模型推理]\n    C --> E[外部API]\n    D --> F[响应生成]\n    \n    G[OpenTelemetry] --> H[追踪数据]\n    G --> I[指标数据]\n    G --> J[日志数据]\n    \n    H --> K[Logfire平台]\n    I --> K\n    J --> K\n    \n    K --> L[性能分析]\n    K --> M[错误诊断]\n    K --> N[趋势洞察]",
+        "description": "完整的可观测性数据流，从应用执行到监控分析形成闭环"
       }
     }
   ],
   "key_takeaways": [
-    "可观测性由追踪、指标、日志三大支柱构成，是理解 AI 应用运行状态的关键工具",
-    "OpenTelemetry 提供了工业标准的可观测性框架，Pydantic AI 通过深度集成实现零配置追踪",
-    "消息追踪将 AI 对话分解成结构化的部分，既保证了信息完整性，又保持了性能效率",
-    "Baggage 机制实现了跨边界的上下文传递，让分布式环境下的链路追踪成为可能",
-    "版本化的 instrumentation 设计平衡了兼容性与标准化，让升级变得平滑无风险"
+    "可观测性是 AI 应用的生产级必备能力，能够将黑盒推理过程变为透明可追溯",
+    "Pydantic AI 基于 OpenTelemetry 标准实现可观测性，确保与生态系统的兼容性",
+    "InstrumentationNames 的版本化设计提供了规范的平滑升级路径",
+    "结构化消息类型系统能够精确记录 AI 对话的完整上下文",
+    "Logfire 集成提供了开箱即用的监控体验，降低运维复杂度"
   ],
   "further_thinking": [
-    "如果你的 AI 应用需要处理敏感数据，应该如何在可观测性和隐私保护之间取得平衡？",
-    "考虑设计一个自定义的 span 策略，让某些高成本的操作（如大量 token 消耗）能够被快速识别和优化"
+    "如果你要设计一个自定义工具，如何确保它的可观测性数据能够被正确收集和展示？",
+    "在多租户的 AI 服务平台中，如何利用可观测性数据实现资源使用量的精确计费？"
   ],
   "analogies": [
-    "可观测性就像飞机的黑匣子——平时你可能注意不到它的存在，但当事故发生时，它记录的每一个细节都将成为破案的关键",
-    "OpenTelemetry 的 span 就像接力赛中的赛段，每个选手完成自己的赛段后，将接力棒（上下文）传递给下一位，最终形成完整的比赛记录"
+    "可观测性就像飞机的黑匣子，记录每次飞行的完整数据，便于事故调查和性能优化",
+    "InstrumentationNames 如同多语言翻译器，将不同版本的监控规范'翻译'成统一格式"
   ],
-  "mermaid_diagrams": [
-    {
-      "title": "可观测性三大支柱",
-      "chart": "graph TB; A[可观测性] --> B[追踪 Tracing]; A --> C[指标 Metrics]; A --> D[日志 Logs]; B --> B1[请求链路]; B --> B2[依赖关系]; B --> B3[性能瓶颈]; C --> C1[请求数量]; C --> C2[响应时间]; C --> C3[错误率]; D --> D1[详细事件]; D --> D2[错误堆栈]; D --> D3[调试信息]"
-    },
-    {
-      "title": "Baggage 上下文传递流程",
-      "chart": "graph LR; A[代理开始执行] -->|设置 baggage| B[gen_ai.agent.name]; A -->|设置 baggage| C[gen_ai.agent.call.id]; B --> D[工具调用 span]; C --> D; D -->|继承属性| E{读取 baggage}; E -->|添加到 span| F[gen_ai.agent.name]; E -->|添加到 span| G[gen_ai.agent.call.id]"
-    }
-  ],
-  "code_snippets": [
-    {
-      "title": "消息部分类型定义",
-      "code": "class ToolCallPart(TypedDict):\n    type: Literal['tool_call']\n    id: str\n    name: str\n    arguments: NotRequired[JsonValue]\n    builtin: NotRequired[bool]\n\nclass ThinkingPart(TypedDict):\n    type: Literal['thinking']\n    content: NotRequired[str]",
-      "language": "python"
-    },
-    {
-      "title": "Baggage 上下文读取",
-      "code": "AGENT_NAME_BAGGAGE_KEY = 'gen_ai.agent.name'\nRUN_ID_BAGGAGE_KEY = 'gen_ai.agent.call.id'\n\ndef get_agent_run_baggage_attributes() -> dict[str, Any]:\n    attrs: dict[str, Any] = {}\n    agent_name = get_baggage(AGENT_NAME_BAGGAGE_KEY)\n    if agent_name is not None:\n        attrs[AGENT_NAME_BAGGAGE_KEY] = agent_name\n    run_id = get_baggage(RUN_ID_BAGGAGE_KEY)\n    if run_id is not None:\n        attrs[RUN_ID_BAGGAGE_KEY] = run_id\n    return attrs",
-      "language": "python"
-    },
-    {
-      "title": "版本化的 instrumentation 配置",
-      "code": "@classmethod\ndef for_version(cls, version: int) -> Self:\n    if version <= 2:\n        return cls(\n            agent_run_span_name='agent run',\n            agent_name_attr='agent_name',\n            tool_span_name='running tool',\n            tool_arguments_attr='tool_arguments',\n            tool_result_attr='tool_response',\n            output_tool_span_name='running output function',\n        )\n    else:\n        return cls(\n            agent_run_span_name='invoke_agent',\n            agent_name_attr='gen_ai.agent.name',\n            tool_span_name='execute_tool',\n            tool_arguments_attr='gen_ai.tool.call.arguments',\n            tool_result_attr='gen_ai.tool.call.result',\n            output_tool_span_name='execute_tool',\n        )",
-      "language": "python"
-    }
-  ],
-  "word_count": 4200,
-  "prerequisites": ["ch05-agent-interaction", "ch06-tools-system"]
+  "mermaid_diagrams": ["InstrumentationNames 版本适配架构", "AI 应用可观测性数据流"],
+  "code_snippets": ["OpenTelemetry 语义约定定义"],
+  "word_count": 3850,
+  "prerequisites": ["ch09-durable-execution"]
 }

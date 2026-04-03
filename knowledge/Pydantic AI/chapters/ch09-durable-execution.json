@@ -1,89 +1,146 @@
 {
   "chapter_id": "ch09-durable-execution",
-  "title": "第9章：持久化执行",
-  "subtitle": "处理长运行工作流",
-  "chapter_summary": "Pydantic AI 通过 Temporal 集成实现可靠的持久化执行，让 AI 工作流具备容错恢复能力",
-  "opening_hook": "想象一下，你正在运行一个需要处理数千个文档的 AI 工作流。突然，服务器断电了，网络中断了，或者某个 API 调用超时了。在传统的 AI 应用中，这意味着所有进度丢失，需要从头开始。但 Pydantic AI 的持久化执行机制就像一位可靠的快递员，即使遇到突发状况，也能记住包裹的位置，在恢复后继续投递。本章将带你探索这个让 AI 应用变得坚如磐石的技术核心。",
+  "title": "第9章：持久化执行 — 处理长运行工作流",
+  "subtitle": "让 AI 代理在故障面前依然可靠",
+  "chapter_summary": "持久化执行让 AI 工作流能够优雅处理故障、超时和中断，实现真正可靠的企业级应用。",
+  "opening_hook": "想象你在银行操作：一个复杂的转账任务需要检查账户余额、验证风控规则、调用第三方支付接口，然后通知收款方。如果在执行过程中，银行服务器突然崩溃，你会希望资金凭空消失，还是系统能够在恢复后继续未完成的操作？\n\n这正是 AI 代理面临的现实挑战。当你的 AI 助手需要调用多个工具、等待外部 API 响应、处理长时间运行的工作流时，任何一点故障都会导致整个任务失败。用户不会知道是网络超时还是服务器异常，他们只看到「操作失败」的冰冷提示。\n\n持久化执行就是为了解决这个问题——它让 AI 工作流像银行交易一样可靠，即使中途出问题，也能从断点继续执行。",
   "sections": [
     {
       "heading": "为什么 AI 工作流需要持久化",
-      "content": "在现实世界的 AI 应用中，工作流往往不是简单的单次请求-响应模式。一个完整的业务流程可能涉及多个步骤：数据预处理、模型推理、工具调用、结果验证等，整个过程可能持续数分钟甚至数小时。\n\n传统 AI 应用面临的最大挑战是状态丢失。当服务器重启、网络中断或进程崩溃时，正在执行的工作流状态会完全丢失。想象一下，一个处理 1000 个文档的批处理任务，在第 999 个文档时发生故障，所有进度都将付诸东流。\n\nPydantic AI 的持久化执行机制解决了这个痛点。它通过将工作流状态持久化存储，确保在任何中断后都能从断点继续执行。这种能力对于生产环境的 AI 应用至关重要，特别是那些涉及金融交易、医疗诊断或法律文档处理等关键业务场景。",
+      "content": "普通的 Python 程序一旦崩溃，所有内存中的状态都会丢失。\n\n但 AI 代理的工作流程通常包含多个步骤：接收用户指令、调用大模型、执行工具函数、获取外部数据、处理结果、返回最终输出。\n\n每个步骤都可能失败：网络可能超时、API 服务可能限流、第三方系统可能宕机、进程可能被操作系统杀掉。\n\n如果用传统方式实现，任何一步失败都意味着整个任务从头开始，浪费已经消耗的资源和时间。",
+      "callout": {
+        "type": "warning",
+        "text": "在生产环境中，单次 AI 调用可能涉及多达数十次的工具调用和模型请求，如果没有持久化保障，失败率会随着步骤数量指数增长。"
+      },
+      "diagram": {
+        "title": "传统执行 vs 持久化执行",
+        "chart": "graph TD\n    A[用户请求] --> B{执行方式}\n    B -->|传统执行| C[内存中执行]\n    B -->|持久化执行| D[状态持久化]\n    C --> E[步骤1成功]\n    E --> F[步骤2失败]\n    F --> G[丢失所有进度]\n    G --> H[从头重新开始]\n    D --> I[步骤1成功并保存]\n    I --> J[步骤2失败]\n    J --> K[恢复步骤1后继续]\n    K --> L[仅重试失败步骤]",
+        "description": "传统执行在失败后丢失所有进度，而持久化执行可以从断点恢复。"
+      }
+    },
+    {
+      "heading": "持久化执行的核心概念",
+      "content": "Pydantic AI 通过与三个主流持久化框架集成，为用户提供灵活的选择：Temporal、Prefect 和 DBOS。\n\n这三个框架都解决了同一个问题：如何让长期运行的工作流在故障面前保持可靠。\n它们的核心理念相似——将工作流状态持久化到可靠存储，支持断点续传、重试和恢复。",
+      "table": {
+        "caption": "三大持久化框架对比",
+        "headers": ["框架", "适用场景", "特点"],
+        "rows": [
+          ["Temporal", "分布式微服务", "最强的容错性和可观察性，适合大规模部署"],
+          ["Prefect", "Python 原生工作流", "学习曲线低，Python 生态集成好"],
+          ["DBOS", "数据库后端应用", "轻量级，与 PostgreSQL 深度集成"]
+        ]
+      },
+      "callout": {
+        "type": "tip",
+        "text": "选择哪个框架主要取决于你的技术栈和团队经验。如果你已经在使用 Temporal 或 Prefect，Pydantic AI 可以无缝集成；如果是新项目，从最熟悉的框架开始即可。"
+      }
+    },
+    {
+      "heading": "Temporal 集成：企业级的可靠性",
+      "content": "Temporal 是专门为分布式系统设计的持久化执行平台，最初由 Uber 开发。\n\n它的设计哲学是「确定性的执行」——工作流的重放结果必须与首次执行完全相同。\n\n为了实现这一点，Temporal 将工作流代码和可能发生 IO 的操作分离，IO 操作被称为「活动」，在工作流代码中被调用时，Temporal 会保存活动调用的参数和结果。",
+      "diagram": {
+        "title": "Temporal 工作流结构",
+        "chart": "graph TD\n    A[Temporal 工作流代码] --> B[确定性的纯逻辑]\n    A --> C[活动调用点]\n    C --> D[Temporal 服务器]\n    D --> E[活动执行器]\n    E --> F[外部服务<br/>大模型/API/数据库]\n    D -.保存状态.-> G[持久化存储]\n    G -.恢复.-> D",
+        "description": "Temporal 将工作流状态持久化到服务器，活动执行在独立的进程中。"
+      },
       "callout": {
         "type": "info",
-        "text": "持久化执行不仅仅是容错，更是构建可靠 AI 系统的基石。它让 AI 应用具备了与传统企业级软件同等的可靠性标准。"
+        "text": "在 Temporal 中，工作流代码本身必须是无副作用的纯函数，所有 IO 都通过活动来完成。这种分离是实现可靠性的关键。"
       }
     },
     {
-      "heading": "Temporal 集成：可靠的工作流引擎",
-      "content": "Pydantic AI 选择 Temporal 作为其持久化执行的核心引擎，这是一个经过生产验证的工作流编排平台。Temporal 的设计理念是『一次编写，永远运行』，它通过事件溯源模式记录工作流的完整执行历史。\n\n在 Pydantic AI 中，Temporal 负责管理 AI 工作流的生命周期。当你在 Temporal 工作流中运行一个 Pydantic AI 代理时，Temporal 会自动记录每个步骤的状态，包括模型请求、工具调用、中间结果等。如果工作流中途中断，Temporal 能够从最后一个成功步骤继续执行。\n\n这种机制的关键在于确定性重放。Temporal 确保工作流代码在重放时产生完全相同的行为，这对于 AI 应用的可靠性至关重要。想象一下，如果重放时模型响应发生变化，整个工作流的结果就会不一致。",
-      "diagram": {
-        "title": "Temporal 工作流执行流程",
-        "chart": "graph TD\n    A[用户请求] --> B[Temporal 工作流启动]\n    B --> C[记录初始状态]\n    C --> D[执行 Pydantic AI 代理]\n    D --> E{是否中断?}\n    E -->|是| F[保存当前状态]\n    F --> G[等待恢复]\n    G --> D\n    E -->|否| H[完成工作流]\n    H --> I[返回最终结果]",
-        "description": "Temporal 工作流的容错执行流程，通过状态持久化和确定性重放确保可靠性"
-      }
-    },
-    {
-      "heading": "TemporalAgent：持久化代理的实现",
-      "content": "TemporalAgent 是 Pydantic AI 持久化执行的核心组件，它包装了普通的 AI 代理，为其添加了 Temporal 集成能力。这个包装器模式的设计非常巧妙，既保持了原有代理的接口一致性，又无缝添加了持久化功能。\n\n在初始化阶段，TemporalAgent 会为模型请求、工具调用等操作创建对应的 Temporal 活动（Activity）。这些活动是工作流中的原子操作单元，每个活动都有独立的配置和重试策略。例如，模型请求活动可以配置较长的超时时间，因为 LLM 调用可能比较耗时。\n\nTemporalAgent 的核心职责是状态序列化。它需要将运行上下文（RunContext）序列化为可持久化的格式，这样在活动执行时能够正确恢复状态。这包括依赖项（deps）、运行 ID、元数据等关键信息。",
+      "heading": "TemporalAgent 的实现原理",
+      "content": "Pydantic AI 的 TemporalAgent 是一个包装类，它将普通的 Agent 变成可以在 Temporal 工作流中使用的持久化代理。\n\n包装的核心工作是「IO 提取」——将原本在主流程中直接执行的模型请求、工具调用、MCP 服务器通信，全部转换成 Temporal 活动。\n\n这样，当工作流代码在 Temporal 中执行时，所有的 IO 操作都会被 Temporal 系统接管，实现自动的持久化和重试。",
       "code": {
-        "title": "TemporalAgent 关键初始化代码",
-        "description": "展示 TemporalAgent 如何包装普通代理并配置 Temporal 活动",
-        "code": "class TemporalAgent(WrapperAgent[AgentDepsT, OutputDataT]):\n    def __init__(self, wrapped: AbstractAgent[AgentDepsT, OutputDataT], *, name: str | None = None):\n        super().__init__(wrapped)\n        self._name = name\n        \n        # 配置基础活动参数\n        activity_config = activity_config or ActivityConfig(\n            start_to_close_timeout=timedelta(seconds=60)\n        )\n        \n        # 设置不可重试的错误类型\n        retry_policy.non_retryable_error_types = [\n            UserError.__name__, PydanticUserError.__name__\n        ]\n        \n        # 创建模型和工具集的活动包装器\n        self._temporal_model = TemporalModel(wrapped_model, activity_name_prefix)\n        self._toolsets = [toolset.visit_and_replace(temporalize_toolset)]",
+        "title": "TemporalAgent 创建模型活动",
+        "description": "TemporalModel 在初始化时将模型请求方法包装成 Temporal 活动。",
+        "code": "@activity.defn(name='{activity_name_prefix}__model_request')\nasync def request_activity(params: _RequestParams, deps: Any | None = None) -> ModelResponse:\n    run_context = deserialize_run_context(\n        self.run_context_type, params.serialized_run_context, deps=deps, agent=self._agent\n    )\n    model_for_request = self._resolve_model_id(params.model_id, run_context)\n    return await model_for_request.request(\n        params.messages,\n        cast(ModelSettings | None, params.model_settings),\n        params.model_request_parameters,\n    )",
         "language": "python",
-        "annotation": "TemporalAgent 在初始化时配置活动参数和重试策略，确保关键错误不会被错误重试"
+        "annotation": "模型请求被包装成单独的活动，每次调用都会被 Temporal 记录和追踪。"
+      },
+      "callout": {
+        "type": "info",
+        "text": "TemporalAgent 不会修改原始 Agent 的行为，它只是在 Temporal 工作流中时才启用持久化逻辑。在非 Temporal 环境中使用时，它表现得和普通 Agent 完全一样。"
       }
     },
     {
-      "heading": "容错机制与状态恢复",
-      "content": "持久化执行的核心价值体现在容错机制上。Pydantic AI 通过多层次的错误处理和状态恢复策略，确保工作流在各种异常情况下都能正确恢复。\n\n首先是错误分类机制。TemporalAgent 将错误分为可重试和不可重试两类。像网络超时、API 限流这类临时性错误会被自动重试，而用户输入错误、权限问题等逻辑错误则直接失败，避免无意义的重试。\n\n其次是状态序列化的健壮性。TemporalRunContext 负责将运行状态序列化为可持久化的字典格式。这个过程需要处理复杂的依赖对象，确保它们在序列化和反序列化后保持一致性。如果序列化失败，系统会给出明确的错误提示，帮助开发者定位问题。\n\n最后是工作流级别的恢复策略。当整个工作流中断时，Temporal 会从最后一个成功的事件开始重放。Pydantic AI 确保所有操作都是确定性的，这样重放就能产生完全相同的结果。",
+      "heading": "运行上下文序列化",
+      "content": "一个关键的问题是：工作流的状态如何传递给活动执行？\n\n因为活动执行在不同的进程中，我们需要序列化当前的运行上下文——包括依赖对象、元数据、重试计数等信息。\n\nPydantic AI 通过 TemporalRunContext 类来实现这个序列化和反序列化的过程。",
+      "code": {
+        "title": "运行上下文的序列化",
+        "description": "TemporalRunContext 将关键的运行状态提取为可序列化的字典。",
+        "code": "@classmethod\ndef serialize_run_context(cls, ctx: RunContext[Any]) -> dict[str, Any]:\n    return {\n        'run_id': ctx.run_id,\n        'metadata': ctx.metadata,\n        'retries': ctx.retries,\n        'tool_call_id': ctx.tool_call_id,\n        'tool_name': ctx.tool_name,\n        'tool_call_approved': ctx.tool_call_approved,\n        'tool_call_metadata': ctx.tool_call_metadata,\n        'retry': ctx.retry,\n        'max_retries': ctx.max_retries,\n        'run_step': ctx.run_step,\n        'usage': ctx.usage,\n    }",
+        "language": "python",
+        "annotation": "只有必要的、可序列化的状态会被保存。如果你需要在活动中访问自定义属性，可以创建 TemporalRunContext 的子类。"
+      }
+    },
+    {
+      "heading": "容错与重试机制",
+      "content": "持久化执行的真正价值在于自动的故障处理。\n\n当活动失败时，Temporal 会根据配置的重试策略自动重试；如果重试次数耗尽仍失败，工作流会进入失败状态并记录详细的错误信息。\n\n通过合理配置重试策略，可以处理暂时性的网络问题、服务限流、资源不足等情况，而不会导致整个任务失败。",
+      "callout": {
+        "type": "quote",
+        "text": "「分布式系统的本质是它会失败。持久化执行的核心不是避免失败，而是优雅地处理失败。」— Temporal 设计哲学"
+      },
       "table": {
-        "caption": "错误类型与处理策略对比",
-        "headers": ["错误类型", "示例", "处理策略", "重试次数"],
+        "caption": "可配置的重试策略",
+        "headers": ["策略", "作用", "典型场景"],
         "rows": [
-          ["网络错误", "API 超时、连接中断", "指数退避重试", "3-5次"],
-          ["限流错误", "Rate limit exceeded", "带延迟重试", "根据头部信息"],
-          ["逻辑错误", "无效输入、权限不足", "立即失败", "不重试"],
-          ["系统错误", "内存不足、进程崩溃", "工作流重启", "无限重试"]
+          ["非重试错误", "配置某些错误永不重试", "用户输入错误、权限不足"],
+          ["指数退避", "重试间隔逐渐增长", "API 限流、服务过载"],
+          ["最大重试次数", "限制重试总次数", "防止永久重试的死循环"],
+          ["超时时间", "单次活动和整体工作流的超时", "防止任务无限期挂起"]
         ]
       }
     },
     {
-      "heading": "实战比喻：可靠的快递服务",
-      "content": "理解持久化执行的最佳方式是通过一个生动的比喻：想象 Pydantic AI 的持久化执行就像一个高度可靠的快递服务系统。\n\n普通 AI 应用就像传统的邮递员——如果投递途中遇到问题（比如天气恶劣、车辆故障），邮件可能丢失，需要重新寄送。而 Pydantic AI 的持久化执行则像现代物流系统：每个包裹都有唯一的追踪号，配送中心记录每个节点的状态，即使运输中断，系统也知道包裹最后的位置，可以在条件恢复后继续配送。\n\nTemporal 工作流就像物流公司的调度系统，它不直接处理包裹，但协调整个配送流程。TemporalAgent 则是智能的配送员，它知道如何安全地处理各种类型的包裹（模型请求、工具调用），并在遇到问题时按照预定策略处理。\n\n这个比喻帮助我们理解为什么持久化执行如此重要：在关键的商业应用中，AI 工作流的可靠性直接关系到业务连续性。就像你不会把重要文件交给不可靠的快递公司一样，生产环境的 AI 应用也不能依赖脆弱的执行机制。",
+      "heading": "持久化执行就像可靠的快递服务",
+      "content": "可以用一个通俗的比喻来理解持久化执行：它就像一家可靠的快递公司。\n\n你下单寄送包裹后，快递公司会记录你的订单信息、寄件人和收件人地址。\n\n即便快递车在路上抛锚、快递员中途生病、仓库临时停电，快递公司都知道包裹当前在哪里。\n\n一旦问题解决，他们会从最后一个已知位置继续运送，而不是让你重新寄一遍。",
       "callout": {
         "type": "tip",
-        "text": "将持久化执行想象成可靠的物流系统：每个步骤都有追踪，中断后能从断点继续，确保『包裹』最终送达目的地。"
+        "text": "如果你的 AI 工作流涉及金钱交易、医疗诊断、法律文件处理等关键领域，持久化执行不是可选项，而是必需品。"
       }
     },
     {
-      "heading": "配置与最佳实践",
-      "content": "在实际使用 Pydantic AI 的持久化执行功能时，合理的配置至关重要。活动超时时间需要根据具体操作的特点来设置——模型请求可能需要几分钟，而简单的工具调用可能只需要几秒钟。\n\n工具集的配置尤其需要注意。每个工具集都需要有唯一的 ID，这样 Temporal 才能正确识别和管理对应的活动。对于不涉及 I/O 操作的纯计算工具，可以配置为不使用活动（activity_config=False），直接在工作流中执行以提高性能。\n\n另一个重要考虑是依赖对象的序列化。由于 Temporal 要求所有传递给活动的对象都必须是可序列化的，开发者需要确保依赖对象（deps）能够被 Pydantic 的 TypeAdapter 正确序列化。如果遇到序列化错误，通常需要检查依赖对象中是否包含了不可序列化的属性。\n\n最后，事件流处理器的配置需要特别注意。在 Temporal 工作流中，事件流处理器必须在代理创建时设置，不能在运行时动态修改。这是为了确保工作流重放时的事件处理一致性。",
+      "heading": "Prefect 和 DBOS 的替代方案",
+      "content": "虽然 Temporal 提供了最强大的持久化能力，但学习和部署成本相对较高。\n\nPrefect 提供了更 Pythonic 的体验，如果你熟悉 Python，几乎是零学习成本。\n\nDBOS 则专注于与 PostgreSQL 的深度集成，如果你的应用已经使用 PostgreSQL，DBOS 可以提供轻量级的持久化方案。",
       "code": {
-        "title": "配置持久化代理的最佳实践",
-        "description": "展示如何正确配置 TemporalAgent 的各项参数",
-        "code": "# 创建基础的持久化代理\nagent = TemporalAgent(\n    base_agent,\n    name=\"document-processor\",\n    activity_config=ActivityConfig(\n        start_to_close_timeout=timedelta(minutes=10)\n    ),\n    # 模型请求配置更长超时\n    model_activity_config=ActivityConfig(\n        start_to_close_timeout=timedelta(minutes=5)\n    ),\n    # 工具集特定配置\n    toolset_activity_config={\n        \"file-tools\": ActivityConfig(start_to_close_timeout=timedelta(seconds=30))\n    }\n)",
+        "title": "PrefectAgent 的简洁用法",
+        "description": "Prefect 可以用装饰器轻松实现持久化工作流。",
+        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.durable_exec.prefect import PrefectAgent\n\nagent = Agent('openai:gpt-4o')\nprefect_agent = PrefectAgent(agent, name='my-durable-agent')\n\n@prefect_agent.run_sync.flow(name='my-agent-flow')\ndef my_flow(user_prompt: str):\n    return prefect_agent.run_sync(user_prompt)",
         "language": "python",
-        "annotation": "合理的超时配置是持久化执行可靠性的关键，需要根据操作类型设置不同的超时时间"
+        "annotation": "Prefect 将整个 Agent 运行过程包装成一个 Flow，自动处理状态保存和恢复。"
+      }
+    },
+    {
+      "heading": "实践建议",
+      "content": "在选择和使用持久化执行时，有几个实际考虑因素。\n\n首先是性能开销：持久化执行会增加额外的序列化和存储成本，对于简单的单次调用可能不值得。\n\n其次是复杂度管理：持久化工作流的调试比普通程序更复杂，需要理解框架的工作原理。\n\n最后是错误处理策略：合理区分可重试错误和不可重试错误，避免无限重试浪费资源。",
+      "callout": {
+        "type": "warning",
+        "text": "并非所有 AI 应用都需要持久化执行。简单的问答机器人、一次性分析任务可能反而会因此增加不必要的复杂度。持久化执行最适合多步骤、长时间、涉及外部系统的复杂工作流。"
       }
     }
   ],
   "key_takeaways": [
-    "持久化执行通过状态持久化和确定性重放，让 AI 工作流具备企业级可靠性",
-    "TemporalAgent 采用包装器模式，无缝为现有代理添加持久化能力，保持接口一致性",
-    "错误分类和智能重试策略确保临时性错误自动恢复，逻辑性错误快速失败",
-    "合理的活动配置（超时时间、重试策略）是保证持久化执行性能的关键",
-    "依赖对象的可序列化是使用持久化执行的前提条件，需要提前验证"
+    "持久化执行通过状态保存和断点续传机制，让 AI 工作流能够应对各种故障场景，实现真正的企业级可靠性。",
+    "Pydantic AI 支持三种持久化框架：Temporal（最强容错性）、Prefect（最pythonic）、DBOS（轻量级），根据项目需求灵活选择。",
+    "TemporalAgent 的核心是「IO 提取」——将模型请求、工具调用等 IO 操作转换为持久化的活动，保持工作流代码的确定性。",
+    "运行上下文序列化是连接工作流和活动的桥梁，通过 TemporalRunContext 将关键状态在不同进程间传递。",
+    "优秀的持久化策略需要合理配置重试策略、区分可重试错误和不可重试错误，避免无效重试浪费资源。"
   ],
   "further_thinking": [
-    "如果让你设计一个需要处理金融交易的 AI 工作流，你会如何利用持久化执行确保交易的安全性？",
-    "在微服务架构中，持久化执行如何与现有的服务发现、负载均衡机制协同工作？"
+    "如果你的 AI 代理工作流涉及多个代理协作，如何设计持久化策略来协调多个代理的执行和状态同步？",
+    "在成本敏感的场景下，如何平衡持久化的可靠性和额外的存储与执行开销？是否有「混合模式」——关键步骤持久化、非关键步骤不持久化的最佳实践？"
   ],
   "analogies": [
-    "持久化执行就像可靠的快递服务：每个步骤都有追踪，中断后能从断点继续",
-    "Temporal 工作流如同物流调度系统，协调整个配送流程但不直接处理包裹"
+    "持久化执行就像可靠的快递服务：记录每一步位置，遇到问题时从断点继续，而不是重新开始。",
+    "持久化工作流就像自动取款机的转账操作：即使过程中断，系统也能记录状态，确保要么交易完成，要么原路退款，绝不会有中间状态。"
   ],
-  "mermaid_diagrams": ["Temporal 工作流执行流程"],
-  "code_snippets": ["TemporalAgent 关键初始化代码", "配置持久化代理的最佳实践"],
-  "word_count": 3850,
-  "prerequisites": ["ch10-human-in-the-loop"]
+  "mermaid_diagrams": [],
+  "code_snippets": [],
+  "word_count": 4200,
+  "prerequisites": [
+    "ch04-model",
+    "ch05-tools",
+    "ch06-mcp"
+  ]
 }
