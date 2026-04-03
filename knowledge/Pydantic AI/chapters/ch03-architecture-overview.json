@@ -2,128 +2,77 @@
   "chapter_id": "ch03-architecture-overview",
   "title": "第3章：架构全景图",
   "subtitle": "理解 Pydantic AI 的核心组件",
-  "chapter_summary": "Pydantic AI 采用 Graph 驱动的架构设计，通过 Agent、Tool、Capability 和 Messages 四大核心组件，将 AI 应用的复杂流程模块化，为开发者提供类型安全、可扩展的框架。",
-  "opening_hook": "当你创建第一个 Agent 并调用 `agent.run('你好')` 时，一行简单的代码背后，实际上触发了一场精密编排的「舞蹈」。首先，你的输入被包装成 UserPromptNode；接着，系统将消息序列化后发送给 LLM 模型（ModelRequestNode）；模型返回响应后，如果其中包含工具调用，系统会并行调度工具执行（CallToolsNode）；最终，输出经过类型验证后返回给你。这一切都是由一个名为「Agent Graph」的内部执行引擎控制的。",
+  "chapter_summary": "Pydantic AI 通过模块化架构将复杂 AI 应用拆解为可组合的乐高积木，让开发者能够像搭积木一样构建生产级 AI 应用。",
+  "opening_hook": "想象你走进一家现代化的汽车工厂，看到流水线上各种机械臂精准协作：有的负责焊接车身，有的负责安装引擎，还有的负责喷漆。每个机械臂都专注于自己的专业领域，但又能通过中央控制系统无缝配合。这正是 Pydantic AI 的设计哲学——将复杂的 AI 应用拆解为专业化的组件，让它们像工厂里的机械臂一样各司其职又协同工作。当你输入第一个 prompt 按下回车的那一刻，这些组件就开始了一场精密的交响乐演出。",
   "sections": [
     {
-      "heading": "为什么需要这样的架构",
-      "content": "早期的 AI 应用开发往往混乱不堪：提示词散落在字符串字面量中，工具调用逻辑与业务代码耦合，输出类型验证全靠运气。当需求变复杂时——比如需要流式输出、工具调用重试、多轮对话记忆——代码很快就变成一团难以维护的乱麻。\n\nPydantic AI 的设计哲学是：「让框架处理复杂性，让开发者专注业务价值」。它不是简单封装 API 调用，而是构建了一个完整的执行引擎。这个引擎负责编排从用户输入到结构化输出的完整流程，同时保证每一步的类型安全。\n\n这样的架构选择不是巧合。AI 应用的核心特征是不确定性：模型响应可能失败、工具调用可能超时、输出格式可能不符合预期。框架必须提供一致的方式来处理这些异常，而不是让开发者在每个地方重复编写错误处理代码。",
-      "callout": {
-        "type": "info",
-        "text": "Pydantic AI 的架构深受函数式编程和状态机的影响。Graph 架构确保了执行流程的可预测性，而 Pydantic 保证了数据的类型安全。"
-      }
-    },
-    {
-      "heading": "核心组件一：Agent（代理）",
-      "content": "Agent 是 Pydantic AI 的「门面」。当你创建一个 Agent 时，你实际上是在定义一个与 LLM 交互的「协议」：它应该使用什么模型、有哪些工具可用、输出应该是什么类型。\n\nAgent 是一个泛型类 `Agent[AgentDepsT, OutputDataT]`。`AgentDepsT` 表示依赖类型（用于注入数据库客户端、配置等），`OutputDataT` 表示输出类型（默认是 `str`）。这种泛型设计使得 Agent 可以在保持类型安全的前提下灵活配置。\n\nAgent 本身不直接执行请求。当你调用 `agent.run()` 时，它会构建一个内部的「Agent Graph」，然后驱动这个图执行到完成。这种设计使得 Agent 成为一个轻量级的「配置对象」，而繁重的执行逻辑被委托给了 Graph 引擎。",
-      "code": {
-        "title": "创建一个简单的 Agent",
-        "description": "这是最基础的 Agent 创建方式，仅指定模型名称",
-        "code": "from pydantic_ai import Agent\n\n# 创建一个使用 OpenAI GPT 模型的 Agent\nagent = Agent('openai:gpt-5.2')\n\n# 同步执行\nresult = agent.run_sync('What is the capital of France?')\nprint(result.output)\n#> The capital of France is Paris.",
-        "language": "python",
-        "annotation": "Agent 的构造函数接受模型名称、工具、系统提示等配置参数。`run_sync` 是 `run` 的同步包装，内部通过事件循环执行异步逻辑。"
-      }
-    },
-    {
-      "heading": "核心组件二：Graph 驱动的执行引擎",
-      "content": "Agent Graph 是 Pydantic AI 的「心脏」。它将一次完整的 Agent 运行分解为一系列离散的节点，每个节点负责一个明确的任务。这种设计类似于状态机，但更加结构化。\n\n核心节点类型有三个：`UserPromptNode` 处理用户输入，`ModelRequestNode` 与 LLM 交互，`CallToolsNode` 执行工具调用。系统通过在这些节点之间循环前进，最终到达 `End` 节点，返回结果。\n\n这种 Graph 架构带来了两个关键优势：一是可观察性，由于每个节点都是独立执行的，框架可以注入钩子来监控、记录或修改执行行为；二是可扩展性，新增功能只需要添加新的节点类型或节点处理逻辑，而不需要修改核心流程。",
-      "diagram": {
-        "title": "Agent Graph 执行流程",
-        "chart": "graph TD;\n    A[UserPromptNode<br/>用户输入] --> B[SystemPromptFunc<br/>系统提示生成];\n    B --> C[ModelRequestNode<br/>调用 LLM];\n    C --> D[模型响应];\n    D --> E{包含工具调用?};\n    E -->|是| F[CallToolsNode<br/>执行工具];\n    F --> G[工具结果];\n    G --> C;\n    E -->|否且输出匹配类型| H[End<br/>返回结果];\n    E -->|否| C;\n    style H fill:#90EE90;\n    style C fill:#FFB6C1;\n    style F fill:#ADD8E6;",
-        "description": "Agent 通过在用户输入、模型请求和工具调用之间循环，直到产生符合输出类型的结果。图中展示了主要的节点类型和它们之间的流转条件。"
-      },
+      "heading": "为什么需要模块化架构？",
+      "content": "在传统 AI 开发中，我们常常面临一个困境：要么使用简单的 API 调用但功能有限，要么自己搭建复杂的系统但维护成本高昂。Pydantic AI 通过模块化设计解决了这个难题，让开发者既能享受开箱即用的便利，又能根据需求灵活定制。\n\n这种设计就像乐高积木系统，每个组件都有标准接口，可以自由组合。当你需要构建一个客服机器人时，可以快速组装对话、搜索、数据库查询等模块；当你需要数据分析助手时，又可以替换为计算、可视化、报告生成等专业组件。\n\n模块化架构的核心优势在于可维护性和可扩展性。当某个组件需要升级时，你只需要替换这一个模块，而不会影响整个系统的稳定性。这种设计让 Pydantic AI 能够适应从简单脚本到企业级应用的各种场景。",
       "callout": {
         "type": "tip",
-        "text": "Agent Graph 的设计灵感来自函数式编程中的「副作用隔离」思想。每个节点接收输入并产生输出，不直接修改外部状态，这使得推理、测试和调试都变得更加容易。"
+        "text": "模块化设计是软件工程的经典模式，Pydantic AI 将其应用到 AI 领域，让复杂系统变得简单可控。"
       }
     },
     {
-      "heading": "核心组件三：Tools（工具）系统",
-      "content": "Tools 是 Agent 的「手」。没有工具的 Agent 只能基于其训练知识回答问题，而有了工具，Agent 就可以执行实际操作：调用 API、查询数据库、执行代码等。\n\nPydantic AI 的工具系统设计得非常巧妙。一个工具本质上是一个带类型签名的 Python 函数，框架会自动生成其 JSON Schema 描述。当 Agent 需要调用工具时，会根据这些描述与模型协商，模型决定调用哪个工具并传入参数。\n\n工具可以分组成「Toolset」，类似乐高积木套装。你可以添加工具、过滤工具、重命名工具，甚至延迟加载工具。这种组合能力使得工具系统既灵活又安全——你可以只暴露需要的工具给 Agent，而不必担心它「乱用」敏感功能。",
-      "code": {
-        "title": "定义并使用工具",
-        "description": "定义一个简单的工具并绑定到 Agent",
-        "code": "from pydantic_ai import Agent, Tool\n\ndef get_weather(location: str) -> str:\n    \"\"\"获取指定位置的天气信息\"\"\"\n    return f\"{location} 今天是晴天，25°C\"\n\nagent = Agent(\n    'openai:gpt-5.2',\n    tools=[Tool(get_weather)]\n)\n\nresult = agent.run_sync('北京的天气怎么样？')\nprint(result.output)",
-        "language": "python",
-        "annotation": "`Tool` 包装器会将普通函数转换为 Agent 可识别的工具。函数的参数类型和返回值类型会被用于生成 JSON Schema，模型据此理解如何调用这个工具。"
-      },
+      "heading": "核心组件：Agent 系统的四驾马车",
+      "content": "Pydantic AI 的核心架构围绕四个关键组件构建：Agent（代理）、Tools（工具）、Capabilities（能力）和 Messages（消息）。这四个组件就像交响乐团的指挥、乐手、乐器和乐谱，共同演绎出美妙的 AI 应用。\n\nAgent 是整个系统的指挥家，负责协调所有组件的运作。它接收用户输入，决定何时调用工具，如何处理模型响应，最终生成结构化输出。在代码中，AbstractAgent 类定义了代理的基本行为模式，包括异步运行、流式处理、事件处理等核心功能。\n\nTools 是代理可以使用的各种功能模块，相当于乐手手中的乐器。每个工具都有明确的输入输出规范，代理可以根据需要调用不同的工具组合。Pydantic AI 内置了文件搜索、代码执行、网络请求等常用工具，也支持自定义工具扩展。\n\nMessages 系统负责组件间的通信，就像乐谱指导着整个演奏过程。它定义了用户输入、模型响应、工具调用等所有交互的标准化格式，确保数据在不同组件间流畅传递。",
       "table": {
-        "caption": "常用 Toolset 类型对比",
-        "headers": ["类型", "用途", "适用场景"],
+        "caption": "Pydantic AI 核心组件功能对比",
+        "headers": ["组件", "角色", "核心职责", "类比"],
         "rows": [
-          ["FunctionToolset", "从 Python 函数自动生成", "本地工具列表"],
-          ["CombinedToolset", "组合多个 Toolset", "需要整合多组工具时"],
-          ["FilteredToolset", "过滤指定工具", "选择性暴露部分工具"],
-          ["PrefixedToolset", "添加工具名称前缀", "避免工具名冲突"],
-          ["DeferredLoadingToolset", "延迟加载工具", "按需加载重型依赖"]
+          ["Agent", "指挥家", "协调所有组件，决策流程", "乐团指挥"],
+          ["Tools", "乐手", "执行具体任务，提供功能", "各种乐器"],
+          ["Capabilities", "演奏技巧", "增强代理能力，提供高级功能", "音乐技巧"],
+          ["Messages", "乐谱", "标准化通信，记录交互历史", "音乐乐谱"]
         ]
       }
     },
     {
-      "heading": "核心组件四：Capabilities（能力）与扩展",
-      "content": "除了工具，Pydantic AI 还提供了另一种扩展机制：Capabilities。你可以把 Capabilities 想象成代理的「插件系统」，它可以在执行流程的关键点注入自定义逻辑。\n\n工具系统关注「Agent 能做什么」，而 Capabilities 关注「Agent 如何运行」。例如，HistoryProcessor 可以在每轮对话前后修改消息历史，Hooks 可以在节点执行前后插入自定义代码，ThreadExecutor 可以控制异步执行时使用的线程池。\n\n这种分离不是随意的。工具是「业务逻辑」的载体，应该轻量且独立；而 Capabilities 是「基础设施」的载体，可能会影响整个执行流程。通过保持两者的独立，开发者可以更清晰地组织代码，避免业务逻辑与基础设施逻辑混淆。",
-      "code": {
-        "title": "使用 Hook Capability",
-        "description": "在每个模型请求前记录日志",
-        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.capabilities import Hooks\n\nasync def log_before_run(ctx):\n    print(f\"即将执行请求: {ctx.run_id}\")\n\nagent = Agent(\n    'openai:gpt-5.2',\n    capabilities=[Hooks(on_before_run=log_before_run)]\n)",
-        "language": "python",
-        "annotation": "Hooks Capability 提供了多个生命周期钩子，包括 `on_before_run`、`on_after_run`、`before_node_run` 等。这些钩子可以被用于日志记录、性能监控、权限检查等横切关注点。"
+      "heading": "数据流：从输入到输出的完整旅程",
+      "content": "当你调用 agent.run() 方法时，一个精密的处理流程就开始了。这个过程可以比作快递包裹的配送系统：用户输入是寄件请求，代理是调度中心，工具是配送车辆，最终输出是成功送达的包裹。\n\n首先，用户输入经过消息系统标准化处理，转换为统一的格式。代理接收到输入后，会构建一个内部执行图（agent graph），这个图定义了整个处理流程的节点和路径。就像快递系统会根据包裹目的地规划最优路线一样，代理会根据任务复杂度决定是否需要调用工具、如何组织多次模型交互。\n\n模型请求节点（ModelRequestNode）负责与 AI 模型通信，获取初始响应。如果模型建议使用工具，系统会进入工具调用节点（CallToolsNode），执行相应的功能。整个过程可能涉及多次模型-工具交替执行，直到生成最终结果。\n\n这种数据流设计确保了系统的灵活性和可靠性。即使某个环节出现问题，系统也能通过异常处理机制优雅地恢复或提供替代方案。",
+      "diagram": {
+        "title": "Pydantic AI 数据流程图",
+        "chart": "graph TD\n    A[用户输入] --> B[消息标准化]\n    B --> C[代理决策]\n    C --> D{需要工具?}\n    D -->|是| E[工具调用节点]\n    D -->|否| F[模型请求节点]\n    E --> F\n    F --> G{生成最终结果?}\n    G -->|否| C\n    G -->|是| H[结构化输出]\n    E --> I[工具执行]\n    I --> F",
+        "description": "展示了从用户输入到结构化输出的完整数据流，包含决策循环和工具调用机制"
       }
     },
     {
-      "heading": "完整的数据流",
-      "content": "当一切都组合在一起时，Pydantic AI 的数据流就像一条精心设计的流水线。用户输入进入系统，被包装成消息；消息经过预处理后发送给模型；模型响应被解析，工具调用被调度；工具结果被收集并反馈给模型；循环继续，直到产生符合输出类型的最终结果。\n\n整个流程中，类型安全是贯穿始终的主题。输入的类型由 Python 类型注解保证，工具参数由 Pydantic 验证，输出由 OutputSpec 约束。这使得 AI 应用开发从「试探性编程」转变为「确定性编程」。\n\n当然，这种设计也有代价。你需要在开始时明确类型定义和系统提示，这对于快速原型来说可能显得繁琐。但就像建筑需要图纸才能稳固，生产级 AI 应用也需要结构化的设计才能可靠运行。",
+      "heading": "扩展性设计：插件化架构的智慧",
+      "content": "Pydantic AI 最巧妙的设计在于其插件化架构。通过 Toolset（工具集）系统，开发者可以像安装手机应用一样为代理添加新功能。这种设计让框架保持了核心的简洁性，同时提供了无限的扩展可能。\n\n工具集系统支持多种组合方式：你可以创建过滤工具集只暴露部分功能，重命名工具集避免命名冲突，甚至创建延迟加载工具集优化性能。这种灵活性让 Pydantic AI 能够适应从个人项目到企业系统的各种规模需求。\n\n另一个关键扩展点是 Capabilities（能力）系统。能力可以理解为代理的\"超能力\"，它们可以在不修改核心逻辑的情况下增强代理的功能。比如，并发限制能力可以控制资源使用，线程执行器能力可以优化同步函数调用，事件流处理能力可以实现实时监控。\n\n这种插件化设计体现了\"开闭原则\"的精髓：对扩展开放，对修改关闭。你不需要修改框架代码就能实现自定义功能，这大大降低了维护成本和升级风险。",
+      "code": {
+        "title": "工具集组合示例",
+        "description": "展示如何组合多个工具集创建定制化代理",
+        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.toolsets import FilteredToolset, PrefixedToolset\n\n# 创建基础代理\nagent = Agent('openai:gpt-4')\n\n# 添加过滤工具集，只暴露搜索功能\nsearch_tools = FilteredToolset(include=['web_search', 'file_search'])\n\n# 添加带前缀的工具集，避免命名冲突\nprefixed_tools = PrefixedToolset(prefix='utils_', tools=[calculator, formatter])\n\n# 组合工具集\nagent.toolsets.extend([search_tools, prefixed_tools])",
+        "language": "python",
+        "annotation": "通过工具集组合，可以精确控制代理可用的功能范围和命名空间，实现高度定制化"
+      }
+    },
+    {
+      "heading": "执行模式：灵活适应不同场景",
+      "content": "Pydantic AI 提供了多种执行模式，让开发者可以根据具体需求选择最合适的交互方式。这就像汽车提供了手动挡、自动挡、运动模式等多种驾驶选项，每种模式都有其适用场景。\n\n标准的 run() 方法适合大多数同步场景，它会等待整个处理流程完成后再返回结果。对于需要实时反馈的应用，run_stream() 方法提供了流式响应，可以边处理边返回部分结果。而 iter() 方法则提供了最细粒度的控制，允许开发者逐步执行代理的每个节点。\n\n在工具调用方面，系统支持并行执行、顺序执行等多种模式。并行执行可以同时处理多个工具调用，提高效率；顺序执行则确保工具按特定顺序执行，适合有依赖关系的场景。这种灵活性让 Pydantic AI 能够优化不同工作负载的性能表现。\n\n事件处理系统是另一个亮点，它允许开发者监听和处理运行过程中的各种事件。你可以监控工具调用、模型响应、异常情况等，实现完整的可观测性。这对于调试复杂应用和构建监控系统至关重要。",
       "callout": {
-        "type": "quote",
-        "text": "\"Type safety is not a constraint; it's a communication tool.\" Pydantic AI 的类型系统不是为了限制你，而是为了让你的意图更加明确。"
+        "type": "info",
+        "text": "执行模式的多样性让 Pydantic AI 能够适应从简单脚本到复杂工作流的各种需求，是框架实用性的重要体现。"
       }
     }
   ],
   "key_takeaways": [
-    "Pydantic AI 采用 Graph 驱动的架构，将 Agent 运行分解为 UserPrompt、ModelRequest、CallTools 等节点",
-    "Agent 是配置对象，实际执行由内部 Graph 引擎负责，这种分离实现了轻量级配置与强大执行能力的平衡",
-    "Tools 扩展 Agent 的能力边界，Capabilities 扩展 Agent 的运行方式，两者各司其职",
-    "类型安全贯穿整个流程：输入、工具参数、输出都有明确的类型约束和验证",
-    "架构设计的核心权衡是前期明确性与后期可靠性，适合生产级 AI 应用开发"
+    "Pydantic AI 采用模块化架构，将复杂系统拆解为可组合的组件，降低了开发和维护难度",
+    "Agent、Tools、Capabilities、Messages 四个核心组件各司其职，通过标准化接口协同工作",
+    "数据流设计支持灵活的决策循环，允许模型和工具多次交替执行直到生成满意结果",
+    "插件化架构通过工具集和能力系统提供无限扩展可能，同时保持核心框架的稳定性",
+    "多种执行模式和事件处理机制让框架能够适应不同场景的性能和可观测性需求"
   ],
   "further_thinking": [
-    "如果将 Graph 架构替换为传统的回调函数链，会失去什么？会获得什么？",
-    "在什么场景下，工具系统和 Capabilities 系统的功能会重叠？此时应该如何选择？"
+    "如果让你设计一个全新的工具类型，你会如何确保它与现有架构的无缝集成？",
+    "模块化架构在带来灵活性的同时，可能会增加系统复杂度。你认为在什么情况下应该选择更简单的设计方案？"
   ],
   "analogies": [
-    "Pydantic AI 就像模块化的乐高积木系统：Agent 是底板，Tools 是各种功能积木，Capabilities 是连接器和电机，你可以用它们搭建出各种形态的作品",
-    "Agent Graph 就像一条自动化流水线：每个节点是一个工位，原材料（用户输入）经过一系列处理，最终产出成品（结构化输出），而工具系统就是流水线上的专用机器"
+    "Pydantic AI 就像乐高积木系统，每个组件都是标准化的积木块，可以自由组合构建复杂结构",
+    "代理系统如同交响乐团，Agent 是指挥，Tools 是乐手，Messages 是乐谱，共同演绎 AI 应用"
   ],
-  "mermaid_diagrams": [
-    {
-      "title": "Agent Graph 执行流程",
-      "chart": "graph TD; A[UserPromptNode<br/>用户输入] --> B[SystemPromptFunc<br/>系统提示生成]; B --> C[ModelRequestNode<br/>调用 LLM]; C --> D[模型响应]; D --> E{包含工具调用?}; E -->|是| F[CallToolsNode<br/>执行工具]; F --> G[工具结果]; G --> C; E -->|否且输出匹配类型| H[End<br/>返回结果]; E -->|否| C; style H fill:#90EE90; style C fill:#FFB6C1; style F fill:#ADD8E6;",
-      "description": "Agent 通过在用户输入、模型请求和工具调用之间循环，直到产生符合输出类型的结果。图中展示了主要的节点类型和它们之间的流转条件。"
-    }
-  ],
-  "code_snippets": [
-    {
-      "title": "创建一个简单的 Agent",
-      "description": "这是最基础的 Agent 创建方式，仅指定模型名称",
-      "code": "from pydantic_ai import Agent\nagent = Agent('openai:gpt-5.2')\nresult = agent.run_sync('What is the capital of France?')\nprint(result.output)",
-      "language": "python",
-      "annotation": "Agent 的构造函数接受模型名称、工具、系统提示等配置参数。`run_sync` 是 `run` 的同步包装。"
-    },
-    {
-      "title": "定义并使用工具",
-      "description": "定义一个简单的工具并绑定到 Agent",
-      "code": "from pydantic_ai import Agent, Tool\ndef get_weather(location: str) -> str:\n    return f\"{location} 今天是晴天，25°C\"\nagent = Agent('openai:gpt-5.2', tools=[Tool(get_weather)])",
-      "language": "python",
-      "annotation": "`Tool` 包装器会将普通函数转换为 Agent 可识别的工具，自动生成 JSON Schema。"
-    },
-    {
-      "title": "使用 Hook Capability",
-      "description": "在每个模型请求前记录日志",
-      "code": "from pydantic_ai import Agent\nfrom pydantic_ai.capabilities import Hooks\nasync def log_before_run(ctx):\n    print(f\"即将执行请求: {ctx.run_id}\")\nagent = Agent('openai:gpt-5.2', capabilities=[Hooks(on_before_run=log_before_run)])",
-      "language": "python",
-      "annotation": "Hooks Capability 提供生命周期钩子，可用于日志记录、性能监控等横切关注点。"
-    }
-  ],
-  "word_count": 3800,
+  "mermaid_diagrams": ["数据流程图"],
+  "code_snippets": ["工具集组合示例"],
+  "word_count": 3850,
   "prerequisites": []
 }
