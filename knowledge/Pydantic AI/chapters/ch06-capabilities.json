@@ -1,0 +1,102 @@
+{
+  "chapter_id": "ch06-capabilities",
+  "title": "第6章：能力系统",
+  "subtitle": "可组合的功能模块",
+  "chapter_summary": "能力系统将代理的复杂行为拆解为可组合、可复用的功能模块，通过抽象基类和钩子机制实现了插件化的代理架构。",
+  "opening_hook": "想象你正在构建一个全能型 AI 助手：它需要能够深入思考复杂问题、搜索实时网络信息、调用外部工具、记忆历史对话……如果把所有这些功能都硬编码在 Agent 类中，代码会变得多么臃肿？就像一个瑞士军刀，如果把所有功能模块都直接焊在刀身上，那它就失去了扩展性——你想加个新功能，就得重新制造整把刀。Pydantic AI 的能力系统就像一把真正的模块化工具：每种能力是独立的「功能插件」，可以按需组装、随时替换。这就是代理的「插件化」革命。",
+  "sections": [
+    {
+      "heading": "从工具到能力：模块化的演进",
+      "content": "在早期的 AI 应用开发中，开发者面临着两难困境：要么把所有功能写死在代理里，要么通过大量条件分支和配置来实现差异化。这两种方式都不优雅——前者让代码难以维护，后者让扩展变得复杂。\n\nPydantic AI 引入了「能力」概念来解决这个难题。能力是一种可复用、可组合的代理行为单元。它不只是一个简单的工具，而是一个能提供指令、模型设置、工具集合和生命周期钩子的完整功能模块。\n\n这就像现代 IDE 的插件系统：每个插件是一个自包含的功能包——可以提供新的菜单项、修改编辑器行为、注册快捷键。能力系统让 Agent 成为一个可配置的「平台」，而各种具体功能通过能力来提供。\n\n这种设计带来的好处是显而易见的：开发者可以像搭积木一样组合能力，每个能力专注于单一职责，代码的测试、维护和复用都变得简单。",
+      "callout": {
+        "type": "tip",
+        "text": "能力和工具不是同一个东西。工具是代理可以调用的具体函数或服务，而能力是更上层的功能模块——它可以包含多个工具、系统提示词、模型配置，甚至整个代理的行为逻辑。"
+      }
+    },
+    {
+      "heading": "内置能力：开箱即用的功能",
+      "content": "Pydantic AI 提供了丰富的内置能力，开发者可以直接使用，无需从零开始实现。这些能力覆盖了最常见的 AI 应用场景，大大降低了开发门槛。\n\nThinking 能力是代理的「深度思考」开关。它允许你配置模型的推理强度，从快速肤浅的回答（False 或 'minimal'）到深思熟虑的分析（'high' 或 'xhigh'）。Think silently 模式下，模型会在给出回答前先进行内部推理，这个过程对用户不可见，但能显著提升复杂任务的回答质量。\n\nWebSearch 能力让代理获取实时信息。它采用「智能回退」策略：优先使用模型的内置搜索功能（如 Claude 的 Computer Use 或 OpenAI 的 Browse），当模型不支持时自动回退到本地搜索工具（如 DuckDuckGo）。开发者还可以控制搜索上下文大小、用户地理位置、域名白名单等一系列细节。\n\n除了这两个常用能力，Pydantic AI 还提供了 MCP（Model Context Protocol）用于连接外部工具集、ImageGeneration 用于图像生成、HistoryProcessor 用于对话历史处理等等。这些都是经过生产验证的功能模块，开箱即用。",
+      "table": {
+        "caption": "常用内置能力对比",
+        "headers": ["能力", "功能", "典型用途"],
+        "rows": [
+          ["Thinking", "控制模型推理强度", "复杂问题分析、代码审查、逻辑推理"],
+          ["WebSearch", "实时网络搜索", "新闻摘要、实时数据查询、趋势分析"],
+          ["MCP", "连接外部工具集", "企业系统集成、第三方服务调用"],
+          ["ImageGeneration", "图像生成", "创意设计、可视化说明、内容创作"]
+        ]
+      }
+    },
+    {
+      "heading": "能力的抽象设计：AbstractCapability",
+      "content": "所有能力都继承自 AbstractCapability 抽象基类，这个基类定义了能力与代理交互的完整协议。理解这个基类，就掌握了能力系统的核心。\n\n能力在代理构造时被传入，此时大多数 get_* 方法会被调用来收集静态配置——包括系统指令（get_instructions）、模型设置（get_model_settings）、工具集（get_toolset）等。这些配置在代理生命早期就被确定，为后续的运行奠定基础。\n\n但真正让能力强大的，是它的生命周期钩子系统。代理在运行的各个阶段——整个运行开始、每个节点执行、每次模型请求、每次工具调用——都会调用对应的能力钩子。能力可以通过这些钩子观察运行状态、修改中间数据，甚至改变控制流。\n\n这种设计让能力不仅仅是「提供功能」，更像是「中间件」——插在代理执行的各个环节中，可以对运行过程进行细粒度的控制。开发者可以组合多个能力，它们按注册顺序依次执行钩子，形成强大的行为链条。",
+      "diagram": {
+        "title": "能力生命周期钩子执行流程",
+        "chart": "graph TD\n    A[Agent 构造] --> B[调用 get_instructions/get_model_settings]\n    B --> C[调用 get_toolset/get_builtin_tools]\n    C --> D[agent.run 调用]\n    D --> E[before_run 钩子]\n    E --> F[for_run 创建运行时实例]\n    F --> G[每个图节点: before_node_run]\n    G --> H[模型请求: before_model_request]\n    H --> I[模型调用]\n    I --> J[after_model_request]\n    J --> K[工具调用: before_tool_validate]\n    K --> L[after_tool_execute]\n    L --> M[after_node_run]\n    M --> N[after_run]",
+        "description": "展示了从 Agent 构造到运行完成的完整生命周期，以及各个阶段调用的能力钩子"
+      }
+    },
+    {
+      "heading": "钩子系统：拦截和注入的艺术",
+      "content": "钩子机制是能力系统最强大的特性。它分为两类：before/after 钩子用于观察或修改特定阶段的数据，wrap 钩子用于包裹整个操作以改变执行流程。\n\nbefore/after 钩子是最基础的形式。当代理执行某个操作前，会调用 before_* 钩子，能力可以查看或修改即将使用的参数；操作完成后，after_* 钩子被调用，能力可以检查结果或进行后处理。比如 before_model_request 可以修改发送给模型的消息列表，after_model_request 可以审查模型的回答内容。\n\nwrap 钩子则让能力完全掌握操作的控制权。代理会将实际执行器传给 wrap 方法，能力可以选择：调用执行器让原操作正常进行、调用多次实现重试、直接返回结果跳过执行，或者抛出异常中断流程。这使得能力可以实现复杂的行为，如请求重试、缓存、限流等。\n\n错误处理钩子是钩子系统的重要组成部分。当某个阶段发生错误时，对应的 on_*_error 钩子会被调用。能力可以选择恢复错误并继续、或者传播错误让代理失败。这让开发者可以优雅地处理各种异常情况，比如在模型请求失败时自动重试、在工具执行超时时返回替代结果。",
+      "code": {
+        "title": "钩子方法签名示例",
+        "description": "展示了能力钩子系统的核心方法，包括请求前后的钩子和包裹式钩子",
+        "code": "from abc import ABC, abstractmethod\n\nclass AbstractCapability:\n    # 观察式钩子\n    async def before_model_request(self, ctx, request_context):\n        return request_context  # 可以修改请求上下文\n    \n    async def after_model_request(self, ctx, *, request_context, response):\n        return response  # 可以修改模型响应\n    \n    # 包裹式钩子\n    async def wrap_model_request(self, ctx, *, request_context, handler):\n        # 可以在这里实现重试、缓存等逻辑\n        return await handler(request_context)",
+        "language": "python",
+        "annotation": "before/after 钩子用于简单的参数修改和结果处理，wrap 钩子则提供了更强大的控制能力，可以完全改变执行流程"
+      },
+      "callout": {
+        "type": "warning",
+        "text": "wrap 钩子的性能开销可能较大，因为每次调用都会增加额外的异步操作。在性能敏感的场景下，优先考虑使用 before/after 钩子，只在必要时才使用 wrap 钩子。"
+      }
+    },
+    {
+      "heading": "自定义能力：扩展你的第一个插件",
+      "content": "创建自定义能力是理解能力系统的最佳方式。通过继承 AbstractCapability，你可以定义自己的功能模块，并让代理在多个层次上与它交互。\n\n最简单的自定义能力只需要提供一个工具。通过重写 get_toolset 方法，你可以返回一个包含自定义工具的工具集，代理就能识别并调用这些工具。这种方式让工具的注册和管理变得声明式，开发者不需要关心内部细节。\n\n进阶的自定义能力可以使用钩子来实现更复杂的行为。比如，你可以创建一个 RateLimiter 能力，在 before_model_request 中检查请求频率，在超出限制时抛出异常；或者创建一个 Logger 能力，在所有 after_* 钩子中记录运行日志用于审计和分析。\n\n能力还可以组合使用。通过 AbstractCapability 的 prefix_tools 方法，你可以为一个能力中的工具添加统一前缀，避免命名冲突。而 CombinedCapability 则允许你将多个能力打包在一起，形成更高层次的功能集合。这意味着你可以构建「能力的能力」，创造出越来越丰富的功能组合。",
+      "diagram": {
+        "title": "自定义能力组合示例",
+        "chart": "graph LR\n    subgraph Agent[代理]\n        direction TB\n        A[Thinking 能力] --> D[代理核心]\n        B[WebSearch 能力] --> D\n        C[自定义能力] --> D\n    end\n    \n    subgraph CustomCap[自定义能力能力]\n        E[get_toolset] --> F[工具集]\n        G[before_model_request] --> H[请求预处理]\n        I[after_node_run] --> J[节点后处理]\n    end\n    \n    C -.继承.-> CustomCap\n    E -.返回.-> F",
+        "description": "展示了多个能力如何组合到代理中，以及自定义能力的内部结构"
+      }
+    }
+  ],
+  "key_takeaways": [
+    "能力系统将代理的行为拆解为可组合、可复用的功能模块，每个能力遵循单一职责原则",
+    "AbstractCapability 定义了能力与代理交互的完整协议，包括静态配置和生命周期钩子",
+    "钩子系统分为观察式、包裹式和错误处理式三种，提供了从简单观察到完全控制的多种能力",
+    "内置能力如 Thinking、WebSearch 等覆盖了常见场景，开发者可以直接使用或基于它们扩展",
+    "自定义能力可以提供工具、修改行为、拦截流程，通过组合能力可以构建强大的系统"
+  ],
+  "further_thinking": [
+    "如何设计一个能够「学习能力」的能力——让它从用户反馈中动态调整自己的行为？",
+    "在多个能力同时修改同一配置（如模型设置）时，如何确定最终生效的值？Pydantic AI 的合并策略是什么？"
+  ],
+  "analogies": [
+    "能力系统就像现代 IDE 的插件系统——每个能力是一个独立的功能包，可以提供菜单、修改行为、注册工具",
+    "钩子系统就像高速公路上的服务区——代理的「车辆」在行驶途中会在各个「站点」停靠（调用钩子），服务区可以加油（注入数据）、检查车辆（修改状态）或改变路线"
+  ],
+  "mermaid_diagrams": [
+    {
+      "title": "能力生命周期钩子执行流程",
+      "chart": "graph TD\n    A[Agent 构造] --> B[调用 get_instructions/get_model_settings]\n    B --> C[调用 get_toolset/get_builtin_tools]\n    C --> D[agent.run 调用]\n    D --> E[before_run 钩子]\n    E --> F[for_run 创建运行时实例]\n    F --> G[每个图节点: before_node_run]\n    G --> H[模型请求: before_model_request]\n    H --> I[模型调用]\n    I --> J[after_model_request]\n    J --> K[工具调用: before_tool_validate]\n    K --> L[after_tool_execute]\n    L --> M[after_node_run]\n    M --> N[after_run]",
+      "description": "展示了从 Agent 构造到运行完成的完整生命周期，以及各个阶段调用的能力钩子"
+    },
+    {
+      "title": "自定义能力组合示例",
+      "chart": "graph LR\n    subgraph Agent[代理]\n        direction TB\n        A[Thinking 能力] --> D[代理核心]\n        B[WebSearch 能力] --> D\n        C[自定义能力] --> D\n    end\n    \n    subgraph CustomCap[自定义能力能力]\n        E[get_toolset] --> F[工具集]\n        G[before_model_request] --> H[请求预处理]\n        I[after_node_run] --> J[节点后处理]\n    end\n    \n    C -.继承.-> CustomCap\n    E -.返回.-> F",
+      "description": "展示了多个能力如何组合到代理中，以及自定义能力的内部结构"
+    }
+  ],
+  "code_snippets": [
+    {
+      "title": "钩子方法签名示例",
+      "description": "展示了能力钩子系统的核心方法，包括请求前后的钩子和包裹式钩子",
+      "code": "from abc import ABC, abstractmethod\n\nclass AbstractCapability:\n    # 观察式钩子\n    async def before_model_request(self, ctx, request_context):\n        return request_context  # 可以修改请求上下文\n    \n    async def after_model_request(self, ctx, *, request_context, response):\n        return response  # 可以修改模型响应\n    \n    # 包裹式钩子\n    async def wrap_model_request(self, ctx, *, request_context, handler):\n        # 可以在这里实现重试、缓存等逻辑\n        return await handler(request_context)",
+      "language": "python",
+      "annotation": "before/after 钩子用于简单的参数修改和结果处理，wrap 钩子则提供了更强大的控制能力，可以完全改变执行流程"
+    }
+  ],
+  "word_count": 4200,
+  "prerequisites": ["ch04-tool-system", "ch05-agent-lifecycle"]
+}
