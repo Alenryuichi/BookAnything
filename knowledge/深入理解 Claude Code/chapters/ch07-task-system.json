@@ -1,0 +1,60 @@
+{
+  "chapter_id": "ch07-task-system",
+  "title": "第7章：任务系统 — 并行的力量",
+  "subtitle": "Dream/Local/Remote 三种任务模式",
+  "opening_hook": "想象一个场景：你正在做饭，水在锅里煮着，烤箱里的披萨也在烤，同时你还要切菜、调酱汁。如果只能一件事一件事做，这顿饭永远都做不好。人类天生的多任务能力让我们能够同时处理多个任务，AI 需要这个能力吗？\n\n在 Claude Code 的早期版本中，AI 只能按顺序执行一个工具调用。但开发团队很快发现了一个问题：当 AI 在运行一个长时间的计算任务时，整个会话都处于等待状态，用户无法进行任何其他操作。这就像在单核 CPU 上运行现代操作系统，效率低下且用户体验糟糕。\n\n任务系统的诞生正是为了解决这个问题。它让 Claude Code 能够并行执行多个任务，从后台 Shell 命令到远程 Agent 执行，再到神秘的「做梦」任务——在后台默默整理记忆。本章将带你探索这个强大的任务系统，了解它如何让 AI 真正实现「多任务处理」。",
+  "sections": [
+    {
+      "heading": "7 种任务类型的由来：为什么不是一种就够了？",
+      "content": "在设计任务系统时，开发团队面临着一个重要抉择：是设计一种通用的任务类型，还是针对不同场景设计多种专用任务类型？最终，他们选择了后者，定义了 7 种不同的任务类型：local_bash、local_agent、remote_agent、in_process_teammate、local_workflow、monitor_mcp 和 dream。\n\n这个选择的背后是深思熟虑的。首先，不同任务的生命周期完全不同。local_bash 是一次性的命令执行，短暂而简单。remote_agent 可能持续数小时，涉及与远程服务器的持续通信。dream 任务则在后台默默运行，用户几乎感知不到。\n\n其次，不同任务需要的基础设施差异巨大。local_bash 只需要启动一个子进程。remote_agent 需要完整的 SSH 连接管理、协议转换和状态同步。dream 任务需要专门的内存整理锁文件系统和回滚机制。\n\n用一种泛化的类型来处理这些差异巨大的场景，最终会导致要么过度复杂，要么功能受限。就像用一把瑞士军刀去完成所有工作，在某些场景下它不够专业，在其他场景下它又过度设计了。\n\n这种「专用胜过通用」的设计哲学在 Claude Code 中反复出现。它承认现实世界的复杂性，而不是试图用一层抽象来掩藏差异。每种任务类型都能最优化地处理自己的场景，同时通过统一的 TaskState 接口保持系统的整体一致性。",
+      "diagram": {
+        "type": "mermaid",
+        "content": "graph TB\n    subgraph \"本地任务\"\n        A[local_bash<br/>Shell命令执行] --> |进程管理| B[子进程]\n        C[local_agent<br/>本地子Agent] --> |会话管理| D[独立会话]\n        E[in_process_teammate<br/>进程内协作] --> |内存共享| F[同一进程]\n    end\n    \n    subgraph \"远程任务\"\n        G[remote_agent<br/>远程Agent] --> |SSH/Teleport| H[远程服务器]\n        I[local_workflow<br/>工作流] --> |编排管理| J[多步骤流程]\n    end\n    \n    subgraph \"特殊任务\"\n        K[monitor_mcp<br/>MCP监控] --> |模型上下文协议| L[MCP服务器]\n        M[dream<br/>记忆整理] --> |后台处理| N[consolidation锁]\n    end\n    \n    B & D & F\n    J & L & N --> O[任务框架<br/>统一调度与通知]"
+      }
+    },
+    {
+      "heading": "LocalAgentTask：在本地开启一个智能分身",
+      "content": "LocalAgentTask 本质上是「主会话的克隆副本」。当主 Agent 决定需要并行处理一个独立任务时，它会创建一个子 Agent，这个子 Agent 拥有自己独立的会话状态、工具权限和输出缓冲区，但它可以访问同一个项目代码库。\n\n这个设计的精妙之处在于：子 Agent 既能独立工作，又不会干扰主会话的上下文。想象你在做一个复杂的软件项目，你可以把不同的模块分配给不同的团队成员。他们都在同一个项目上工作，但每个人的任务记录、工作进度都是独立的。\n\nLocalAgentTask 的实现依赖于 TypeScript 的泛型类型系统。LocalAgentTaskState 扩展了基础的 TaskStateBase，添加了 Agent特有的字段：agentId、prompt、progress（工具调用统计）、messages（对话历史）等。这些字段让子 Agent 能够像主会话一样工作。\n\n一个关键的设计决策是 retain 字段。当用户查看某个后台 Agent 的输出时，UI 会将 retain 设为 true。这个标志会阻止任务被自动清理，即使任务已经完成。这就像你在办公室里保留了一份会议记录，即使会议已经结束，你依然可以随时查阅。一旦你关闭这个视图，retain 变为 false，系统就可以安全地清理内存了。",
+      "code": "```typescript\n// 创建子 Agent 的核心代码\nexport type LocalAgentTaskState = TaskStateBase & {\n  type: 'local_agent'\n  agentId: string\n  prompt: string\n  progress?: AgentProgress  // 工具调用统计\n  messages?: Message[]     // 对话历史\n  retain: boolean          // UI 是否正在查看此任务\n  evictAfter?: number      // 自动清理时间戳\n  isBackgrounded: boolean  // 是否已转入后台\n  pendingMessages: string[] // 队列中的消息\n  diskLoaded: boolean      // 是否已从磁盘加载历史\n}\n```"
+    },
+    {
+      "heading": "RemoteAgentTask：让工作跨越机器边界",
+      "content": "LocalAgentTask 解决了单机并行的问题，但现代软件开发往往涉及多台机器：开发在 Mac 上、CI 在 Linux 服务器上、预发环境在云端。RemoteAgentTask 的使命就是让 AI 的工作能够无缝跨越这些机器边界。\n\n想象你是一个公司项目经理，你可以在本地指挥一个在巴黎办公室工作的团队。你不需要知道他们具体使用什么电脑，你只需要给出任务，他们会执行并回报结果。RemoteAgentTask 就是这样的「远程项目经理」。\n\n远程任务的复杂性远超本地任务。它需要建立隧道连接、处理网络中断、同步状态文件、管理远程生命周期。Claude Code 使用了「Teleport」系统来实现这个过程——名字来自于科幻小说中的「瞬间移动」，正好描述了任务跨越空间的概念。\n\nRemoteAgentTask 还实现了特殊的「恢复机制」。连接中断是远程任务的常态，而不是异常。当连接恢复时，任务必须能够从中断处继续工作。这通过在远程端维护状态快照（Sidecar 文件）和在本地的恢复逻辑来实现。就像你在游戏中遇到断线，上线后能够继续之前的进度，而不是重新开始。\n\n远程任务的另一个精妙设计是 completionCheckers。不同的远程任务有不同的完成条件：autofix-pr 任务等待 GitHub PR 关闭，ultrareview 任务等待审查完成。completionCheckers 注册表允许每种任务类型定义自己的完成检测逻辑，而不需要修改核心框架。这是一次对「开闭原则」的完美实践：对扩展开放，对修改封闭。",
+      "code": "```typescript\n// 远程任务的检查器注册机制\ntype RemoteTaskCompletionChecker = \n  (metadata?: RemoteTaskMetadata) => Promise<string | null>\n\nconst completionCheckers = new Map<RemoteTaskType, RemoteTaskCompletionChecker>()\n\n// 注册特定任务的完成检查器\nexport function registerCompletionChecker(\n  remoteTaskType: RemoteTaskType,\n  checker: RemoteTaskCompletionChecker\n): void {\n  completionCheckers.set(remoteTaskType, checker)\n}\n\n// 每次轮询时调用对应的检查器\nfor (const [taskType, checker] of completionCheckers) {\n  const result = await checker(task.remoteTaskMetadata)\n  if (result !== null) {\n    // 任务完成，result 是通知文本\n  }\n}\n```"
+    },
+    {
+      "heading": "DreamTask：后台的「做梦」— AI 如何整理记忆",
+      "content": "在所有任务类型中，DreamTask 是最神秘也最有趣的一个。它的名字来源于心理学中的「做梦」——在睡眠中大脑会整理白天获取的信息，形成长期记忆。Claude Code 的 DreamTask 做着同样的事情：在用户不活动时，它会分析历史会话，提炼有用信息并写入持久化记忆系统。\n\nDreamTask 的设计非常精简。不像 local_agent 那样需要完整的工具权限，DreamTask 只需要阅读和编辑少量文件的能力。它的输入是一系列历史会话记录，输出则是更新后的记忆文件。整个过程中，用户几乎感知不到它的存在。\n\n这个任务的一个重要技术挑战是并发控制。当 DreamTask 正在更新记忆文件时，主会话可能会尝试读取这些文件。为了避免脏读和竞争条件，系统使用了一个「consolidation 锁」——一个带有时间戳的锁文件。DreamTask 开始时更新锁文件的修改时间，完成后保留这个时间戳。如果过程中断（比如用户 Kill 了任务），下次恢复时会使用 priorMtime 回滚锁时间，允许重新尝试。\n\nDreamTask 的另一个精妙之处在于它的输出展示。UI 只显示最近的 30 个「回合」，每个回合是 AI 的一次响应。工具调用被压缩为计数（使用了多少次工具），而不是列出详细调用。这种设计既提供了可视化反馈，又避免了过度冗长的输出。就像你不需要知道一个人在梦中每一秒的活动，只需要知道他做了什么梦。\n\nDreamTask 的存在体现了 Claude Code 的长期主义哲学：不仅是解决当下的问题，还在为未来积累智慧和经验。每过一段时间，AI 就会变得更「懂」你和你的项目。",
+      "diagram": {
+        "type": "mermaid",
+        "content": "sequenceDiagram\n    participant User\n    participant MainAgent\n    participant DreamAgent as DreamTask\n    participant LockFile\n    participant Memory\n    \n    User->>MainAgent: 结束工作，离开终端\n    \n    par DreamTask 触发\n        DreamAgent->>LockFile: 读取 priorMtime\n        DreamAgent->>LockFile: 更新锁时间（开始整理）\n        DreamAgent->>Memory: 读取历史会话\n        DreamAgent->>DreamAgent: 分析、提炼、整合\n        \n        alt 正常完成\n            DreamAgent->>Memory: 写入更新后的记忆\n            DreamAgent->>LockFile: 更新锁时间（完成）\n        else 中断（用户 Kill）\n            DreamAgent->>DreamAgent: 收到终止信号\n            DreamAgent->>LockFile: 回滚到 priorMtime\n            Note over DreamAgent: 允许下次 重试\n        end\n    end"
+      }
+    },
+    {
+      "heading": "任务生命周期：从 pending 到 terminated",
+      "content": "每一个任务都遵循着一个清晰的生命周期。理解这个生命周期对于掌握任务系统至关重要，因为它决定了任务在不同阶段的行为和状态转换。\n\n任务始于 pending（待定）状态。这时任务已经被创建，但尚未开始执行。pending 状态允许框架进行预热：初始化输出缓冲区、分配任务 ID、注册到全局任务表。这个过程就像演出前的准备阶段，场地、灯光、设备就绪，但大幕尚未拉开。\n\n当任务开始执行，它进入 running（运行中）状态。这是任务最活跃的时期：工具被调用、输出被写入、进度被更新。Running 状态的任务会定期轮询，检查是否有新的输出需要推送给用户。轮询间隔默认是 1 秒（POLL_INTERVAL_MS），这个时间在实时性和性能之间找到了平衡点。\n\n任务最终会进入三种终端状态之一：completed（成功完成）、failed（失败）或 killed（被终止）。终端状态意味着任务不会再发生变化，系统可以开始清理资源。但清理不是立即进行的——终端任务会保留一段时间（STOPPED_DISPLAY_MS = 3秒），让用户能看到最终状态。这就像是演出结束后，舞台不会立即黑灯，会有几秒钟的谢幕时间。\n\nisTerminalTaskStatus 函数封装了终端状态的判断逻辑。这个函数出现在多个关键位置：防止向已完成的任务注入消息、判断是否可以清理任务、决定是否需要回滚操作。它体现了防御性编程的思想：明确状态边界，避免跨边界的错误操作。",
+      "code": "```typescript\n// 终端状态的判断\nexport type TaskStatus =\n  | 'pending'\n  | 'running'\n  | 'completed'\n  | 'failed'\n  | 'killed'\n\nexport function isTerminalTaskStatus(status: TaskStatus): boolean {\n  return status === 'completed' || status === 'failed' || status === 'killed'\n}\n\n// 任务清理的完全条件：必须终端 且 已通知\nfunction canEvictTask(task: TaskState): boolean {\n  return isTerminalTaskStatus(task.status) && task.notified\n}\n```"
+    },
+    {
+      "heading": "并行控制：多个 Agent 如何不打架？",
+      "content": "当多个任务同时运行时，最危险的情况就是它们同时修改同一个文件。就像两个人同时编辑同一份文档，结果只会是混乱和冲突。Claude Code 采用了多种策略来确保并行的安全性。\n\n第一层防御是 agentId 关联。每个 LocalShellTask 都记录了是哪个 Agent 创建了它（通过 agentId 字段）。当某个 Agent 退出时，系统会自动清理它创建的所有 Shell 任务。这就像领导离开时，会带上自己团队的成员，避免他们留在没人管的会议室里。\n\n第二层防御是基于通知的协作。任务完成时不会立即消失，而是先设置 notified 标志，然后通过消息队列通知主会话。主会话收到通知后才会真正消费结果，此时设置 notified 为 true，任务才可被清理。这样避免了「任务完成了但无人知道导致结果丢失」的尴尬情况。\n\n第三层防御是文件级的协调。对于 DreamTask 这样需要修改共享文件的任务，系统使用了基于文件修改时间（mtime）的锁机制。而不是传统的目录锁或进程锁，因为后者在分布式系统或异常重启时容易失效（僵尸锁）。mtime 回滚机制确保即使进程被强制终止，锁状态也能正确恢复。\n\n并行控制的最终目标是：多个任务可以高效并行，但它们的操作互不干扰。这就像一个井然有序的厨房，多名厨师同时工作，每个人都清楚自己的职责，协同完成一桌丰盛的菜肴，而不是互相踩脚。"
+    }
+  ],
+  "key_takeaways": [
+    "7 种任务类型分别针对不同场景：bash 命令、本地/远程 Agent、进程内协作、工作流编排、MCP 监控和后台记忆整理",
+    "LocalAgentTask 创建独立的子会话，通过 retain 字段管理 UI 生命周期和内存清理",
+    "RemoteAgentTask 通过 Teleport 系统实现跨机器任务执行，支持连接中断后的状态恢复",
+    "DreamTask 在后台默默整理记忆，使用 consolidation 锁和 mtime 回滚机制确保并发安全",
+    "任务生命周期遵循 pending → running → completed/failed/killed 的清晰状态转换",
+    "并行控制通过 agentId 关联、通知机制和文件锁三重防御确保多任务互不干扰"
+  ],
+  "further_thinking": [
+    "当前的任务系统是否能很好地适应未来可能出现的新型并行模式，如 GPU 加速计算的任务调度？",
+    "如果将任务系统设计为分布式架构，让任务可以在网络上的多台机器间迁移和平衡负载，会带来哪些复杂性又解决哪些问题？"
+  ],
+  "word_count": 4250,
+  "prerequisites": [
+    "ch04-tool-system",
+    "ch06-query-engine"
+  ]
+}
