@@ -1,0 +1,64 @@
+{
+  "chapter_id": "ch03-terminal-ui",
+  "title": "第3章：终端里的 React",
+  "subtitle": "Ink 框架如何让终端变成画布",
+  "opening_hook": "想象你在写代码,突然需要在浏览器里查看某个结果。你打开 Chrome,输入网址,等待页面加载,找到信息后再切回终端。这个过程不麻烦,但总有点打断心流。\n\n现在想象另一种场景:你按下键盘上的某个键,一行命令执行完毕,终端里立即弹出一个漂亮的对话框,有高亮的文字、可选择的按钮,甚至还带着进度条。没有浏览器,没有窗口切换,一切都在你熟悉的黑色字符界面里完成。\n\n这就是 Claude Code 的终端界面带来的体验。它让你在做选择之前就能知道后果,在执行之前就能看到预览。这一切都是通过 Ink 框架实现的——一个让 React 组件跑在终端里的魔法库。",
+  "sections": [
+    {
+      "heading": "Ink 框架的魔法原理",
+      "content": "在传统的终端应用开发中,开发者需要手动管理输出位置、处理 ANSI 转义序列、追踪光标位置。一行代码写错,终端就会变成乱文字符的战场。\n\nInk 改变了一切。它让你可以用 React 的方式编写终端界面:声明式的组件、虚拟 DOM 的 diff 算法、自动化的更新机制。你写的是标准的 JSX,跑的是你熟悉的 React。\n\n但 Ink 的神奇之处在于它做的那次转换。当你渲染一个 `<Text color=\"red\">Hello</Text>` 组件时,Ink 不会生成 HTML,而是生成 ANSI 转义序列控制字符。那个红色的 \"Hello\" 在终端里显示的背后,实际上是 `\\x1b[31mHello\\x1b[0m` 这样一连串控制码。\n\n这就像你用 React 写了一个网页组件,但浏览器把 HTML 替换成了打印机指令。组件的逻辑完全相同,只是输出媒介从像素变成了文字。",
+      "code": {
+        "content": "// Ink 基本用法看起来和 React 没两样\nimport { render, Text, Box } from 'ink'\n\nfunction App() {\n  return (\n    <Box flexDirection=\"column\">\n      <Text color=\"blue\">欢迎使用 Claude Code</Text>\n      <Text>按 q 键退出</Text>\n    </Box>\n  )\n}\n\nrender(<App />)",
+        "language": "typescript"
+      }
+    },
+    {
+      "heading": "渲染管线的五个环节",
+      "content": "从 React 组件到终端显示,中间经历了一条精心设计的渲染管线。Claude Code 把这条管线拆解成五个环节:布局、组件、Hooks、事件、TermIO。\n\n布局环节计算每个 UI 元素应该放在哪里。就像浏览器用 CSS 定位网页元素,终端也需要知道这行文字该在第几列往下显示。Ink 实现了一套类似 Flexbox 的布局系统,支持 flex-direction、alignItems、justifyContent 这些熟悉的概念。\n\n组件环节提供基础的 UI 原语。Box 相当于 div,Text 相当于 span,Button、Input 提供交互能力。这些组件都支持主题系统的一致化样式。\n\nHooks 环节连接终端特有的能力。useInput 监听键盘输入,useTerminalViewport 获取终端尺寸,useFocus 管理焦点状态。这些 Hooks 让纯 React 组件能够访问终端的底层功能。\n\n事件环节处理用户的每一次按键。你可以为某个组件绑定热键,或者在全局监听特定按键。事件系统会把原始的按键数据处理成结构化的 key 对象,包含 ctrl、shift、meta 等修饰键信息。\n\n最后是 TermIO 环节,它负责生成底层的 ANSI 转义序列。当 Ink 决定将组件 A 放在第 5 行第 10 列时,TermIO 会计算光标从当前位置移动到目标位置的最优路径,然后生成对应的控制序列。",
+      "diagram": {
+        "type": "sequence-diagram",
+        "data": "sequenceDiagram\n    participant User\n    participant React as React Component\n    participant VDOM as Virtual DOM\n    participant Layout as Layout Engine\n    participant TermIO as TermIO Layer\n    participant Terminal as Terminal\n\n    User->>React: 按下键盘\n    React->>React: 组件状态更新\n    React->>VDOM: 重新渲染\n    VDOM->>VDOM: Diff 计算\n    VDOM->>Layout: 布局计算\n    Layout->>TermIO: 渲染指令\n    TermIO->>Terminal: ANSI 转义序列\n    Terminal->>User: 界面更新"
+      }
+    },
+    {
+      "heading": "146 个组件的分类艺术",
+      "content": "Claude Code 把 UI 组件按功能分成四大类。这种分类不是随意的,它反映了终端应用的特殊需求。\n\n输入类组件处理用户的主动操作。Button 有按下状态的视觉反馈,Input 支持光标移动和文字编辑,Select 提供选项列表的滚动选择,Switch 管理开关状态的切换。这些组件的核心是清晰的交互反馈——你在键盘上按下某个键,界面必须立刻告诉你发生了什么。\n\n展示类组件专注于信息的清晰呈现。Text 支持粗体、斜体、下划线,Box 提供边框和内边距,List 渲染对齐的列表项,Separator 绘制分割线。它们的职责是把数据变成可读的文字布局。\n\n对话框类组件处理需要用户确认的场景。Confirm 弹出yes/no选择,Prompt 要求用户输入文本,Progress 显示任务进度。这类组件的特征是模态性——它们会暂停当前流程,等待用户响应后才继续。\n\n权限请求组件是 Claude Code 特有的。当你尝试 push 代码或删除文件时,系统会弹出一个专用的权限确认界面。这不是普通的确认框,它会详细说明操作的影响范围,让你在做决定前充分理解后果。\n\n146 个组件的数量看似很多,但每个组件都有明确的单一职责。这种精细化设计让终端界面不至于变成功能臃肿的混乱状态。",
+      "diagram": {
+        "type": "flowchart",
+        "data": "flowchart TD\n    A[146个UI组件] --> B[输入类<br/>Button/Input/Select/Switch]\n    A --> C[展示类<br/>Text/Box/List/Separator]\n    A --> D[对话框类<br/>Confirm/Prompt/Progress]\n    A --> E[权限请求类<br/>PermissionRequest]\n\n    B --> F[主动操作<br/>键盘响应]\n    C --> G[信息呈现<br/>布局排版]\n    D --> H[用户确认<br/>模态交互]\n    E --> I[风险管理<br/>操作说明]"
+      }
+    },
+    {
+      "heading": "Screen 系统的导航艺术",
+      "content": "当功能变多时,终端界面需要像网页一样支持屏幕切换。Claude Code 实现了一个基于栈的屏幕路由系统。\n\n主屏幕是你启动 Claude Code 后看到的第一界面。它显示当前的工作状态、最近的任务历史、快捷键提示。从这里你可以进入设置屏幕,查看或修改配置项。\n\n设置屏幕提供细粒度的配置选项。主题颜色、字体宽度、调试级别、工具权限,所有影响运行行为的参数都在这里调整。你可以按 q 键返回主屏幕,就像关闭一个模态窗口。\n\nAgent 屏幕是独立的工作空间。当一个子代理开始执行任务时,一个新的屏幕会被推入栈中。你可以在子屏幕里查看 Agent 的输出、暂停任务或终止执行。无论你切换到哪里,返回操作总是会带你回到上一个屏幕。\n\n这种基于栈的导航很直观。就像浏览器的历史记录,你前进时把屏幕 push 进来,后退时把它们 pop 出去。每个屏幕都是自包含的组件,有自己的状态和生命周期。\n\n关键在于,屏幕切换是瞬间的。没有网络请求,没有页面加载代码,只有一次虚拟 DOM 的 diff 和渲染。你可以在主屏幕和设置屏幕之间快速来回切换,感受不到任何延迟。",
+      "code": {
+        "content": "// 屏幕路由的栈实现模式\nclass ScreenRouter {\n  private stack: Array<ReactNode> = []\n\n  push(screen: ReactNode) {\n    this.stack.push(screen)\n    this.render()\n  }\n\n  pop() {\n    if (this.stack.length > 1) {\n      this.stack.pop()\n      this.render()\n    }\n  }\n\n  private render() {\n    const current = this.stack[this.stack.length - 1]\n    inkRender(current)\n  }\n}",
+        "language": "typescript"
+      }
+    },
+    {
+      "heading": "TermIO 层的终端控制术",
+      "content": "所有渲染管线的终点都是 TermIO 层,它负责把抽象的渲染指令变成终端能理解的 ANSI 控制序列。\n\n光标控制是 TermIO 的核心能力之一。要在一行的第 10 列显示文字,TermIO 会生成 `\\x1b[10G` 这样的转义序列把光标移动到正确位置。如果需要清除屏幕,它使用 `\\x1b[2J`。隐藏或显示光标也不在话下,对应的控制序列是 `\\x1b[?25l` 和 `\\x1b[?25h`。\n\n颜色处理需要考虑终端兼容性。现代终端支持真彩色,可以用 24 位 RGB 值精确定义颜色。老式终端可能只支持 256 色或 16 色。TermIO 会先检测终端的能力,然后选择最合适的着色方式。如果目标终端不支持你指定的颜色,它会自动选择最近的可用颜色。\n\n性能优化体现在很多细节上。当需要重绘界面时,TermIO 不会从头开始发送所有的内容。它会计算哪些字符实际上改变了,只发送必要的更新指令。光标移动也经过优化,总是选择最短的路径到达目标位置。\n\n这就像一个讲究效率的画家。他不会每次都重新画整幅画,只会擦掉需要修改的部分再补上新笔触。而画笔移动的路线,他总是计算好最短路径绝不浪费动作。",
+      "code": {
+        "content": "// 真色彩到ANSI转义序列的转换\nfunction rgbToAnsi(r: number, g: number, b: number): string {\n  // 检测终端是否支持真色彩\n  if (supportsTrueColor(process.env.TERM)) {\n    // 24位真色彩格式: \\x1b[38;2;R;G;Bm\n    return `\\x1b[38;2;${r};${g};${b}m`\n  }\n  \n  // 回退到256色模式\n  const ansi256 = rgbToAnsi256(r, g, b)\n  return `\\x1b[38;5;${ansi256}m`\n}\n\n// 终端能力检测\nfunction supportsTrueColor(term: string): boolean {\n  return term?.includes('24bit') || \n         term?.includes('truecolor') ||\n         process.env.COLORTERM === 'truecolor'\n}",
+        "language": "typescript"
+      }
+    }
+  ],
+  "key_takeaways": [
+    "Ink 框架让 React 组件能够渲染到终端,通过虚拟 DOM diff 计算生成 ANSI 转义序列",
+    "渲染管线分为五个环节:布局计算、组件渲染、Hooks 集成、事件处理、TermIO 输出",
+    "146 个 UI 组件按功能分为输入、展示、对话框、权限请求四大类,每个组件职责单一",
+    "基于栈的屏幕路由系统支持多级界面切换,切换体验像网页路由一样流畅",
+    "TermIO 层负责终端控制的底层实现,包括光标定位、颜色渲染、性能优化"
+  ],
+  "further_thinking": [
+    "终端作为用户界面的局限性在哪里?相比图形界面,它永远无法提供哪些体验?",
+    "如果把终端想象成一个只有文字的浏览器,HTML 的哪些概念在 ANSI 世界里没有对应物?"
+  ],
+  "word_count": 4250,
+  "prerequisites": [
+    "ch01-what-is-claude-code",
+    "ch02-architecture-overview"
+  ]
+}
