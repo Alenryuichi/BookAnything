@@ -22,14 +22,26 @@ web-app/playwright-report/
 web-app/test-results/
 web-app/.vercel/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.venv/
+venv/
+
+# Playwright MCP
+.playwright-mcp/
+
 # 本地环境文件
 .DS_Store
 .env
 .env.*
 
-# cursor
+# IDE
 .cursor/
-
-# test results
-.playwright-mcp/__pycache__/
-*.pyc
+.vscode/
+*.swp
