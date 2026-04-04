@@ -1,5 +1,8 @@
 """CLI entry point: python -m pyharness run --project projects/pydantic-ai.yaml"""
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import argparse
 import asyncio
 import sys
