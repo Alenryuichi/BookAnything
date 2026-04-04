@@ -1,0 +1,44 @@
+{
+  "chapter_id": "ch11-plugin-skill",
+  "title": "第11章：插件与技能系统",
+  "subtitle": "让 Claude Code 学会新技能",
+  "opening_hook": "想象一下，你买了一部智能手机，它出厂时就有了丰富的功能。但你发现，有些特定的需求——比如自动回复工作邮件、批量重命名照片——它做不到。这时候，应用商店出现了一个新选择：你可以安装第三方应用来扩展手机的能力。\n\nClaude Code 也面临着同样的设计挑战。作为开箱即用的 AI 编程助手，它内置了文件读写、代码搜索、Git 操作等基础工具。但对于特定工作流——比如团队定制的代码审查流程、项目特有的部署脚本——这些通用工具就不够用了。\n\n更关键的是，如果用户发现某个工作流可以复用，难道每次都要从头向 Claude 解释一遍？这就像每次打开手机都要重新安装同样的应用一样低效。\n\n本章要讲的插件与技能系统，就是 Claude Code 的「应用商店」和「快捷指令」。它让 Claude 可以学习新技能，也让用户可以将复杂工作流封装成可复用的组件。",
+  "sections": [
+    {
+      "heading": "插件系统：可切换的能力模块",
+      "content": "插件是 Claude Code 中最大的扩展单位。一个插件可以包含多个技能、自定义钩子（hooks）、甚至 MCP 服务器——它是一个完整的功能包，可以独立安装、启用、禁用。\n\n内置插件使用格式 `plugin-name@builtin` 来标识，它们随 Claude Code 一起发布，但需要用户主动启用才能使用。这种设计的巧妙之处在于：功能已经准备好了，但不会强迫用户接受——你可以像在应用商店里选择是否启用某个应用一样，决定这个插件是否出现在你的会话中。\n\n插件的数据结构很简单：一个插件定义包含名称、描述、版本，以及它提供的技能列表、钩子配置和 MCP 服务器定义。初始化时，所有的内置插件会被注册到一个 Map 中，随后根据用户的设置决定哪些插件是启用的。\n\n这种分层设计带来了几个好处。首先，启用/禁用是持久化的——你不需要每次启动时重新配置。其次，插件可以提供不止一个技能——比如一个团队协作插件可能包含 code-review、team-metrics、standby-summary 等多个相关技能，它们可以作为一个整体被管理。",
+      "diagram": "```mermaid\ngraph TB\n    subgraph PluginArchitecture[插件架构]\n        B[BuiltinPluginRegistry] -->|注册| A[BuiltinPluginDefinition]\n        A --> S[Skills]\n        A --> H[Hooks]\n        A --> M[MCP Servers]\n    end\n    \n    subgraph UserSettings[用户设置]\n        US[settings.json] -->|enabledPlugins| PLG[启用状态]\n    end\n    \n    subgraph Runtime[运行时]\n        PLG -->|过滤| GP[getBuiltinPlugins]\n        GP --> E[Enabled Plugins]\n        GP --> D[Disabled Plugins]\n        E -->|提取| SC[Skill Commands]\n        SC -->|注入| CT[Command Registry]\n    end\n    \n    style A fill:#f9f,stroke:#333,stroke-width:2px\n    style CT fill:#bbf,stroke:#333,stroke-width:2px\n```"
+    },
+    {
+      "heading": "技能系统：Markdown 定义的可复用能力",
+      "content": "技能是更细粒度的扩展单位。如果说插件是「应用」，那么技能就是「快捷指令」或「自动化任务」。最棒的是，技能是用 Markdown 定义的——这意味着你不需要编写 TypeScript 代码就能创建一个新技能。\n\n技能的标准存储位置是 `.claude/skills/skill-name/SKILL.md`。这个固定的目录结构让系统可以自动发现新技能，同时避免了与项目文件混杂。SKILL.md 文件的顶部是一个 YAML frontmatter，定义了技能的元数据：名称、描述、何时使用（whenToUse）、允许哪些工具、参数提示等等。\n\n系统会从多个来源加载技能：用户全局目录 `~/.claude/skills/`（跨项目共享）、项目目录 `.claude/skills/`（项目专属）、以及内置技能（bundled）。这意味着你可以为你的团队编写一套通用技能，放到公司全局配置中，所有成员都可以直接使用；也可以为某个特定项目编写专用技能，只在那个项目中生效。\n\n更巧妙的是「条件技能」机制。如果一个技能的 frontmatter 声明了 `paths` 字段（比如 paths: src/**/*.ts），那么这个技能不会立即启用，而是作为「待激活」状态存储起来。当你后续操作匹配这些路径的文件时，技能会自动激活——这就像 iPhone 的地理位置提醒，只有在特定场景下才会出现相关的快捷指令。",
+      "code": "---\nname: deploy-to-staging\ndescription: Build and deploy to staging environment\nwhen_to_use: When user asks to deploy or mentions staging\nallowed-tools:\n  - Bash\n  - Read\n  - Write\nargument-hint: <branch-name>\nshell:\n  environment:\n    NODE_ENV: staging\n---\n\nThis skill handles deployment to the staging environment.\n\nSteps:\n1. Run tests with `npm test`\n2. Build the project with `npm run build`\n3. Deploy to staging\n\nUse the branch name provided as an argument."
+    },
+    {
+      "heading": "SkillTool：技能如何转化为工具调用",
+      "content": "当我们从 Claude Code 的视角看，技能最终要被转化为「工具」才能被模型调用。这就是 SkillTool 的职责——它是技能系统和核心工具系统之间的桥梁。\n\n当 Claude 决定调用某个技能时，它会使用 SkillTool 工具，传入技能名称和可选参数。SkillTool 首先验证这个技能是否存在、是否允许被调用、是否是 prompt-based 的技能。通过验证后，它会处理技能内容——执行前置命令（shell 注入）、替换变量（如 `$ARGUMENTS`）、构建最终的提示词。\n\n关键的是，SkillTool 支持两种执行模式。默认的「inline」模式会将技能展开为一系列消息，插入到当前对话中继续执行。这种方式适用于轻量级技能，比如 `/help` 或 `/status`。而「forked」模式则会创建一个完全独立的子 agent，在隔离的上下文中执行技能——这就像是开了一个全新的终端窗口，技能中执行的所有操作都不会污染主会话的上下文。这种模式适用于复杂、耗时的任务，比如 `/commit` 或 `/review-pr`。\n\n这种设计解决了一个实际问题：如果一个技能需要执行大量工具调用（比如扫描数百个文件），inline 模式会让主会话的 token 预算迅速耗尽。forked 模式则给技能一个独立的 token 预算，执行完成后只返回结果摘要，保持了主会话的简洁。",
+      "diagram": "```mermaid\nsequenceDiagram\n    participant C as Claude Model\n    participant ST as SkillTool\n    participant CMD as Command Registry\n    participant FA as Forked Agent (optional)\n    participant User as User Context\n    \n    C->>ST: SkillTool(skill=\"deploy\", args=\"main\")\n    ST->>CMD: validateInput(\"deploy\")\n    CMD-->>ST: Command object\n    ST->>ST: checkPermissions()\n    \n    alt Fork Mode\n        ST->>FA: createForkedAgent()\n        FA->>User: execute skill in isolation\n        User-->>FA: result\n        FA-->>ST: summary\n        ST-->>C: {status: \"forked\", result: ...}\n    else Inline Mode\n        ST->>ST: expandSkillContent()\n        ST-->>C: {status: \"inline\", newMessages: [...]}\n        C->>User: continue with expanded messages\n    end\n    \n    style ST fill:#f9f,stroke:#333,stroke-width:2px\n```"
+    },
+    {
+      "heading": "开发者指南：如何编写自己的插件和技能",
+      "content": "编写一个自己的技能很简单。最基本的方式是在项目的 `.claude/skills/my-skill/` 目录下创建 `SKILL.md` 文件，写入你的 skill 定义。系统会在启动时或在操作文件时自动发现并加载它。\n\n对于更复杂的技能，你可以使用 TypeScript 编写一个 bundled skill。这种方式适合需要编程逻辑的场景——比如 `/claude-api` 技能会检测项目语言类型，动态加载对应的文档内容。注册时使用 `registerBundledSkill()` 函数，传入技能的定义，包括名称、描述、允许的工具列表，以及最重要的 `getPromptForCommand` 函数——这个函数决定了技能被触发时返回什么内容。\n\n如果需要更高的组织级别，可以创建一个插件。内置插件通过 `registerBuiltinPlugin()` 注册，它不仅包含技能列表，还可以声明钩子配置（在特定事件时自动执行）和 MCP 服务器（集成外部服务）。插件可以指定默认启用状态，用户也可以通过设置覆盖。\n\n权限控制是另一个需要注意的方面。默认情况下，用户未明确允许的技能在首次调用时会弹出权限请求。为了让某些技能自动执行（比如内置的 `/help`），你可以在 settings.json 中配置允许规则，或者让技能只使用「安全属性」（ SAFE_SKILL_PROPERTIES allowlist），这样系统会自动授权。",
+      "code": "// 注册一个内置插件示例\nregisterBuiltinPlugin({\n  name: 'team-workflow',\n  description: 'Team-specific development workflows',\n  version: '1.0.0',\n  defaultEnabled: true,\n  isAvailable: () => process.env.TEAM_ID !== undefined,\n  skills: [\n    {\n      name: 'team-review',\n      description: 'Run team-specific code review checks',\n      allowedTools: ['Read', 'Grep', 'Bash'],\n      getPromptForCommand: async (args) => {\n        const teamConfig = await loadTeamConfig()\n        return [{ type: 'text', text: buildReviewPrompt(teamConfig) }]\n      },\n    },\n  ],\n  hooks: {\n    beforeToolUse: {\n      Bash: 'run-team-precheck',\n    },\n  },\n})"
+    }
+  ],
+  "key_takeaways": [
+    "插件是最大的扩展单位，可以包含多个技能、钩子和 MCP 服务器，用户可以控制启用/禁用状态",
+    "技能是用 Markdown 定义的可复用功能单元，支持从用户目录、项目目录和内置来源加载",
+    "条件技能机制让技能只在匹配的文件路径下才激活，实现了场景感知的能力注入",
+    "SkillTool 将技能转换为工具调用，支持 inline（展开为消息）和 forked（独立子 agent）两种执行模式",
+    "开发自定义技能只需创建 `.claude/skills/skill-name/SKILL.md` 文件，复杂逻辑可用 TypeScript 编写 bundled skill"
+  ],
+  "further_thinking": [
+    "如果技能之间有依赖关系（比如技能 A 需要技能 B 先执行），系统应该如何处理依赖顺序？",
+    "远程技能和本地技能的安全边界如何界定？如果一个远程技能试图调用危险的工具，系统应该有哪些防护机制？"
+  ],
+  "word_count": 3456,
+  "prerequisites": [
+    "ch08-tools",
+    "ch09-mcp"
+  ]
+}
