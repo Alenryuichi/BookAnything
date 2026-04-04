@@ -7,20 +7,29 @@ interface CodeBlockProps {
   lang?: string;
 }
 
-// 预加载 Shiki 以提高性能
-let shikiLoaded = false;
-let shikiPromise: Promise<any> | null = null;
+// Import Shiki bundler for client-side rendering
+let highlighterInstance: any = null;
+let highlighterPromise: Promise<any> | null = null;
 
-async function loadShiki() {
-  if (shikiLoaded) return;
-  if (shikiPromise) return shikiPromise;
+async function getHighlighter() {
+  if (highlighterInstance) return highlighterInstance;
+  if (highlighterPromise) return highlighterPromise;
 
-  shikiPromise = import("shiki").then((module) => {
-    shikiLoaded = true;
-    return module;
+  // Use Shiki's web bundle for client-side rendering
+  highlighterPromise = import("shiki").then((shiki) => {
+    return shiki.getHighlighter({
+      themes: ["github-dark", "github-light"],
+      langs: ["typescript", "javascript", "python", "json", "yaml", "bash"]
+    });
+  }).then((highlighter) => {
+    highlighterInstance = highlighter;
+    return highlighter;
+  }).catch((error) => {
+    console.warn("Failed to load Shiki highlighter:", error);
+    return null;
   });
 
-  return shikiPromise;
+  return highlighterPromise;
 }
 
 // 缓存已高亮的代码
@@ -37,16 +46,21 @@ async function highlightCode(code: string, lang: string): Promise<string | null>
   }
 
   try {
-    const shiki = await loadShiki();
-    const { codeToHtml } = shiki;
+    const highlighter = await getHighlighter();
+    if (!highlighter) {
+      console.warn("Shiki highlighter not available");
+      return null;
+    }
 
-    // 根据当前主题选择高亮主题
-    const theme = typeof window !== "undefined" &&
-                  document.documentElement.getAttribute("data-theme") === "light"
-                  ? "github-light"
-                  : "github-dark";
+    // 改进主题检测逻辑
+    let theme = "github-dark";
+    if (typeof window !== "undefined") {
+      const isLight = document.documentElement.getAttribute("data-theme") === "light" ||
+                     document.documentElement.classList.contains("light");
+      theme = isLight ? "github-light" : "github-dark";
+    }
 
-    const html = await codeToHtml(code, {
+    const html = await highlighter.codeToHtml(code, {
       lang: lang || "typescript",
       theme,
     });
@@ -55,23 +69,7 @@ async function highlightCode(code: string, lang: string): Promise<string | null>
     return html;
   } catch (error) {
     console.warn("Shiki highlighting failed:", error);
-
-    // 回退方案：使用简单的语法高亮
-    try {
-      const shiki = await loadShiki();
-      const { codeToHtml } = shiki;
-
-      const html = await codeToHtml(code, {
-        lang: "text",
-        theme: "github-dark",
-      });
-
-      highlightCache.set(cacheKey, html);
-      return html;
-    } catch (fallbackError) {
-      console.warn("Shiki fallback also failed:", fallbackError);
-      return null;
-    }
+    return null;
   }
 }
 

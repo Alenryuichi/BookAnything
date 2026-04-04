@@ -31,4 +31,5 @@ web-app/.vercel/
 .cursor/
 
 # test results
-.playwright-mcp/
+.playwright-mcp/__pycache__/
+*.pyc

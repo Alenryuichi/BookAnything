@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
+// Global type declaration
+declare global {
+  interface Window {
+    mermaidInitialized?: boolean;
+  }
+}
+
 interface MermaidDiagramProps {
   chart: string;
 }
@@ -27,39 +34,64 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
 
         const mermaid = (await import("mermaid")).default;
 
-        // 修复 mermaid 初始化配置
-        mermaid.initialize({
-          startOnLoad: true,
-          theme: "default",
-          securityLevel: "loose",
-          fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace",
-          flowchart: {
-            useMaxWidth: true,
-            htmlLabels: true,
-          },
-          sequence: {
-            useMaxWidth: true,
-            noteMargin: 10,
-          },
-          themeVariables: {
-            primaryColor: "#06b6d4",
-            primaryTextColor: "#fff",
-            primaryBorderColor: "#06b6d4",
-            lineColor: "#F8B229",
-            secondaryColor: "#006100",
-            tertiaryColor: "#fff"
+        // 只在第一次加载时初始化 mermaid
+        if (!window.mermaidInitialized) {
+          try {
+            mermaid.initialize({
+              startOnLoad: false, // 手动控制渲染
+              theme: "default",
+              securityLevel: "loose",
+              fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace",
+              flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+              },
+              sequence: {
+                useMaxWidth: true,
+                noteMargin: 10,
+              },
+              themeVariables: {
+                primaryColor: "#06b6d4",
+                primaryTextColor: "#fff",
+                primaryBorderColor: "#06b6d4",
+                lineColor: "#F8B229",
+                secondaryColor: "#006100",
+                tertiaryColor: "#fff"
+              }
+            });
+            window.mermaidInitialized = true;
+          } catch (initError) {
+            console.error("Mermaid initialization failed:", initError);
+            if (!cancelled) {
+              setError("Mermaid 初始化失败");
+              setLoading(false);
+            }
+            return;
           }
-        });
+        }
 
         if (cancelled) return;
 
         // 尝试渲染图表
-        const id = `mermaid-${Math.random().toString(36).slice(2)}`;
-        const { svg } = await mermaid.render(id, chart);
+        try {
+          const id = `mermaid-${Math.random().toString(36).slice(2)}`;
+          const { svg } = await mermaid.render(id, chart);
 
-        if (!cancelled && containerRef.current) {
-          containerRef.current.innerHTML = svg;
-          setLoading(false);
+          if (!cancelled && containerRef.current) {
+            containerRef.current.innerHTML = svg;
+            setLoading(false);
+          }
+        } catch (renderError) {
+          if (!cancelled) {
+            console.error("Mermaid rendering error:", renderError);
+            setError("图表渲染失败，请检查语法");
+            setLoading(false);
+
+            // 显示原始图表代码作为回退
+            if (containerRef.current) {
+              containerRef.current.innerHTML = `<pre style="color: var(--text-secondary); font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace; padding: 16px; background: var(--bg-card); border-radius: 8px; overflow: auto;">${chart}</pre>`;
+            }
+          }
         }
       } catch (e) {
         if (!cancelled) {

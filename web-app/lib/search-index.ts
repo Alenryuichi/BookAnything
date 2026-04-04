@@ -16,7 +16,7 @@ export function buildSearchEntries(
 
   // Index chapters (primary content now)
   for (const [id, ch] of Object.entries(chapters)) {
-    if (!ch) continue;
+    if (!ch || !ch.title) continue;
 
     // Chapter overview
     entries.push({

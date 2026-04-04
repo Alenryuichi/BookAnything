@@ -56,7 +56,7 @@ export default async function ChapterPage({ params }: { params: Promise<{ id: st
       <div style={{ maxWidth: 800, margin: "0 auto" }}>
         <Link href="/" style={{ color: "var(--accent)", textDecoration: "none" }}>← 目录</Link>
         <div className="card" style={{ marginTop: 24, textAlign: "center", padding: 64 }}>
-          <h2 style={{ fontSize: 24, marginBottom: 12 }}>第 {currentIndex + 1} 章</h2>
+          <h2 style={{ fontSize: 24, marginBottom: 12 }}>第 {Math.max(0, currentIndex) + 1} 章</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: 16, lineHeight: 1.8 }}>
             本章内容正在撰写中...<br />
             Harness 运行后将自动生成。

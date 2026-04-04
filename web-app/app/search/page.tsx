@@ -3,10 +3,16 @@ import { buildSearchEntries } from "@/lib/search-index";
 import { SearchClient } from "@/components/SearchClient";
 
 export default function SearchPage() {
-  const knowledge = loadKnowledge();
-  const entries = buildSearchEntries(knowledge.modules, knowledge.chapters);
+  let entries: any[] = [];
 
-  console.log("Search entries loaded:", entries.length);
+  try {
+    const knowledge = loadKnowledge();
+    entries = buildSearchEntries(knowledge.modules, knowledge.chapters);
+    console.log("Search entries loaded:", entries.length);
+  } catch (error) {
+    console.error("Failed to load search entries:", error);
+    // 即使加载失败，也显示搜索界面，但使用空数组
+  }
 
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "20px 16px" }}>
@@ -17,7 +23,7 @@ export default function SearchPage() {
         marginBottom: 32,
         lineHeight: 1.6
       }}>
-        搜索章节标题、内容、模块名称等。当前索引了 {entries.length} 个条目。
+        搜索章节标题、内容、模块名称等。当前索引了 {entries.length || 0} 个条目。
       </p>
       <SearchClient entries={entries} />
     </div>

@@ -17,8 +17,16 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const knowledge = loadKnowledge();
-  const parts = loadParts();
+  let knowledge = { chapters: {}, modules: {} };
+  let parts: any[] = [];
+
+  try {
+    knowledge = loadKnowledge();
+    parts = loadParts();
+  } catch (error) {
+    console.warn("Failed to load knowledge data:", error);
+    // 使用空数据作为回退
+  }
 
   return (
     <html lang="zh-CN" suppressHydrationWarning>

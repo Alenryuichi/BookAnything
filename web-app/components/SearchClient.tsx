@@ -4,6 +4,26 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import type { SearchEntry } from "@/lib/search-index";
 
+// 计算匹配分数
+function calculateMatchScore(title: string, content: string, query: string): number {
+  const words = query.split(/\s+/).filter(word => word.length > 0);
+  let score = 0;
+
+  // 标题完全匹配
+  if (title.includes(query)) score += 100;
+
+  // 内容完全匹配
+  if (content.includes(query)) score += 50;
+
+  // 单词匹配
+  words.forEach(word => {
+    if (title.includes(word)) score += 10;
+    if (content.includes(word)) score += 5;
+  });
+
+  return score;
+}
+
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   chapter: { label: "章节", color: "var(--accent)" },
   section: { label: "小节", color: "#10b981" },
@@ -32,27 +52,34 @@ export function SearchClient({ entries }: { entries: SearchEntry[] }) {
 
         if (words.length === 0) return false;
 
-        // 至少有一个单词匹配
-        return words.some(word =>
-          title.includes(word) || content.includes(word)
-        );
+        // 计算匹配分数：标题匹配权重更高
+        let score = 0;
+
+        // 标题完全匹配
+        if (title.includes(q)) score += 100;
+
+        // 内容完全匹配
+        if (content.includes(q)) score += 50;
+
+        // 单词匹配
+        words.forEach(word => {
+          if (title.includes(word)) score += 10;
+          if (content.includes(word)) score += 5;
+        });
+
+        return score > 0;
       })
       .sort((a, b) => {
-        // 按匹配度排序：标题匹配优先于内容匹配
-        const aTitleMatch = a.title.toLowerCase().includes(q);
-        const bTitleMatch = b.title.toLowerCase().includes(q);
+        // 计算匹配分数进行比较
+        const aTitle = a.title.toLowerCase();
+        const aContent = a.content.toLowerCase();
+        const bTitle = b.title.toLowerCase();
+        const bContent = b.content.toLowerCase();
 
-        if (aTitleMatch && !bTitleMatch) return -1;
-        if (!aTitleMatch && bTitleMatch) return 1;
+        const aScore = calculateMatchScore(aTitle, aContent, q);
+        const bScore = calculateMatchScore(bTitle, bContent, q);
 
-        // 如果都是标题匹配或都不是，按内容匹配度排序
-        const aContentMatch = a.content.toLowerCase().includes(q);
-        const bContentMatch = b.content.toLowerCase().includes(q);
-
-        if (aContentMatch && !bContentMatch) return -1;
-        if (!aContentMatch && bContentMatch) return 1;
-
-        return 0;
+        return bScore - aScore; // 分数高的在前
       })
       .slice(0, 30);
   }, [query, entries]);
