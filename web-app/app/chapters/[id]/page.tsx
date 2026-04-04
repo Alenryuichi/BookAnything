@@ -213,8 +213,21 @@ export default async function ChapterPage({ params }: { params: Promise<{ id: st
               </div>
             )}
 
+            {/* Additional diagrams from mermaid_diagrams array */}
+            {ch.mermaid_diagrams && ch.mermaid_diagrams.map((diagram, diagramIndex) => (
+              <div key={diagramIndex} className="card" style={{ marginTop: 20, marginBottom: 20 }}>
+                {diagram.title && (
+                  <h4 style={{ fontSize: 14, color: "var(--accent)", marginBottom: 8 }}>{diagram.title}</h4>
+                )}
+                <MermaidDiagram chart={diagram.chart} />
+                {diagram.description && (
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 8 }}>{diagram.description}</p>
+                )}
+              </div>
+            ))}
+
             {/* Section code — shiki highlighted */}
-            {section.code?.code && (
+            {section.code && section.code.code && section.code.code.trim().length > 0 && (
               <div style={{ marginTop: 20, marginBottom: 20 }}>
                 {section.code.title && (
                   <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{section.code.title}</h4>
@@ -222,7 +235,7 @@ export default async function ChapterPage({ params }: { params: Promise<{ id: st
                 {section.code.description && (
                   <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 8 }}>{section.code.description}</p>
                 )}
-                <CodeBlock code={section.code.code} lang={section.code.language} />
+                <CodeBlock code={section.code.code} lang={section.code.language || "typescript"} />
                 {section.code.annotation && (
                   <p style={{ fontSize: 14, lineHeight: 1.8, color: "var(--text-secondary)", marginTop: 8 }}>
                     {section.code.annotation}
@@ -230,6 +243,24 @@ export default async function ChapterPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
             )}
+
+            {/* Additional code snippets from code_snippets array */}
+            {ch.code_snippets && ch.code_snippets.map((snippet, snippetIndex) => (
+              <div key={snippetIndex} style={{ marginTop: 20, marginBottom: 20 }}>
+                {snippet.title && (
+                  <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{snippet.title}</h4>
+                )}
+                {snippet.description && (
+                  <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 8 }}>{snippet.description}</p>
+                )}
+                <CodeBlock code={snippet.code} lang={snippet.language || "typescript"} />
+                {snippet.annotation && (
+                  <p style={{ fontSize: 14, lineHeight: 1.8, color: "var(--text-secondary)", marginTop: 8 }}>
+                    {snippet.annotation}
+                  </p>
+                )}
+              </div>
+            ))}
           </section>
         );
       })}

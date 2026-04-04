@@ -2,13 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// Global type declaration
-declare global {
-  interface Window {
-    mermaidInitialized?: boolean;
-  }
-}
-
 interface MermaidDiagramProps {
   chart: string;
 }
@@ -17,6 +10,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [jsLoaded, setJsLoaded] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || !chart) return;
@@ -32,11 +26,16 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
           containerRef.current.innerHTML = "";
         }
 
-        const mermaid = (await import("mermaid")).default;
+        // 动态导入 mermaid 库 (v11 使用 namespace import)
+        const mermaidModule = await import("mermaid");
+        const mermaid = mermaidModule.default || mermaidModule;
 
-        // 只在第一次加载时初始化 mermaid
-        if (!window.mermaidInitialized) {
-          try {
+        setJsLoaded(true);
+
+        // 确保 mermaid 正确初始化
+        try {
+          // 检查 mermaid 是否已经有初始化配置，避免重复初始化
+          if (!mermaid.mermaidAPI || !mermaid.mermaidAPI.getConfig()) {
             mermaid.initialize({
               startOnLoad: false, // 手动控制渲染
               theme: "default",
@@ -59,26 +58,52 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
                 tertiaryColor: "#fff"
               }
             });
-            window.mermaidInitialized = true;
-          } catch (initError) {
-            console.error("Mermaid initialization failed:", initError);
-            if (!cancelled) {
-              setError("Mermaid 初始化失败");
-              setLoading(false);
-            }
-            return;
           }
+        } catch (initError) {
+          console.error("Mermaid initialization failed:", initError);
+          if (!cancelled) {
+            setError("Mermaid 初始化失败");
+            setLoading(false);
+          }
+          return;
         }
 
         if (cancelled) return;
 
-        // 尝试渲染图表
-        try {
-          const id = `mermaid-${Math.random().toString(36).slice(2)}`;
-          const { svg } = await mermaid.render(id, chart);
+        // 创建 mermaid 容器并生成唯一 ID
+        const uniqueId = `mermaid-${Math.random().toString(36).substring(7)}`;
+        const mermaidContainer = document.createElement('div');
+        mermaidContainer.id = uniqueId;
+        mermaidContainer.className = 'mermaid';
+        mermaidContainer.textContent = chart;
 
-          if (!cancelled && containerRef.current) {
-            containerRef.current.innerHTML = svg;
+        // 确保容器已清空并添加新的 mermaid 容器
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+          containerRef.current.appendChild(mermaidContainer);
+        }
+
+        // 使用 mermaid.run() 渲染 (v11 API)
+        try {
+          // 确保容器已添加到 DOM 中
+          if (containerRef.current && !containerRef.current.contains(mermaidContainer)) {
+            containerRef.current.appendChild(mermaidContainer);
+          }
+
+          // 兼容不同版本的 mermaid API
+          if (typeof mermaid.run === 'function') {
+            await mermaid.run({
+              elements: [mermaidContainer]
+            });
+          } else if (typeof mermaid.init === 'function') {
+            // 旧版本 API
+            await mermaid.init(undefined, mermaidContainer);
+          } else {
+            // 回退到直接渲染
+            mermaidContainer.innerHTML = await mermaid.render(uniqueId, chart);
+          }
+
+          if (!cancelled) {
             setLoading(false);
           }
         } catch (renderError) {
@@ -136,22 +161,6 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
     );
   }
 
-  if (loading) {
-    return (
-      <div style={{
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        padding: 16,
-        background: "var(--bg-card)",
-        textAlign: "center",
-        color: "var(--text-secondary)",
-        fontSize: 14
-      }}>
-        正在渲染图表...
-      </div>
-    );
-  }
-
   return (
     <div
       ref={containerRef}
@@ -160,8 +169,18 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
         display: "flex",
         justifyContent: "center",
         overflow: "auto",
-        minHeight: "200px"
+        minHeight: loading ? "60px" : "auto"
       }}
-    />
+    >
+      {loading && (
+        <div style={{
+          color: "var(--text-secondary)",
+          fontSize: 14,
+          alignSelf: "center"
+        }}>
+          {jsLoaded ? "正在渲染图表..." : "加载 Mermaid 库..."}
+        </div>
+      )}
+    </div>
   );
 }

@@ -7,6 +7,10 @@ export default function SearchPage() {
 
   try {
     const knowledge = loadKnowledge();
+    console.log("Knowledge loaded:", {
+      chapters: Object.keys(knowledge.chapters).length,
+      modules: Object.keys(knowledge.modules).length
+    });
     entries = buildSearchEntries(knowledge.modules, knowledge.chapters);
     console.log("Search entries loaded:", entries.length);
   } catch (error) {

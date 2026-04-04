@@ -8,13 +8,73 @@ import type {
   KnowledgeBase,
 } from "./types";
 
-// 动态加载项目名称，优先使用环境变量
-const KNOWLEDGE_PROJECT = "Pydantic AI"; // 强制使用 Pydantic AI 项目
+// Load project name from environment variable or detect from project YAML files
+function getKnowledgeProject(): string {
+  // 1. Check environment variable first
+  if (process.env.KNOWLEDGE_PROJECT) {
+    return process.env.KNOWLEDGE_PROJECT;
+  }
+
+  // 2. Try to determine from project YAML file
+  const projectDir = path.join(process.cwd(), "..", "projects");
+  if (fs.existsSync(projectDir)) {
+    const yamlFiles = fs.readdirSync(projectDir).filter(f => f.endsWith(".yaml") && f !== "example.yaml");
+
+    // If PROJECT_YAML is set, read the name from that file
+    const envYaml = process.env.PROJECT_YAML;
+    if (envYaml) {
+      const fullPath = path.isAbsolute(envYaml) ? envYaml : path.join(projectDir, envYaml);
+      try {
+        const content = fs.readFileSync(fullPath, "utf-8");
+        const nameMatch = content.match(/^name:\s*"?(.+?)"?\s*$/m);
+        if (nameMatch) return nameMatch[1];
+      } catch {}
+    }
+
+    // Otherwise read from the first non-example YAML
+    if (yamlFiles.length > 0) {
+      try {
+        const content = fs.readFileSync(path.join(projectDir, yamlFiles[0]), "utf-8");
+        const nameMatch = content.match(/^name:\s*"?(.+?)"?\s*$/m);
+        if (nameMatch) return nameMatch[1];
+      } catch {}
+    }
+  }
+
+  // 3. Fallback: check available directories in knowledge/
+  const knowledgeDir = path.join(process.cwd(), "..", "knowledge");
+  if (fs.existsSync(knowledgeDir)) {
+    const subdirs = fs.readdirSync(knowledgeDir).filter(f => {
+      const fullPath = path.join(knowledgeDir, f);
+      return fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory() && f !== "chapters" && f !== "modules";
+    });
+    if (subdirs.length > 0) {
+      return subdirs[0]; // Use the first available subdirectory
+    }
+  }
+
+  // 4. Fallback: check if we have chapters in flat knowledge/ dir
+  const chaptersDir = path.join(knowledgeDir, "chapters");
+  if (fs.existsSync(chaptersDir)) {
+    const chapterFiles = fs.readdirSync(chaptersDir).filter(f => f.endsWith(".json"));
+    if (chapterFiles.length > 0) {
+      return "Claude Code"; // Use default project name for flat structure
+    }
+  }
+
+  // 5. Final fallback
+  return "Claude Code";
+}
+
+const KNOWLEDGE_PROJECT = getKnowledgeProject();
 const KNOWLEDGE_DIR_PROJECT = path.join(process.cwd(), "..", "knowledge", KNOWLEDGE_PROJECT);
 // Fallback to legacy flat knowledge/ dir if project-namespaced dir doesn't exist
 const KNOWLEDGE_DIR = fs.existsSync(KNOWLEDGE_DIR_PROJECT)
   ? KNOWLEDGE_DIR_PROJECT
   : path.join(process.cwd(), "..", "knowledge");
+
+console.log("Knowledge directory:", KNOWLEDGE_DIR);
+console.log("Project name:", KNOWLEDGE_PROJECT);
 
 /**
  * Extract JSON from text that may have leading prose or ```json wrapping.

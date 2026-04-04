@@ -15,11 +15,11 @@ async function getHighlighter() {
   if (highlighterInstance) return highlighterInstance;
   if (highlighterPromise) return highlighterPromise;
 
-  // Use Shiki's web bundle for client-side rendering
+  // Use Shiki v4's new API for client-side rendering
   highlighterPromise = import("shiki").then((shiki) => {
-    return shiki.getHighlighter({
+    return shiki.createHighlighter({
       themes: ["github-dark", "github-light"],
-      langs: ["typescript", "javascript", "python", "json", "yaml", "bash"]
+      langs: ["typescript", "javascript", "python", "json", "yaml", "bash", "tsx", "jsx", "rust", "go", "java"]
     });
   }).then((highlighter) => {
     highlighterInstance = highlighter;
@@ -45,6 +45,10 @@ async function highlightCode(code: string, lang: string): Promise<string | null>
     return highlightCache.get(cacheKey) || null;
   }
 
+  if (!code || code.trim().length === 0) {
+    return null;
+  }
+
   try {
     const highlighter = await getHighlighter();
     if (!highlighter) {
@@ -60,10 +64,17 @@ async function highlightCode(code: string, lang: string): Promise<string | null>
       theme = isLight ? "github-light" : "github-dark";
     }
 
-    const html = await highlighter.codeToHtml(code, {
+    // Shiki v4 API: codeToHtml 是同步方法
+    const html = highlighter.codeToHtml(code, {
       lang: lang || "typescript",
       theme,
     });
+
+    // 检查返回结果是否有效
+    if (!html || html.length === 0) {
+      console.warn("Shiki codeToHtml returned empty string");
+      return null;
+    }
 
     highlightCache.set(cacheKey, html);
     return html;
@@ -90,10 +101,16 @@ export function CodeBlock({ code, lang = "typescript" }: CodeBlockProps) {
         setLoading(true);
         const result = await highlightCode(code, lang);
         if (!cancelled) {
-          setHighlighted(result);
+          // Only set highlighted if we got actual HTML content
+          if (result && result.trim().length > 0 && result.includes("<pre")) {
+            setHighlighted(result);
+          } else {
+            setHighlighted(null);
+          }
         }
       } catch (error) {
         if (!cancelled) {
+          console.error("Code highlighting error:", error);
           setHighlighted(null);
         }
       } finally {
