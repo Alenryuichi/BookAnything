@@ -44,14 +44,16 @@ class ClaudeClient:
         """Run a headless claude -p call and return the result.
 
         If response_model is provided, parse the result as that Pydantic model.
+
+        Note: allowed_tools is accepted for API compatibility but NOT passed
+        to the CLI. Tool restrictions are enforced by .claude/rules/ instead,
+        which works across all CLI variants.
         """
         args = [
             self.cmd, "-p", prompt,
             "--output-format", "json",
             "--max-turns", str(max_turns),
         ]
-        if allowed_tools:
-            args.extend(["--allowedTools", ",".join(allowed_tools)])
 
         proc = await asyncio.wait_for(
             asyncio.create_subprocess_exec(
@@ -69,7 +71,15 @@ class ClaudeClient:
         )
 
         if proc.returncode != 0:
-            raise RuntimeError(f"Claude CLI exited with {proc.returncode}: {stderr.decode()[-500:]}")
+            err_detail = stderr.decode()[-500:]
+            # claude-internal puts error info in stdout JSON, not stderr
+            try:
+                envelope = json.loads(stdout.decode())
+                if envelope.get("is_error"):
+                    err_detail = envelope.get("result", err_detail)[:500]
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
+            raise RuntimeError(f"Claude CLI exited with {proc.returncode}: {err_detail}")
 
         raw = stdout.decode()
 

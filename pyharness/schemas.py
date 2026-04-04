@@ -19,8 +19,8 @@ class PlanOutput(BaseModel):
     plan_summary: str = ""
     chapters_to_write: list[ChapterToWrite] = Field(default_factory=list)
     needs_webapp_improve: bool = True
-    webapp_improve_focus: str = "none"
-    improvement_focus: str = "coverage"
+    webapp_improve_focus: Optional[str] = "none"
+    improvement_focus: Optional[str] = "coverage"
 
 
 # ── Chapter JSON ──

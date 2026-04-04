@@ -80,8 +80,8 @@ class TestArgvAssembly:
         assert args[1] == "-p"
         assert "test prompt" in args
         assert "--output-format" in args
-        assert "--allowedTools" in args
-        assert "Read,Grep" in args
+        # allowed_tools accepted but NOT forwarded to CLI (enforced by .claude/rules/)
+        assert "--allowedTools" not in args
 
     @pytest.mark.asyncio
     async def test_no_allowed_tools(self):
