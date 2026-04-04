@@ -1,0 +1,54 @@
+{
+  "chapter_id": "ch08-agent-coordination",
+  "title": "第8章：多智能体协作",
+  "subtitle": "Agent 如何创建、通信和协调",
+  "opening_hook": "想象你正在装修房子。一个人可以测量、搬运材料、安装家具，但如果能同时有三个人分别负责这三件事，效率会提升多少倍？\n\nClaude Code 也面临同样的挑战：当一个任务本身就很复杂时，单个 AI 智能体可能需要反复上下文切换。于是，系统引入了「多智能体协作」的概念——主 Agent 可以创建子 Agent，让它们并行处理不同的子任务。\n\n这不仅仅是简单的「多线程」，而是一个完整的协作生态系统。不同的 Agent 可以互相发送消息、共享信息、协同工作，甚至拥有自己独立的代码副本。本章将揭开这个协作系统的设计原理。",
+  "sections": [
+    {
+      "heading": "8.1 AgentTool：创建智能体的钥匙",
+      "content": "Claude Code 中的 Agent 不是凭空产生的，而是由主 Agent 通过 AgentTool 创建的。这个过程就像是一个项目经理给团队成员分配任务：主 Agent 决定「需要一个专门做某件事的助手」，然后调用 AgentTool 来创建它。\n\nAgentTool 本身也是一个工具，与其他工具（如 ReadTool、BashTool）一样遵循统一的 Tool 接口。当你要求 Claude「并行搜索这两个文件」时，主 Agent 会在内部规划：「我可以创建两个探索 Agent，分别搜索不同的目录」。\n\n创建子 Agent 的关键在于传递完整的信息：它需要知道任务描述、能使用哪些工具、以及如何将结果汇报回来。AgentTool 负责打包这些信息，初始化一个新的 Agent 实例，并将其挂载到任务系统中。",
+      "code": "function(params: CreateAgentParams): Task {\n  // 1. 创建子 Agent 的独立状态\n  const agent = new Agent({\n    capabilities: params.allowedTools,\n    prompt: params.taskDescription,\n    parentContext: this.context\n  });\n\n  // 2. 将 Agent 包装为任务返回\n  return new LocalAgentTask(agent);\n}"
+    },
+    {
+      "heading": "8.2 SendMessage：智能体间的对话协议",
+      "content": "子 Agent 创建后，它们需要与主 Agent 通信。这不是简单的「父进程-子进程」关系，而更像是一个灵活的通信网络。SendMessageTool 就是这个网络的通信协议。\n\n想象一个办公室场景：项目经理给团队成员分派任务后，成员可以随时向项目经理报告进度，或者询问额外信息。SendMessage 让子 Agent 能够主动向父 Agent 发送消息，反之亦然。\n\n消息传递的核心挑战是上下文的同步。子 Agent 的工作进展需要被父 Agent 了解，父 Agent 的新指令也需要及时传达给子 Agent。这套系统通过一个消息队列和轮询机制来实现异步通信，避免阻塞任何一方的执行。",
+      "code": "async sendMessage(to: AgentId, content: string): Promise<void> {\n  const message: Message = {\n    from: this.currentAgent.id,\n    to,\n    content,\n    timestamp: Date.now()\n  };\n  \n  // 放入消息队列，目标 Agent 会轮询获取\n  await this.messageQueue.enqueue(message);\n}"
+    },
+    {
+      "heading": "8.3 Coordinator：多智能体的调度中枢",
+      "content": "当系统中存在多个 Agent 时，谁来协调它们的行动？这就是 Coordinator 的职责——它像是交通指挥中心，确保所有 Agent 井然有序地工作，避免冲突。\n\nCoordinator 跟踪系统中的所有活跃 Agent，管理它们的生命周期（创建、运行、暂停、销毁）。更重要的是，它处理资源分配：哪些 Agent 可以访问文件系统？哪些可以执行 Bash 命令？这些权限由 Coordinator 统一管理，防止多个 Agent 同时修改同一个文件。\n\n调度策略是 Coordinator 的另一个核心职责。当系统资源紧张时（如达到 API 速率限制），Coordinator 可以决定暂停某些后台任务，优先处理用户直接交互的任务。",
+      "code": "class Coordinator {\n  private activeAgents = new Map<AgentId, Agent>();\n  private resourceLocks = new Set<FilePath>();\n\n  async allocate(agent: Agent, resource: FilePath): Promise<boolean> {\n    if (this.resourceLocks.has(resource)) {\n      return false; // 资源已被占用\n    }\n    this.resourceLocks.add(resource);\n    return true;\n  }\n}"
+    },
+    {
+      "heading": "8.4 Team：智能体团队的组织",
+      "content": "单个 Agent 的能力有限，但一群 Agent 可以形成团队。Team 概念允许创建一组协同工作的 Agent，它们共享特定目标和资源。\n\n团队的意义在于「任务分治与结果合并」。当面对一个复杂项目时，你可以创建一个 Explore Agent 团队：一个负责前端代码探索，一个负责后端，一个负责配置文件。它们各自完成工作后，结果会被汇总到主 Agent。\n\nTeamCreateTool 负责创建团队，而 Team 则管理团队的生命周期。团队可以临时创建完成任务后销毁，也可以长期存在处理持续性的任务。这种灵活性让系统能够应对各种复杂的协作需求。",
+      "code": "interface Team {\n  id: string;\n  members: Agent[];\n  sharedContext: Context;\n  \n  async distribute(task: Task): Promise<Agent> {\n    // 根据负载和专长选择最合适的成员\n    return this.members.sort((a, b) => a.load - b.load)[0];\n  }\n}"
+    },
+    {
+      "heading": "8.5 Worktree 隔离：每个智能体有自己的代码副本",
+      "content": "多 Agent 协作的最大风险是互相干扰——两个 Agent 同时修改同一个文件会导致冲突。Worktree 是 Git 提供的「工作树隔离」功能，Claude Code 巧妙地利用它来解决这个问题。\n\n每个 Agent 可以获得自己独立的代码副本（一个 worktree），在其中自由工作而不影响其他 Agent。当 Agent 完成任务后，它的修改可以被选择性地合并到主分支，或者直接丢弃。\n\n这个过程就像是给每个 Agent 分配了一个沙盒环境。它们可以「犯错」而不影响主代码库。对于探索性任务（如尝试重构某个模块），这种隔离至关重要——Agent 可以大胆尝试，失败后直接丢弃 worktree 即可。",
+      "code": "async createWorktree(sourceBranch: string): Promise<string> {\n  const worktreePath = `.claude/worktrees/${randomId()}`;\n  \n  // 创建隔离的工作树\n  await exec(\n    `git worktree add -b ${randomBranch()} ${worktreePath} ${sourceBranch}`\n  );\n  \n  return worktreePath; // Agent 在此路径下工作\n}"
+    },
+    {
+      "heading": "8.6 挑战：避免冲突与死锁",
+      "content": "多智能体系统虽然强大，但也带来了新的挑战。最危险的是死锁——Agent A 等待 Agent B 的结果，而 Agent B 也在等待 Agent A 的结果。系统必须设计优先级和超时机制来打破这种循环。\n\n另一个挑战是状态同步。当多个 Agent 访问相同信息时，如何保证它们看到的是一致的版本？Claude Code 使用乐观并发控制：假设冲突很少发生，只在真正冲突时才解决冲突。\n\n最后是资源竞争的处理。当所有 Agent 都在等待 API 响应时，系统需要智能调度。Coordinator 会优先处理交互式任务（用户直接请求的任务），而后台任务则可以等待或暂停。",
+      "diagram": "sequenceDiagram\n    participant Main as 主 Agent\n    participant Coord as Coordinator\n    participant A as Agent A\n    participant B as Agent B\n    \n    Main->>Coord: 创建 Team\n    Coord->>A: 初始化 A\n    Coord->>B: 初始化 B\n    \n    par 并行工作\n        A->>A: 执行子任务 1\n        B->>B: 执行子任务 2\n    \n    A-->>Main: 发送状态更新\n    B-->>Main: 发送状态更新\n    \n    Main->>Coord: 汇总结果\n    Coord->>Coord: 合并输出\n    Coord-->>Main: 最终结果",
+      "callout": "设计哲学：多智能体系统的核心不是让 Agent 更聪明，而是让协作更简单。清晰的协议、明确的边界、可靠的调度，这些比复杂的智能更重要。"
+    }
+  ],
+  "key_takeaways": [
+    "AgentTool 让主 Agent 能够创建子 Agent，实现任务分解与并行处理",
+    "SendMessageTool 提供了 Agent 间的异步通信机制，支持上下文同步",
+    "Coordinator 是多 Agent 系统的调度中枢，管理生命周期、权限和资源分配",
+    "Team 概念允许组织多个 Agent 协同工作，实现任务分治与结果合并",
+    "Worktree 隔离为每个 Agent 提供独立的代码沙盒，避免互相干扰和冲突"
+  ],
+  "further_thinking": [
+    "如果允许 Agent 自主创建更多 Agent，系统是否可能出现无限制的 Agent 派生？如何设计限制机制？",
+    "多 Agent 协作与传统的多线程并发有什么本质区别？在什么场景下前者更有优势？"
+  ],
+  "word_count": 3420,
+  "prerequisites": [
+    "ch07-task-system"
+  ]
+}
