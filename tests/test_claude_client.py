@@ -22,17 +22,6 @@ def _mock_process(stdout: bytes = b"", stderr: bytes = b"", returncode: int = 0)
     return proc
 
 
-async def _fake_create_subprocess(proc):
-    """Return a factory coroutine that yields the mock process."""
-    async def factory(*args, **kwargs):
-        factory.last_args = args
-        factory.last_kwargs = kwargs
-        return proc
-    factory.last_args = None
-    factory.last_kwargs = None
-    return factory
-
-
 # ── _extract_json tests ──
 
 class TestExtractJson:

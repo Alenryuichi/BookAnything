@@ -1,0 +1,67 @@
+{
+  "pages": {
+    "home": {
+      "metrics": {
+        "hasSidebar": true,
+        "hasDarkModeToggle": true,
+        "cardCount": 18,
+        "bodyText": 800,
+        "linkCount": 25,
+        "navItemCount": 20,
+        "codeBlockCount": 0,
+        "mermaidCount": 0,
+        "mermaidErrorCount": 0,
+        "hasSearchInput": false
+      },
+      "diagnostics": {
+        "mermaid": {"jsLoaded": true, "containersFound": 0, "svgsRendered": 0, "renderErrors": [], "consoleErrors": []},
+        "codeBlock": {"preTagCount": 0, "codeTagCount": 0, "shikiClassesFound": false, "highlightedBlockCount": 0},
+        "search": {"inputFound": false, "queryTyped": false, "resultsAfterQuery": 0, "cardCountAfterQuery": 0}
+      },
+      "errors": [],
+      "categorizedErrors": {"mermaid": [], "shiki": [], "search": [], "other": []}
+    },
+    "search": {
+      "metrics": {
+        "hasSearchInput": true,
+        "cardCount": 10,
+        "codeBlockCount": 0,
+        "linkCount": 15,
+        "navItemCount": 20,
+        "mermaidCount": 0,
+        "mermaidErrorCount": 0
+      },
+      "diagnostics": {
+        "mermaid": {"jsLoaded": false, "containersFound": 0, "svgsRendered": 0, "renderErrors": [], "consoleErrors": []},
+        "codeBlock": {"preTagCount": 0, "codeTagCount": 0, "shikiClassesFound": false, "highlightedBlockCount": 0},
+        "search": {"inputFound": true, "queryTyped": true, "resultsAfterQuery": 5, "cardCountAfterQuery": 5}
+      },
+      "errors": []
+    },
+    "chapter-ch01": {
+      "metrics": {"codeBlockCount": 4, "mermaidCount": 2, "mermaidErrorCount": 0},
+      "diagnostics": {
+        "mermaid": {"jsLoaded": true, "containersFound": 2, "svgsRendered": 2, "renderErrors": [], "consoleErrors": []},
+        "codeBlock": {"preTagCount": 4, "codeTagCount": 4, "shikiClassesFound": true, "highlightedBlockCount": 4},
+        "search": {"inputFound": false, "queryTyped": false, "resultsAfterQuery": 0, "cardCountAfterQuery": 0}
+      },
+      "errors": []
+    },
+    "chapter-ch02": {
+      "metrics": {"codeBlockCount": 3, "mermaidCount": 1, "mermaidErrorCount": 0},
+      "diagnostics": {
+        "mermaid": {"jsLoaded": true, "containersFound": 1, "svgsRendered": 1, "renderErrors": [], "consoleErrors": []},
+        "codeBlock": {"preTagCount": 3, "codeTagCount": 3, "shikiClassesFound": true, "highlightedBlockCount": 3},
+        "search": {"inputFound": false, "queryTyped": false, "resultsAfterQuery": 0, "cardCountAfterQuery": 0}
+      },
+      "errors": []
+    }
+  },
+  "summary": {
+    "totalPages": 4,
+    "pagesWithErrors": 0,
+    "totalErrors": 0,
+    "totalMermaidErrors": 0,
+    "totalMermaidRendered": 3
+  }
+}
