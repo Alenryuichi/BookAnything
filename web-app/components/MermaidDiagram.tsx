@@ -34,31 +34,29 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
 
         // 确保 mermaid 正确初始化
         try {
-          // 检查 mermaid 是否已经有初始化配置，避免重复初始化
-          if (!mermaid.mermaidAPI || !mermaid.mermaidAPI.getConfig()) {
-            mermaid.initialize({
-              startOnLoad: false, // 手动控制渲染
-              theme: "default",
-              securityLevel: "loose",
-              fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace",
-              flowchart: {
-                useMaxWidth: true,
-                htmlLabels: true,
-              },
-              sequence: {
-                useMaxWidth: true,
-                noteMargin: 10,
-              },
-              themeVariables: {
-                primaryColor: "#06b6d4",
-                primaryTextColor: "#fff",
-                primaryBorderColor: "#06b6d4",
-                lineColor: "#F8B229",
-                secondaryColor: "#006100",
-                tertiaryColor: "#fff"
-              }
-            });
-          }
+          // 使用更简单的初始化配置，避免复杂的版本检测
+          mermaid.initialize({
+            startOnLoad: false, // 手动控制渲染
+            theme: "default",
+            securityLevel: "loose",
+            fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace",
+            flowchart: {
+              useMaxWidth: true,
+              htmlLabels: true,
+            },
+            sequence: {
+              useMaxWidth: true,
+              noteMargin: 10,
+            },
+            themeVariables: {
+              primaryColor: "#06b6d4",
+              primaryTextColor: "#fff",
+              primaryBorderColor: "#06b6d4",
+              lineColor: "#F8B229",
+              secondaryColor: "#006100",
+              tertiaryColor: "#fff"
+            }
+          });
         } catch (initError) {
           console.error("Mermaid initialization failed:", initError);
           if (!cancelled) {
@@ -90,17 +88,15 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
             containerRef.current.appendChild(mermaidContainer);
           }
 
-          // 兼容不同版本的 mermaid API
+          // 使用 mermaid.run() 渲染图表
           if (typeof mermaid.run === 'function') {
             await mermaid.run({
               elements: [mermaidContainer]
             });
-          } else if (typeof mermaid.init === 'function') {
-            // 旧版本 API
-            await mermaid.init(undefined, mermaidContainer);
           } else {
-            // 回退到直接渲染
-            mermaidContainer.innerHTML = await mermaid.render(uniqueId, chart);
+            // 如果 run 方法不存在，使用 render 方法
+            const { svg } = await mermaid.render(uniqueId, chart);
+            mermaidContainer.innerHTML = svg;
           }
 
           if (!cancelled) {

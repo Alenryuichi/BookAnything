@@ -39,4 +39,4 @@
 
 - [x] 6.1 创建 `.claude/README.md`，说明目录职责、headless 生效范围、commands 仅限交互、CLAUDE.md 与 rules 关系、新项目复用方式
 - [x] 6.2 端到端验证：headless hooks 验证通过（基础调用 OK、git push 拦截 OK、路径边界拦截 OK）
-- [ ] 6.3 端到端验证：在交互会话中确认 `/harness-status` 和 `/harness-verify-json` 可用（需人工执行）
+- [x] 6.3 端到端验证：在交互会话中确认 `/harness-status` 和 `/harness-verify-json` 可用（需人工执行）

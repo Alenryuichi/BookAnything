@@ -18,7 +18,7 @@ async function getHighlighter() {
   // Use Shiki v4's new API for client-side rendering
   highlighterPromise = import("shiki").then((shiki) => {
     return shiki.createHighlighter({
-      themes: ["github-dark", "github-light"],
+      themes: ["github-dark"], // 简化主题，只使用一个主题
       langs: ["typescript", "javascript", "python", "json", "yaml", "bash", "tsx", "jsx", "rust", "go", "java"]
     });
   }).then((highlighter) => {
@@ -56,13 +56,8 @@ async function highlightCode(code: string, lang: string): Promise<string | null>
       return null;
     }
 
-    // 改进主题检测逻辑
-    let theme = "github-dark";
-    if (typeof window !== "undefined") {
-      const isLight = document.documentElement.getAttribute("data-theme") === "light" ||
-                     document.documentElement.classList.contains("light");
-      theme = isLight ? "github-light" : "github-dark";
-    }
+    // 简化主题检测逻辑，默认使用 github-dark
+    const theme = "github-dark";
 
     // Shiki v4 API: codeToHtml 是同步方法
     const html = highlighter.codeToHtml(code, {
@@ -102,7 +97,7 @@ export function CodeBlock({ code, lang = "typescript" }: CodeBlockProps) {
         const result = await highlightCode(code, lang);
         if (!cancelled) {
           // Only set highlighted if we got actual HTML content
-          if (result && result.trim().length > 0 && result.includes("<pre")) {
+          if (result && result.trim().length > 0) {
             setHighlighted(result);
           } else {
             setHighlighted(null);
@@ -173,11 +168,10 @@ export function CodeBlock({ code, lang = "typescript" }: CodeBlockProps) {
       lineHeight: 1.6,
       border: "1px solid var(--border)",
       margin: "16px 0",
+      color: "var(--text-primary)",
+      fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace"
     }}>
-      <code style={{
-        color: "var(--text-primary)",
-        fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace"
-      }}>
+      <code>
         {code}
       </code>
     </pre>

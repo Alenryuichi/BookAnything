@@ -19,6 +19,9 @@ pyharness = "pyharness.__main__:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "slow: real Claude CLI tests (deselect with '-m \"not slow\"')",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

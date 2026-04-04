@@ -55,7 +55,7 @@ class TestGoldenPlanReplay:
         """Golden plan fixture has the expected CLI envelope structure."""
         assert "result" in plan_fixture
         text = plan_fixture["result"]
-        cleaned = ClaudeClient._extract_json(text)
+        cleaned = ClaudeClient._extract_json(text)  # private access intentional — golden replay tests core parsing
         assert cleaned is not None
         data = json.loads(cleaned)
         assert "chapters_to_write" in data
@@ -86,7 +86,7 @@ class TestGoldenChapterReplay:
         """Golden chapter fixture has the expected CLI envelope structure."""
         assert "result" in chapter_fixture
         text = chapter_fixture["result"]
-        cleaned = ClaudeClient._extract_json(text)
+        cleaned = ClaudeClient._extract_json(text)  # private access intentional
         assert cleaned is not None
         data = json.loads(cleaned)
         assert "chapter_id" in data
@@ -99,7 +99,7 @@ class TestScoreConsistency:
         from pyharness.eval import eval_content
 
         text = chapter_fixture["result"]
-        cleaned = ClaudeClient._extract_json(text)
+        cleaned = ClaudeClient._extract_json(text)  # private access intentional
         assert cleaned is not None
         parsed = json.loads(cleaned)
 

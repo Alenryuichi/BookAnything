@@ -36,6 +36,10 @@ class TestE2EConvergence:
 
     These tests are expensive (~$0.3-0.5 per run) and require CLAUDE_CMD
     to be available. They are skipped by default; run with `pytest -m slow`.
+
+    Cost protection: --max-hours 0.01 (≈36s) ensures the loop exits after
+    at most 1 iteration even if Claude responds quickly. A future
+    --max-iterations flag would provide an additional safeguard.
     """
 
     @pytest.fixture
