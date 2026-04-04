@@ -1,0 +1,60 @@
+{
+  "chapter_id": "ch13-design-patterns",
+  "title": "第13章：设计模式全景",
+  "subtitle": "贯穿 50 万行代码的架构智慧",
+  "opening_hook": "想象一位经验丰富的建筑师正在设计一座摩天大楼。他不会在每个房间都重新发明门锁、窗户或电梯的安装方式。相反，他会反复使用那些经过时间考验的建造模式：承重结构的布局、管道系统的走向、安全出口的设计。这些模式是无数建筑师智慧的结晶，是确保建筑安全、高效、可维护的基石。\n\n在软件工程的世界里，设计模式扮演着同样的角色。它们不是僵化的规则，而是经过验证的解决常见问题的最佳实践。Claude Code 的 50 万行代码中，设计模式如同建筑的筋骨，支撑起整个系统的架构。从工具构建到任务调度，从权限控制到事件处理，每一处都凝聚着设计模式的智慧。\n\n本章将带你探索 Claude Code 中采用的设计模式，理解它们如何让一个复杂的系统保持在可维护的轨道上，以及为什么这些看似抽象的模式在实际工程中如此重要。",
+  "sections": [
+    {
+      "heading": "Builder 模式：工欲善其事，必先利其器",
+      "content": "在面向对象编程的传统教科书中，我们经常看到通过继承来创建变体的例子。但在 Claude Code 的工具系统中，团队选择了 Builder 模式。这个选择并非偶然，而是基于对工具系统本质的深刻理解。\n\n工具系统的核心挑战之一是配置的复杂性。每个工具都有一系列可配置的参数：输入类型、输出类型、权限级别、名称、描述、执行函数等。如果使用传统的构造函数来创建工具，构造函数会变得极其冗长和难以维护。想象一下这样的代码：new FileReadTool({ inputType: FileReadInput, outputType: FileReadOutput, permission: 'read', name: 'file_read', description: 'Read a file', execute: ...})。这不仅难以阅读，而且每次想要改变一个参数都需要记住整个参数列表。\n\nBuilder 模式通过链式调用优雅地解决了这个问题。每个配置选项都返回 Builder 本身，让配置过程像讲故事一样流畅：FileReadTool.builder().withName('file_read').withInputType(FileReadInput).build()。这种设计让代码的意图一目了然，同时保持了灵活性——你可以只配置需要的参数，而不需要关心那些保持默认值的选项。\n\n更深层次来看，Builder 模式符合函数式编程的思想。Builder 的链式调用创建了一系列不可变的中间状态，最终构建出完全不可变的工具实例。这种不可变性大大减少了状态管理的复杂性，让并发和缓存变得更容易。",
+      "code": "```typescript\n// Builder 模式的精简示例\ninterface ToolBuilder<Input, Output> {\n  withName(name: string): ToolBuilder<Input, Output>\n  withDescription(desc: string): ToolBuilder<Input, Output>\n  withPermission(level: Permission): ToolBuilder<Input, Output>\n  withExecutor(fn: (input: Input) => Promise<Output>): ToolBuilder<Input, Output>\n  build(): Tool<Input, Output>\n}\n\n// 使用示例\nconst readTool = new ToolBuilder<FileReadInput, string>()\n  .withName('file_read')\n  .withDescription('读取文件内容')\n  .withPermission('read')\n  .withExecutor(async (input) => {\n    return await fs.readFile(input.path, 'utf-8')\n  })\n  .build()\n```"
+    },
+    {
+      "heading": "策略模式：权限系统的变奏曲",
+      "content": "权限系统是 Claude Code 的安全门户，但它面临着复杂的需求：不同的工具需要不同的权限级别，不同的用户场景需要不同的权限验证策略，而且权限规则可能随着时间变化。如果用一系列 if-else 来处理这些场景，代码会快速退化为难以维护的条件沼泽。\n\n策略模式为这个困境提供了优雅的解决方案。它的核心思想是：将算法的定义与使用分离。在权限系统中，每种权限验证策略都是一个独立的类或函数，它们都实现相同的接口但有不同的验证逻辑。当需要验证一个操作时，系统会选择合适的策略来执行，而不是在一个巨大的条件分支中硬编码。\n\n策略模式的另一个应用场景是模型选择。不同的 AI 任务可能需要不同的模型——有些需要 Claude Opus 的强大推理能力，有些只需要 Haiku 的快速响应。模型选择策略可以基于任务复杂度、用户偏好、资源可用性等多个因素动态选择最合适的模型。这种设计让系统能够适应不断变化的模型生态系统，而不需要修改核心代码。\n\n策略模式的意义不仅在于代码组织，更在于它体现的工程哲学：变化是常态，系统应该拥抱变化而不是抵抗变化。通过将变化的部分封装在独立的策略中，系统保持了核心的稳定性，同时获得了适应变化的能力。",
+      "code": "```typescript\n// 权限验证策略接口\ninterface PermissionStrategy {\n  canExecute(tool: Tool, context: SessionContext): boolean\n  getErrorMessage(tool: Tool): string\n}\n\n// 只读策略：只能读取，不能写入\nclass ReadOnlyStrategy implements PermissionStrategy {\n  canExecute(tool: Tool, context: SessionContext): boolean {\n    return tool.permissionLevel === 'read' || tool.permissionLevel === 'safe'\n  }\n  getErrorMessage(): string {\n    return '当前会话为只读模式，此操作需要写权限'\n  }\n}\n\n// 信任策略：用户明确授权的所有操作\nclass TrustedStrategy implements PermissionStrategy {\n  canExecute(tool: Tool, context: SessionContext): boolean {\n    return context.hasExplicitPermission(tool.id)\n  }\n  getErrorMessage(): string {\n    return '此操作需要您明确授权'\n  }\n}\n\n// 策略选择器：根据会话状态选择策略\nclass PermissionChecker {\n  private strategies: Map<string, PermissionStrategy> = new Map()\n  \n  register(name: string, strategy: PermissionStrategy) {\n    this.strategies.set(name, strategy)\n  }\n  \n  check(tool: Tool, context: SessionContext): boolean {\n    const strategyName = context.getPermissionStrategy()\n    const strategy = this.strategies.get(strategyName)\n    return strategy ? strategy.canExecute(tool, context) : false\n  }\n}\n```"
+    },
+    {
+      "heading": "观察者模式：钩子系统的事件交响乐",
+      "content": "在 Claude Code 的架构中，有一个被广泛使用但用户几乎感知不到的机制：钩子系统。这个系统采用了观察者模式，让系统能够在关键事件发生时执行自定义逻辑，而不需要修改核心代码。\n\n观察者模式的核心是「订阅-发布」机制。事件的发布者不需要知道有谁在监听，监听者也不需要直接依赖发布者。当事件发生时，发布者只是简单地通知所有订阅者，订阅者根据自己的逻辑产生反应。这种松耦合的设计让系统可以灵活扩展，而不会引入依赖混乱。\n\n在 Claude Code 中，钩子系统覆盖了工具调用的生命周期。当工具被调用时，pre-action 钩子可以在工具执行前进行额外的检查或修改。当工具执行完成后，post-action 钩子可以记录日志、更新统计信息或触发后续操作。这种设计让审计、监控、调试等功能可以以插件的形式添加，而不需要侵入工具的核心逻辑。\n\n钩子系统还支持优先级和阻断。不同的钩子可以有不同的优先级，高优先级的钩子先执行。某些钩子还可以返回 false 来阻断工具的执行——这在需要严格权限控制或危险操作预警的场景中非常重要。这种设计让钩子系统既有灵活性，又不失控制力。",
+      "diagram": {
+        "type": "mermaid",
+        "content": "sequenceDiagram\n    participant User\n    participant Agent\n    participant ToolSystem as Tool System\n    participant PreHooks as Pre-Action Hooks\n    participant Tool\n    participant PostHooks as Post-Action Hooks\n    participant Observer as Observer Plugins\n    \n    User->>Agent: 执行工具调用\n    Agent->>ToolSystem: invokeTool('file_write', {...})\n    \n    Note over ToolSystem: 发布 TOOL_INVOKE 事件\n    ToolSystem->>PreHooks: 通知优先级 1 钩子\n    PreHooks->>PreHooks: 权限检查\n    \n    alt 钩子返回 false\n        PreHooks->>ToolSystem: 阻断执行\n        ToolSystem->>Agent: 返回钩子错误信息\n        Agent->>User: 显示错误\n    else 所有钩子通过\n        ToolSystem->>PreHooks: 通知优先级 2 钩子\n        PreHooks->>PreHooks: 日志记录\n        ToolSystem->>Tool: 实际执行\n        Tool->>ToolSystem: 返回结果\n        \n        Note over ToolSystem: 发布 TOOL_COMPLETE 事件\n        ToolSystem->>PostHooks: 通知所有观察者\n        PostHooks->>Observer: 更新统计\n        PostHooks->>Observer: 写入审计日志\n        \n        ToolSystem->>Agent: 返回执行结果\n        Agent->>User: 显示结果\n    end"
+      }
+    },
+    {
+      "heading": "工厂方法模式：命令与任务的无缝创建",
+      "content": "当 AI 需要创建一个命令或任务时，它不应该关心具体的创建细节。无论是本地 Shell 任务还是远程 Agent 任务，创建过程应该遵循统一的接口，让 AI 能够专注于任务的目的而不是实现的方式。这正是工厂方法模式解决的问题。\n\n工厂方法模式定义了一个创建对象的接口，但让子类决定实例化哪个类。在 Claude Code 中，TaskFactory 就是这样一个接口，它根据任务类型创建不同的任务实例。当 AI 发出「在后台运行一个构建命令」的请求时，Factory 会根据当前环境和配置，决定创建一个 LocalShellTask 还是 RemoteAgentTask。这种决策过程对 AI 是透明的，它只需要表达意图，具体的实现细节由 Factory 处理。\n\n工厂方法的另一个好处是它提供了创建对象的集中控制点。如果需要修改任务创建的逻辑——比如添加新的验证步骤、配置默认参数或记录创建日志——只需要修改 Factory 的实现，而不需要在所有创建任务的地方进行修改。这大大降低了维护成本和出错概率。\n\n工厂模式还支持复杂的对象创建流程。某些对象的创建可能涉及多个步骤：初始化状态、分配资源、注册钩子等。工厂方法可以将这些步骤封装起来，确保每次创建的对象都经过正确的初始化流程。",
+      "code": "```typescript\n// 任务类型枚举\ntype TaskType = 'local_bash' | 'local_agent' | 'remote_agent' | 'dream'\n\n// 任务接口\ninterface Task {\n  id: string\n  status: 'pending' | 'running' | 'completed'\n  execute(): Promise<void>\n}\n\n// 工厂接口\ninterface TaskFactory {\n  createTask(type: TaskType, config: any): Task\n}\n\n// 具体工厂实现\nclass DefaultTaskFactory implements TaskFactory {\n  createTask(type: TaskType, config: any): Task {\n    switch (type) {\n      case 'local_bash':\n        return new LocalShellTask(config)\n      case 'local_agent':\n        return new LocalAgentTask(config)\n      case 'remote_agent':\n        return new RemoteAgentTask(config)\n      case 'dream':\n        return new DreamTask(config)\n      default:\n        throw new Error(`Unknown task type: ${type}`)\n    }\n  }\n}\n\n// 使用示例：AI 不需要知道具体实现\nconst factory = new DefaultTaskFactory()\nconst task = factory.createTask('local_bash', { \n  command: 'npm test', \n  cwd: '/app' \n})\nawait task.execute()\n```"
+    },
+    {
+      "heading": "懒加载与 Memoization：性能优化的双剑合璧",
+      "content": "Claude Code 的启动速度是一个关键的用户体验指标。没人愿意等待几秒钟才能输入第一个命令。但系统又有大量的模块和功能需要初始化——工具系统、命令注册、插件加载、内存系统等。如果所有东西都在启动时加载，启动时间会变得难以接受。懒加载模式为这个问题提供了完美的解决方案。\n\n懒加载的核心思想是：只在实际需要时才加载资源。在 Claude Code 中，命令系统采用了懒加载模式。当系统启动时，它只加载核心命令。其他命令——如 git 相关命令、项目管理命令等——只在用户首次使用时才加载。这种设计让启动时间大幅减少，同时不损失任何功能。\n\nMemoization 是另一种优化模式，它缓存函数的调用结果，避免重复计算。在 Claude Code 中，文件系统的读取操作、配置文件的解析、代码库的索引等都应用了 Memoization。当工具系统需要多次读取同一个文件时，第一次读取后结果会被缓存，后续请求直接从缓存返回。这大幅减少了 I/O 操作，提高了整体性能。\n\n懒加载和 Memoization 的结合形成了强大的性能优化组合。资源不仅按需加载，而且加载后的结果会被复用。但要小心的是，Memoization 需要妥善处理失效问题——当文件被修改后，缓存应该失效否则会返回过期的结果。Claude Code 使用文件修改时间（mtime）作为缓存失效的依据，确保缓存的一致性。",
+      "code": "```typescript\n// 懒加载命令注册器\nclass LazyCommandRegistry {\n  private commands = new Map<string, () => Command>()\n  private loadedCommands = new Map<string, Command>()\n  \n  register(name: string, loader: () => Command) {\n    this.commands.set(name, loader)\n  }\n  \n  get(name: string): Command {\n    // 如果已加载，直接返回\n    if (this.loadedCommands.has(name)) {\n      return this.loadedCommands.get(name)!\n    }\n    \n    // 否则懒加载\n    const loader = this.commands.get(name)\n    if (!loader) {\n      throw new Error(`Command not found: ${name}`)\n    }\n    \n    const command = loader()\n    this.loadedCommands.set(name, command)\n    return command\n  }\n}\n\n// Memoization 工具函数\nfunction memoize<T>(fn: (key: string) => Promise<T>) {\n  const cache = new Map<string, Promise<T>>()\n  const mtimes = new Map<string, number>()\n  \n  return async (key: string, path: string): Promise<T> => {\n    // 检查文件是否被修改\n    const currentMtime = (await fs.stat(path)).mtimeMs\n    const cachedMtime = mtimes.get(key)\n    \n    if (cachedMtime && cachedMtime < currentMtime) {\n      cache.delete(key)  // 缓存失效\n    }\n    \n    // 如果缓存存在，直接返回\n    if (cache.has(key)) {\n      return cache.get(key)!\n    }\n    \n    // 否则执行并缓存\n    const promise = fn(key)\n    cache.set(key, promise)\n    mtimes.set(key, currentMtime)\n    return promise\n  }\n}\n```"
+    },
+    {
+      "heading": "中间件模式：preAction 钩子链的优雅实现",
+      "content": "preAction 钩子链是 Claude Code 中一个精妙的设计，它为工具调用提供了一个可扩展的前置处理管道。这个管道的实现采用了中间件模式，让多个处理逻辑可以串联起来，形成一条完整的处理链。\n\n中间件模式的核心是：每个中间件接收请求，可以选择处理请求、修改请求或传递给下一个中间件。在 preAction 钩子链中，第一个中间件可能是权限检查器，第二个可能是参数验证器，第三个可能是日志记录器，第四个才是真正的工具执行。这种设计让每个关注点都保持独立，同时又能协同工作。\n\n中间件模式的优雅之处在于它的组合性。你可以随时添加、移除或重新排序中间件，而不需要修改其他中间件的代码。这种灵活性让系统能够适应不断变化的需求，比如添加新的安全检查、审计要求或性能监控逻辑。\n\n更重要的是，中间件模式支持异步处理。某些中间件可能需要异步操作——比如从远程获取用户权限、验证 API 密钥等。中间件模式自然地支持异步流程，每个中间件可以返回 Promise，让整个处理链能够正确地等待异步操作完成。",
+      "code": "```typescript\n// 中间件类型\ntype Middleware = (\n  context: ToolContext,\n  next: () => Promise<void>\n) => Promise<void>\n\n// 中间件链执行器\nclass MiddlewarePipeline {\n  private middlewares: Middleware[] = []\n  \n  use(middleware: Middleware) {\n    this.middlewares.push(middleware)\n  }\n  \n  async execute(context: ToolContext) {\n    let index = 0\n    \n    const next = async (): Promise<void> => {\n      if (index < this.middlewares.length) {\n        const middleware = this.middlewares[index++]\n        await middleware(context, next)\n      }\n    }\n    \n    await next()\n  }\n}\n\n// 具体中间件实现\nconst permissionMiddleware: Middleware = async (context, next) => {\n  if (!context.hasPermission()) {\n    throw new Error('Permission denied')\n  }\n  await next()\n}\n\nconst validationMiddleware: Middleware = async (context, next) => {\n  if (!context.validateInput()) {\n    throw new Error('Invalid input')\n  }\n  await next()\n}\n\nconst loggingMiddleware: Middleware = async (context, next) => {\n  console.log(`Tool ${context.toolName} invoked`)\n  await next()\n  console.log(`Tool ${context.toolName} completed`)\n}\n\n// 构建中间件链\nconst pipeline = new MiddlewarePipeline()\npipeline.use(permissionMiddleware)\npipeline.use(validationMiddleware)\npipeline.use(loggingMiddleware)\n\n// 执行\nawait pipeline.execute(toolContext)\n```"
+    }
+  ],
+  "key_takeaways": [
+    "Builder 模式通过链式调用解决了工具配置的复杂性，同时保持了不可变性和可读性",
+    "策略模式将权限验证和模型选择等变化的部分封装为独立的策略，让系统拥抱变化",
+    "观察者模式实现的钩子系统支持松耦合的事件处理，支持优先级和阻断机制",
+    "工厂方法模式统一了命令和任务的创建接口，隐藏了实现细节并集中控制创建逻辑",
+    "懒加载和 Memoization 结合大幅提升了性能，前者按需加载资源，后者缓存计算结果",
+    "中间件模式以优雅的方式实现了 preAction 钩子链，支持异步处理和灵活组合"
+  ],
+  "further_thinking": [
+    "在未来的版本中，设计模式如何帮助 Claude Code 支持更高级的插件系统，让第三方开发者能够扩展核心功能？",
+    "随着 AI 模型能力的不断提升，当前的设计模式是否会产生新的限制，或者需要引入新的模式来应对新的挑战？"
+  ],
+  "word_count": 4200,
+  "prerequisites": [
+    "ch04-tool-system",
+    "ch05-command-system",
+    "ch06-query-engine",
+    "ch07-task-system"
+  ]
+}

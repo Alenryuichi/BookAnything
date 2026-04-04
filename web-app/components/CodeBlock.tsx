@@ -7,7 +7,6 @@ interface CodeBlockProps {
   lang?: string;
 }
 
-// Import Shiki bundler for client-side rendering
 let highlighterInstance: any = null;
 let highlighterPromise: Promise<any> | null = null;
 
@@ -15,14 +14,12 @@ async function getHighlighter() {
   if (highlighterInstance) return highlighterInstance;
   if (highlighterPromise) return highlighterPromise;
 
-  // Use Shiki v4's new API for client-side rendering
-  highlighterPromise = import("shiki").then((shiki) => {
-    return shiki.createHighlighter({
-      themes: ["github-dark"], // 简化主题，只使用一个主题
-      langs: ["typescript", "javascript", "python", "json", "yaml", "bash", "tsx", "jsx", "rust", "go", "java"]
+  // Shiki v4 API: use bundledJSOnig instead of createHighlighter
+  highlighterPromise = import("shiki").then(async (shiki) => {
+    const highlighter = await shiki.createHighlighter({
+      themes: ["github-dark"],
+      langs: ["typescript", "javascript", "python", "json", "yaml", "bash", "tsx", "jsx", "rust", "go", "java", "text"]
     });
-  }).then((highlighter) => {
-    highlighterInstance = highlighter;
     return highlighter;
   }).catch((error) => {
     console.warn("Failed to load Shiki highlighter:", error);
@@ -32,7 +29,6 @@ async function getHighlighter() {
   return highlighterPromise;
 }
 
-// 缓存已高亮的代码
 const highlightCache = new Map<string, string>();
 
 function getCacheKey(code: string, lang: string): string {
@@ -56,16 +52,16 @@ async function highlightCode(code: string, lang: string): Promise<string | null>
       return null;
     }
 
-    // 简化主题检测逻辑，默认使用 github-dark
-    const theme = "github-dark";
+    const normalizedLang = lang || "typescript";
+    // Check if language is supported, fallback to text
+    const supportedLangs = highlighter.getLoadedLanguages();
+    const safeLang = supportedLangs.includes(normalizedLang) ? normalizedLang : "text";
 
-    // Shiki v4 API: codeToHtml 是同步方法
     const html = highlighter.codeToHtml(code, {
-      lang: lang || "typescript",
-      theme,
+      lang: safeLang,
+      theme: "github-dark",
     });
 
-    // 检查返回结果是否有效
     if (!html || html.length === 0) {
       console.warn("Shiki codeToHtml returned empty string");
       return null;
@@ -84,7 +80,7 @@ export function CodeBlock({ code, lang = "typescript" }: CodeBlockProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!code) {
+    if (!code || code.trim().length === 0) {
       setLoading(false);
       return;
     }
@@ -120,7 +116,9 @@ export function CodeBlock({ code, lang = "typescript" }: CodeBlockProps) {
     };
   }, [code, lang]);
 
-  if (!code) return null;
+  if (!code) {
+    return null;
+  }
 
   if (loading) {
     return (

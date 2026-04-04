@@ -110,7 +110,7 @@ export function SearchClient({ entries }: { entries: SearchEntry[] }) {
         </div>
       )}
 
-      <div style={{ marginTop: 16 }}>
+      <div className="search-results" style={{ marginTop: 16 }}>
         {results.length > 0 ? (
           results.map((r) => {
             const typeInfo = TYPE_LABELS[r.type] || TYPE_LABELS.chapter;
@@ -118,26 +118,7 @@ export function SearchClient({ entries }: { entries: SearchEntry[] }) {
               <Link
                 key={r.id}
                 href={r.href}
-                className="card"
-                style={{
-                  display: "block",
-                  marginBottom: 12,
-                  textDecoration: "none",
-                  color: "inherit",
-                  padding: "16px 20px",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  transition: "all 0.2s ease-in-out",
-                  background: "var(--bg-card)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.1)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
+                className="card search-result search-item"
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{

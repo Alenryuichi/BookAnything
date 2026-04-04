@@ -150,6 +150,19 @@ export default async function ChapterPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
+      {/* Chapter-level diagram (if defined on chapter, not section) */}
+      {(ch as any).diagram && (
+        <div className="card" style={{ marginTop: 20, marginBottom: 20 }}>
+          {typeof (ch as any).diagram === "object" && (ch as any).diagram.title && (
+            <h4 style={{ fontSize: 14, color: "var(--accent)", marginBottom: 8 }}>{(ch as any).diagram.title}</h4>
+          )}
+          <MermaidDiagram chart={typeof (ch as any).diagram === "string" ? (ch as any).diagram : ((ch as any).diagram?.chart || "")} />
+          {typeof (ch as any).diagram === "object" && (ch as any).diagram.description && (
+            <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 8 }}>{(ch as any).diagram.description}</p>
+          )}
+        </div>
+      )}
+
       {/* Sections */}
       {sections.map((section, i) => {
         const anchorId = slugify(section.heading);
@@ -200,13 +213,13 @@ export default async function ChapterPage({ params }: { params: Promise<{ id: st
               <DataTable table={section.table} />
             )}
 
-            {/* Section diagram */}
-            {section.diagram?.chart && (
+            {/* Section diagram — check both section.diagram.chart and section.diagram (string) */}
+            {section.diagram && (
               <div className="card" style={{ marginTop: 20, marginBottom: 20 }}>
                 {section.diagram.title && (
                   <h4 style={{ fontSize: 14, color: "var(--accent)", marginBottom: 8 }}>{section.diagram.title}</h4>
                 )}
-                <MermaidDiagram chart={section.diagram.chart} />
+                <MermaidDiagram chart={typeof section.diagram === "string" ? section.diagram : section.diagram.chart || ""} />
                 {section.diagram.description && (
                   <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 8 }}>{section.diagram.description}</p>
                 )}
@@ -226,17 +239,17 @@ export default async function ChapterPage({ params }: { params: Promise<{ id: st
               </div>
             ))}
 
-            {/* Section code — shiki highlighted */}
-            {section.code && section.code.code && section.code.code.trim().length > 0 && (
+            {/* Section code — shiki highlighted, support both {code, language} object and string */}
+            {section.code && (section.code.code || section.code.content || (typeof section.code === "string" && section.code)) && (
               <div style={{ marginTop: 20, marginBottom: 20 }}>
-                {section.code.title && (
+                {typeof section.code === "object" && section.code.title && (
                   <h4 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{section.code.title}</h4>
                 )}
-                {section.code.description && (
+                {typeof section.code === "object" && section.code.description && (
                   <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 8 }}>{section.code.description}</p>
                 )}
-                <CodeBlock code={section.code.code} lang={section.code.language || "typescript"} />
-                {section.code.annotation && (
+                <CodeBlock code={typeof section.code === "string" ? section.code : (section.code.code || section.code.content || "")} lang={typeof section.code === "object" ? (section.code.language || "typescript") : "typescript"} />
+                {typeof section.code === "object" && section.code.annotation && (
                   <p style={{ fontSize: 14, lineHeight: 1.8, color: "var(--text-secondary)", marginTop: 8 }}>
                     {section.code.annotation}
                   </p>

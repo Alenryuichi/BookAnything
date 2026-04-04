@@ -419,7 +419,8 @@ export function loadChapters(): Record<string, ChapterContent> {
             code: s?.code ? {
               title: toStr(s.code?.title),
               description: toStr(s.code?.description),
-              code: toStr(s.code?.code),
+              // Handle both code.code and code.content field names
+              code: toStr(s.code?.code || s.code?.content),
               language: toStr(s.code?.language || "typescript"),
               annotation: toStr(s.code?.annotation),
             } : undefined,
@@ -446,7 +447,8 @@ export function loadChapters(): Record<string, ChapterContent> {
             code: value?.code ? {
               title: toStr(value.code?.title),
               description: toStr(value.code?.description),
-              code: toStr(value.code?.code),
+              // Handle both code.code and code.content field names
+              code: toStr(value.code?.code || value.code?.content),
               language: toStr(value.code?.language || "typescript"),
               annotation: toStr(value.code?.annotation),
             } : undefined,
