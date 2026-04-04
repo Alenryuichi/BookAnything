@@ -72,7 +72,7 @@ class ClaudeClient:
 
         if proc.returncode != 0:
             err_detail = stderr.decode()[-500:]
-            # claude-internal puts error info in stdout JSON, not stderr
+            # Some CLI wrappers put error info in stdout JSON, not stderr
             try:
                 envelope = json.loads(stdout.decode())
                 if envelope.get("is_error"):

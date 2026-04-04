@@ -8,8 +8,8 @@ The test suite SHALL verify that `ClaudeClient.run()` passes the correct argumen
 - **THEN** the subprocess args SHALL include `["claude", "-p", "test", "--output-format", "json", "--max-turns", "30", "--allowedTools", "Read,Grep"]`
 
 #### Scenario: Custom command from environment
-- **WHEN** `CLAUDE_CMD=claude-internal` is set and `ClaudeClient` is instantiated
-- **THEN** the subprocess args SHALL start with `"claude-internal"` instead of `"claude"`
+- **WHEN** `CLAUDE_CMD=my-custom-claude` is set and `ClaudeClient` is instantiated
+- **THEN** the subprocess args SHALL start with `"my-custom-claude"` instead of `"claude"`
 
 #### Scenario: No allowed tools
 - **WHEN** `allowed_tools` is None

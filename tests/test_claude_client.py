@@ -108,10 +108,10 @@ class TestArgvAssembly:
             return proc
 
         with patch("pyharness.claude_client.asyncio.create_subprocess_exec", side_effect=fake_exec):
-            client = ClaudeClient(cmd="claude-internal", timeout=9999)
+            client = ClaudeClient(cmd="my-custom-claude", timeout=9999)
             await client.run(prompt="test")
 
-        assert captured_args["args"][0] == "claude-internal"
+        assert captured_args["args"][0] == "my-custom-claude"
 
     @pytest.mark.asyncio
     async def test_custom_max_turns(self):
