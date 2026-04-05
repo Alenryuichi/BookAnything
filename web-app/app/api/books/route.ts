@@ -49,3 +49,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ 
         error: "Failed to initialize book", 
         details: execError.stderr || execError.message 
+      }, { status: 500 });
+    }
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to parse request" }, { status: 400 });
+  }
+}

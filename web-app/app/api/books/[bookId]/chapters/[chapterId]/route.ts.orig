@@ -9,12 +9,11 @@ const execAsync = promisify(exec);
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ bookId: string; chapterId: string }> }
+  { params }: { params: { bookId: string; chapterId: string } }
 ) {
   try {
-    const { bookId, chapterId } = await params;
-    const chapters: Record<string, any> = loadChapters(bookId);
-    const chapter = Object.values(chapters).find((ch) => ch.chapter_id === chapterId);
+    const chapters = loadChapters(params.bookId);
+    const chapter = chapters.find((ch) => ch.chapter_id === params.chapterId);
     
     if (!chapter) {
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
@@ -28,12 +27,11 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ bookId: string; chapterId: string }> }
+  { params }: { params: { bookId: string; chapterId: string } }
 ) {
   try {
-    const { bookId, chapterId } = await params;
     const index = loadBookIndex();
-    const book = index.books.find(b => b.id === bookId);
+    const book = index.books.find(b => b.id === params.bookId);
     
     if (!book) {
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
@@ -43,7 +41,7 @@ export async function PUT(
     
     let projectYaml = `projects/${book.name}.yaml`;
     if (!fs.existsSync(path.join(harnessRoot, projectYaml))) {
-      projectYaml = `projects/${bookId}.yaml`;
+      projectYaml = `projects/${params.bookId}.yaml`;
       if (!fs.existsSync(path.join(harnessRoot, projectYaml))) {
          const projectsDir = path.join(harnessRoot, "projects");
          const files = fs.readdirSync(projectsDir).filter(f => f.endsWith('.yaml'));
@@ -58,12 +56,12 @@ export async function PUT(
     }
 
     try {
-      const { stdout, stderr } = await execAsync(`python3 -m pyharness write --project "${projectYaml}" --chapter "${chapterId}"`, {
+      const { stdout, stderr } = await execAsync(`python3 -m pyharness write --project "${projectYaml}" --chapter "${params.chapterId}"`, {
         cwd: harnessRoot,
       });
       
-      const chapters: Record<string, any> = loadChapters(bookId);
-      const chapter = Object.values(chapters).find((ch) => ch.chapter_id === chapterId);
+      const chapters = loadChapters(params.bookId);
+      const chapter = chapters.find((ch) => ch.chapter_id === params.chapterId);
       
       return NextResponse.json({ 
         success: true, 
@@ -85,19 +83,18 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ bookId: string; chapterId: string }> }
+  { params }: { params: { bookId: string; chapterId: string } }
 ) {
   try {
-    const { bookId, chapterId } = await params;
     const index = loadBookIndex();
-    const book = index.books.find(b => b.id === bookId);
+    const book = index.books.find(b => b.id === params.bookId);
     
     if (!book) {
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
     }
 
     const harnessRoot = path.resolve(process.cwd(), "..");
-    const chapterPath = path.join(harnessRoot, "knowledge", book.name, "chapters", `${chapterId}.json`);
+    const chapterPath = path.join(harnessRoot, "knowledge", book.name, "chapters", `${params.chapterId}.json`);
     
     if (fs.existsSync(chapterPath)) {
       fs.unlinkSync(chapterPath);

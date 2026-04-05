@@ -1,0 +1,37 @@
+--- web-app/app/api/books/[bookId]/chapters/[chapterId]/route.ts
++++ web-app/app/api/books/[bookId]/chapters/[chapterId]/route.ts
+@@ -10,10 +10,10 @@
+ export async function GET(
+   request: Request,
+-  context: { params: Promise<{ bookId: string; chapterId: string }> }
++  { params }: { params: Promise<{ bookId: string; chapterId: string }> }
+ ) {
+   try {
+-    const { bookId, chapterId } = await context.params;
++    const { bookId, chapterId } = await params;
+     const chapters = loadChapters(bookId);
+     const chapter = chapters.find((ch) => ch.chapter_id === chapterId);
+     
+@@ -29,10 +29,10 @@
+ export async function PUT(
+   request: Request,
+-  context: { params: Promise<{ bookId: string; chapterId: string }> }
++  { params }: { params: Promise<{ bookId: string; chapterId: string }> }
+ ) {
+   try {
+-    const { bookId, chapterId } = await context.params;
++    const { bookId, chapterId } = await params;
+     const index = loadBookIndex();
+     const book = index.books.find(b => b.id === bookId);
+     
+@@ -86,10 +86,10 @@
+ export async function DELETE(
+   request: Request,
+-  context: { params: Promise<{ bookId: string; chapterId: string }> }
++  { params }: { params: Promise<{ bookId: string; chapterId: string }> }
+ ) {
+   try {
+-    const { bookId, chapterId } = await context.params;
++    const { bookId, chapterId } = await params;
+     const index = loadBookIndex();
+     const book = index.books.find(b => b.id === bookId);
