@@ -8,6 +8,8 @@
 - `web-app/` — Next.js 前端应用
 - `output/` — 日志、截图、构建产物
 - `openspec/` — OpenSpec 变更管理
+- `pyharness/` — Python 编排引擎
+- `tests/` — 测试代码（但 `tests/e2e/fixture-repo/` 尽量不改）
 
 ## 根文件（允许但需谨慎）
 

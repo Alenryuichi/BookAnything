@@ -19,6 +19,7 @@
 - **路径边界** → `.claude/rules/path-boundaries.md`
 - **目录布局** → `.claude/rules/repo-layout.md`
 - **工作流术语** → `.claude/rules/workflow-glossary.md`
+- **测试约定** → `.claude/rules/testing-conventions.md`
 
 ## 写作风格
 
