@@ -87,6 +87,9 @@ fi`);
       `python3 -m pyharness init "${targetRepoPath}" --log-sink "$SINK_PATH"`,
     );
 
+    // NOTE: For future `pyharness run` commands, pass --control-file "$CONTROL_PATH"
+    // alongside --log-sink "$SINK_PATH". The init command does not use control files.
+
     const job = jobManager.spawn(
       "bash",
       ["-c", scriptParts.join("\n")],

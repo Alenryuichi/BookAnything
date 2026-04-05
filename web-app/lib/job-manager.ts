@@ -1,5 +1,13 @@
 import { spawn, ChildProcess } from "child_process";
-import { existsSync, unlinkSync, statSync, createReadStream } from "fs";
+import {
+  existsSync,
+  unlinkSync,
+  statSync,
+  createReadStream,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+} from "fs";
 import { createInterface } from "readline";
 import path from "path";
 import crypto from "crypto";
@@ -23,6 +31,7 @@ export interface Job {
   progress: number;
   exitCode?: number;
   sinkPath: string;
+  controlPath: string;
   process?: ChildProcess;
   subscribers: Set<(entry: LogEntry) => void>;
   evictionTimer?: ReturnType<typeof setTimeout>;
@@ -53,6 +62,7 @@ class JobManagerSingleton {
 
     const id = crypto.randomUUID();
     const sinkPath = path.join(cwd, `output/logs/job-${id}.jsonl`);
+    const controlPath = path.join(cwd, `output/logs/job-${id}.cmd.json`);
 
     const job: Job = {
       id,
@@ -61,6 +71,7 @@ class JobManagerSingleton {
       logs: [],
       progress: 0,
       sinkPath,
+      controlPath,
       subscribers: new Set(),
       onComplete: opts?.onComplete,
     };
@@ -83,6 +94,35 @@ class JobManagerSingleton {
     };
   }
 
+
+  sendCommand(jobId: string, command: object): boolean {
+    const job = this.jobs.get(jobId);
+    if (!job) return false;
+    if (job.state !== "running" && job.state !== "queued") return false;
+
+    try {
+      let existing: object[] = [];
+      if (existsSync(job.controlPath)) {
+        try {
+          const raw = readFileSync(job.controlPath, "utf-8");
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) existing = parsed;
+        } catch {
+          existing = [];
+        }
+      }
+
+      existing.push({ ...command, ts: new Date().toISOString() });
+
+      const tmpPath = job.controlPath + ".tmp";
+      writeFileSync(tmpPath, JSON.stringify(existing, null, 2), "utf-8");
+      renameSync(tmpPath, job.controlPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private _startProcess(
     job: Job,
     command: string,
@@ -92,7 +132,11 @@ class JobManagerSingleton {
     const child = spawn(command, args, {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, SINK_PATH: job.sinkPath },
+      env: {
+        ...process.env,
+        SINK_PATH: job.sinkPath,
+        CONTROL_PATH: job.controlPath,
+      },
     });
     job.process = child;
     job.state = "running";
@@ -239,6 +283,12 @@ class JobManagerSingleton {
     try {
       if (existsSync(job.sinkPath)) {
         unlinkSync(job.sinkPath);
+      }
+    } catch {}
+
+    try {
+      if (existsSync(job.controlPath)) {
+        unlinkSync(job.controlPath);
       }
     } catch {}
 
