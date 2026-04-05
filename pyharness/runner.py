@@ -26,6 +26,7 @@ class HarnessRunner:
         resume: bool = False,
         max_iterations: int = 0,
         log_sink: Optional[Path] = None,
+        quick_mode: bool = False,
     ) -> None:
         self.config = config
         self.max_hours = max_hours
@@ -34,6 +35,7 @@ class HarnessRunner:
         self.resume = resume
         self.max_iterations = max_iterations
         self.log_sink = log_sink
+        self.quick_mode = quick_mode
 
         self.harness_dir = Path.cwd()
         self.knowledge_dir = self.harness_dir / "knowledge" / config.name
@@ -63,6 +65,9 @@ class HarnessRunner:
         self.start_time = time.time()
         last_eval_feedback = ""
 
+        if self.quick_mode:
+            log("INFO", "Quick mode: skipping phases 3, 4, 6")
+
         while True:
             elapsed_h = (time.time() - self.start_time) / 3600
             if elapsed_h > self.max_hours:
@@ -89,7 +94,9 @@ class HarnessRunner:
             await step_write_chapters(self, iteration, plan)
 
             # Phase 3: Improve webapp
-            if plan and plan.needs_webapp_improve:
+            if self.quick_mode:
+                log("INFO", "Phase 3/7: Skipped (quick mode)")
+            elif plan and plan.needs_webapp_improve:
                 log("STEP", "Phase 3/7: Improving Web App...")
                 from pyharness.phases.improve import step_improve_webapp
                 try:
@@ -100,12 +107,15 @@ class HarnessRunner:
                 log("INFO", "Phase 3/7: Skipping webapp improve")
 
             # Phase 4: Code review
-            log("STEP", "Phase 4/7: Code Review...")
-            from pyharness.phases.review import step_code_review
-            try:
-                await step_code_review(self, iteration)
-            except Exception as e:
-                log("WARN", f"Code review failed: {e}")
+            if self.quick_mode:
+                log("INFO", "Phase 4/7: Skipped (quick mode)")
+            else:
+                log("STEP", "Phase 4/7: Code Review...")
+                from pyharness.phases.review import step_code_review
+                try:
+                    await step_code_review(self, iteration)
+                except Exception as e:
+                    log("WARN", f"Code review failed: {e}")
 
             # Phase 5: Build site
             log("STEP", "Phase 5/7: Building Site...")
@@ -116,12 +126,15 @@ class HarnessRunner:
                 log("WARN", f"Site build failed: {e}")
 
             # Phase 6: Visual test
-            log("STEP", "Phase 6/7: Visual Testing...")
-            from pyharness.phases.visual_test import step_visual_test
-            try:
-                await step_visual_test(self)
-            except Exception as e:
-                log("WARN", f"Visual test failed: {e}")
+            if self.quick_mode:
+                log("INFO", "Phase 6/7: Skipped (quick mode)")
+            else:
+                log("STEP", "Phase 6/7: Visual Testing...")
+                from pyharness.phases.visual_test import step_visual_test
+                try:
+                    await step_visual_test(self)
+                except Exception as e:
+                    log("WARN", f"Visual test failed: {e}")
 
             # Phase 7: Evaluate
             log("STEP", "Phase 7/7: Deterministic Evaluation...")

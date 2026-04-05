@@ -24,11 +24,13 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { repo_path } = body;
+    const { repo_path, quick = false } = body;
 
     if (!repo_path || typeof repo_path !== "string") {
       return NextResponse.json({ error: "Invalid repo_path provided" }, { status: 400 });
     }
+
+    const quickMode = quick === true;
 
     const harnessRoot = path.resolve(process.cwd(), "..");
     let targetRepoPath = repo_path;
@@ -79,6 +81,8 @@ else
 fi`);
     }
 
+    // TODO: When a "generate" endpoint spawns `pyharness run`, pass --quick:
+    //   if (quickMode) scriptParts.push('python3 -m pyharness run ... --quick');
     scriptParts.push(
       `python3 -m pyharness init "${targetRepoPath}" --log-sink "$SINK_PATH"`,
     );

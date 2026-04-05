@@ -6,6 +6,7 @@ import { TerminalLoader } from "@/components/TerminalLoader";
 
 export default function NewBookPage() {
   const [repoPath, setRepoPath] = useState("");
+  const [quickMode, setQuickMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -26,7 +27,7 @@ export default function NewBookPage() {
       const res = await fetch("/api/books", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_path: repoPath.trim() }),
+        body: JSON.stringify({ repo_path: repoPath.trim(), quick: quickMode }),
       });
 
       const data = await res.json();
@@ -91,6 +92,25 @@ export default function NewBookPage() {
             </p>
           </div>
 
+          <div className="flex items-center justify-between py-3 px-1 mb-4">
+            <div>
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Quick Mode</span>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Skip review &amp; visual testing for faster results (~5 min)</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={quickMode}
+              onClick={() => setQuickMode(!quickMode)}
+              disabled={loading}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 ${quickMode ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-600"}`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${quickMode ? "translate-x-5" : "translate-x-0"}`}
+              />
+            </button>
+          </div>
+
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-md text-sm whitespace-pre-wrap font-mono">
               {error}
@@ -108,6 +128,11 @@ export default function NewBookPage() {
 
           {loading || jobId ? (
             <div className="mt-4">
+              {quickMode && (
+                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  <span>⚡</span> Quick Mode
+                </div>
+              )}
               <TerminalLoader
                 jobId={jobId ?? undefined}
                 onDone={handleJobDone}
