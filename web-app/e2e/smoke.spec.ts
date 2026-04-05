@@ -24,7 +24,7 @@ test.describe("API - Book Index", () => {
 test.describe("API - Chapters", () => {
   test("GET chapters list for valid book", async ({ request }) => {
     const idx = await (await request.get("/api/books")).json();
-    const bookId = idx.books[0].id;
+    const bookId = idx.books.find((b: any) => b.writtenCount > 0)?.id || idx.books[0].id;
     const res = await request.get(`/api/books/${bookId}/chapters`);
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -36,7 +36,7 @@ test.describe("API - Chapters", () => {
 
   test("GET single chapter returns full content", async ({ request }) => {
     const idx = await (await request.get("/api/books")).json();
-    const bookId = idx.books[0].id;
+    const bookId = idx.books.find((b: any) => b.writtenCount > 0)?.id || idx.books[0].id;
     const chs = await (await request.get(`/api/books/${bookId}/chapters`)).json();
     const chId = chs.chapters[0].chapter_id;
     const res = await request.get(`/api/books/${bookId}/chapters/${chId}`);
@@ -49,7 +49,7 @@ test.describe("API - Chapters", () => {
 
   test("GET nonexistent chapter returns 404", async ({ request }) => {
     const idx = await (await request.get("/api/books")).json();
-    const bookId = idx.books[0].id;
+    const bookId = idx.books.find((b: any) => b.writtenCount > 0)?.id || idx.books[0].id;
     const res = await request.get(`/api/books/${bookId}/chapters/ch99-nonexistent`);
     expect(res.status()).toBe(404);
   });
@@ -79,7 +79,7 @@ test.describe("Page - Bookshelf", () => {
 test.describe("Page - Book TOC", () => {
   test("shows chapter list with links", async ({ page, request }) => {
     const idx = await (await request.get("/api/books")).json();
-    const bookId = idx.books[0].id;
+    const bookId = idx.books.find((b: any) => b.writtenCount > 0)?.id || idx.books[0].id;
     await page.goto(`/books/${bookId}`);
     const chapterLinks = page.locator(`a[href*="/books/${bookId}/chapters/"]`);
     await expect(chapterLinks.first()).toBeVisible();
@@ -89,7 +89,7 @@ test.describe("Page - Book TOC", () => {
 test.describe("Page - Chapter Reader", () => {
   test("renders chapter sections", async ({ page, request }) => {
     const idx = await (await request.get("/api/books")).json();
-    const bookId = idx.books[0].id;
+    const bookId = idx.books.find((b: any) => b.writtenCount > 0)?.id || idx.books[0].id;
     const chs = await (await request.get(`/api/books/${bookId}/chapters`)).json();
     const chId = chs.chapters[0].chapter_id;
     await page.goto(`/books/${bookId}/chapters/${chId}`);
@@ -102,7 +102,7 @@ test.describe("Page - Chapter Reader", () => {
 test.describe("Navigation", () => {
   test("sidebar visible with nav items", async ({ page, request }) => {
     const idx = await (await request.get("/api/books")).json();
-    const bookId = idx.books[0].id;
+    const bookId = idx.books.find((b: any) => b.writtenCount > 0)?.id || idx.books[0].id;
     await page.goto(`/books/${bookId}`);
     await expect(page.locator(".sidebar")).toBeVisible();
     await expect(page.locator(".sidebar a[href^='/books/']").first()).toBeVisible();
@@ -110,7 +110,7 @@ test.describe("Navigation", () => {
 
   test("sidebar links scoped to current book", async ({ page, request }) => {
     const idx = await (await request.get("/api/books")).json();
-    const bookId = idx.books[0].id;
+    const bookId = idx.books.find((b: any) => b.writtenCount > 0)?.id || idx.books[0].id;
     await page.goto(`/books/${bookId}`);
     const href = await page.locator(".sidebar a[href^='/books/']").first().getAttribute("href");
     expect(href).toContain(`/books/${bookId}`);

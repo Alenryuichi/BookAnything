@@ -1,0 +1,28 @@
+name: "fixture-repo"
+repo_path: "/Users/kylinmiao/.cursor/worktrees/harness/skm/tests/e2e/fixture-repo"
+target_dir: "src"
+language: "Python"
+description: "TODO: 填写项目简介"
+
+book:
+  title: "深入理解 fixture-repo"
+  subtitle: "一本由浅入深的交互式技术书"
+  stats:
+    files: 6
+    lines: 263
+
+chapters:
+
+  # ──────────────────────────────
+  # Part 1
+  # ──────────────────────────────
+  - id: ch01-introduction
+    title: "第1章：fixture-repo 是什么"
+    subtitle: "项目全景概览"
+    sources: "src"
+    prerequisites: []
+    outline: |
+      - 项目定位与解决的问题
+      - 技术栈概览
+      - 架构总览
+      - 本书路线图

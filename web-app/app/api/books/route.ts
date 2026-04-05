@@ -30,12 +30,51 @@ export async function POST(request: Request) {
 
     // Determine the root of the harness (two levels up from web-app/app/api/books)
     const harnessRoot = path.resolve(process.cwd(), "..");
+    let targetRepoPath = repo_path;
+
+    if (targetRepoPath.startsWith("http://") || targetRepoPath.startsWith("https://")) {
+      const repoUrl = new URL(targetRepoPath);
+      const parts = repoUrl.pathname.split("/").filter(Boolean);
+      const repoName = parts[parts.length - 1]?.replace(".git", "");
+      
+      if (!repoName) {
+        return NextResponse.json({ error: "Invalid Git URL" }, { status: 400 });
+      }
+      
+      const workspacesDir = path.join(harnessRoot, "workspaces");
+      targetRepoPath = path.join(workspacesDir, repoName);
+      
+      const fs = require("fs");
+      if (!fs.existsSync(workspacesDir)) {
+        fs.mkdirSync(workspacesDir, { recursive: true });
+      }
+      
+      if (!fs.existsSync(targetRepoPath)) {
+        console.log(`Cloning ${repo_path} into ${targetRepoPath}`);
+        try {
+          await execAsync(`git clone ${repo_path} ${targetRepoPath}`);
+        } catch (cloneErr: any) {
+          console.error("Git clone failed:", cloneErr);
+          return NextResponse.json({ error: "Failed to clone repository", details: cloneErr.message }, { status: 500 });
+        }
+      } else {
+        console.log(`Pulling latest changes for ${targetRepoPath}`);
+        try {
+          await execAsync(`git -C ${targetRepoPath} pull`);
+        } catch (pullErr) {
+          console.error("Git pull failed:", pullErr);
+        }
+      }
+    }
 
     // Execute the pyharness init command
     try {
-      const { stdout, stderr } = await execAsync(`python3 -m pyharness init "${repo_path}"`, {
+      const { stdout, stderr } = await execAsync(`python3 -m pyharness init "${targetRepoPath}"`, {
         cwd: harnessRoot,
       });
+      
+      // Rebuild index.json so the new book appears
+      await execAsync("bash scripts/rebuild-index.sh", { cwd: harnessRoot });
       
       invalidateIndexCache();
       

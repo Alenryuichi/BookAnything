@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { loadKnowledge, loadParts, loadBookTitle, loadBookStats } from "@/lib/load-knowledge";
 import Link from "next/link";
 import { GraphTriggerButton } from "@/components/GraphTriggerButton";

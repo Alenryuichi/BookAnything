@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { loadBookIndex } from "@/lib/load-knowledge";
 import Link from "next/link";
 

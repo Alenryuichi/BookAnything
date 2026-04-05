@@ -19,47 +19,43 @@ derive_slug() {
   echo "$slug"
 }
 
+mkdir -p "$KNOWLEDGE_DIR"
 echo '{"books":[' > "$INDEX_FILE.tmp"
 first=true
 
-for book_dir in "$KNOWLEDGE_DIR"/*/; do
-  [ ! -d "$book_dir/chapters" ] && continue
-  dir_name=$(basename "$book_dir")
-  [ "$dir_name" = "modules" ] && continue
-
-  written=$(find "$book_dir/chapters" -name "*.json" -type f 2>/dev/null | wc -l | tr -d ' ')
-  [ "$written" -eq 0 ] && continue
-
-  # Find matching project yaml
-  proj_name="" proj_desc="" proj_lang="" proj_files=0 proj_lines=0 chapter_count=0
-  for yaml_file in "$PROJECTS_DIR"/*.yaml; do
-    [ ! -f "$yaml_file" ] && continue
-    yaml_name=$(grep "^name:" "$yaml_file" | head -1 | sed 's/.*name: *//' | tr -d '"')
-    if [ "$yaml_name" = "$dir_name" ]; then
-      proj_name="$yaml_name"
-      proj_desc=$(grep "^description:" "$yaml_file" | head -1 | sed 's/.*description: *//' | tr -d '"')
-      proj_lang=$(grep "^language:" "$yaml_file" | head -1 | sed 's/.*language: *//' | tr -d '"')
-      proj_files=$(grep "files:" "$yaml_file" | head -1 | grep -oE '[0-9]+' || echo "0")
-      proj_lines=$(grep "lines:" "$yaml_file" | head -1 | grep -oE '[0-9]+' || echo "0")
-      chapter_count=$(grep -c "^  - id:" "$yaml_file" 2>/dev/null || echo "0")
-      break
-    fi
-  done
-
-  [ -z "$proj_name" ] && proj_name="$dir_name"
-  [ "$chapter_count" -eq 0 ] && chapter_count="$written"
+for yaml_file in "$PROJECTS_DIR"/*.yaml; do
+  [ ! -f "$yaml_file" ] && continue
+  yaml_name=$(grep "^name:" "$yaml_file" | head -1 | sed 's/.*name: *//' | tr -d '"' | tr -d "'")
+  [ "$yaml_name" = "example" ] && continue
+  
+  proj_name="$yaml_name"
+  proj_desc=$(grep "^description:" "$yaml_file" | head -1 | sed 's/.*description: *//' | tr -d '"' | tr -d "'")
+  proj_lang=$(grep "^language:" "$yaml_file" | head -1 | sed 's/.*language: *//' | tr -d '"' | tr -d "'")
+  proj_files=$(grep "files:" "$yaml_file" | head -1 | grep -oE '[0-9]+' || echo "0")
+  proj_lines=$(grep "lines:" "$yaml_file" | head -1 | grep -oE '[0-9]+' || echo "0")
+  chapter_count=$(grep -c "^  - id:" "$yaml_file" 2>/dev/null || echo "0")
+  
+  dir_name="$proj_name"
+  book_dir="$KNOWLEDGE_DIR/$dir_name"
+  
+  written=0
+  if [ -d "$book_dir/chapters" ]; then
+    written=$(find "$book_dir/chapters" -name "*.json" -type f 2>/dev/null | wc -l | tr -d ' ')
+  fi
 
   slug=$(derive_slug "$proj_name")
 
-  # Get last updated from newest file
-  newest=$(find "$book_dir/chapters" -name "*.json" -type f -exec stat -f '%m' {} \; 2>/dev/null | sort -rn | head -1 || echo "0")
+  newest=0
+  if [ -d "$book_dir/chapters" ]; then
+    newest=$(find "$book_dir/chapters" -name "*.json" -type f -exec stat -f '%m' {} \; 2>/dev/null | sort -rn | head -1 || echo "0")
+  fi
+  
   if [ "$newest" != "0" ] && [ -n "$newest" ]; then
     last_updated=$(date -r "$newest" -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "")
   else
     last_updated=""
   fi
 
-  # Get score from state.json
   score=0
   if [ -f "$HARNESS_DIR/state.json" ]; then
     score=$(jq -r '.score // 0' "$HARNESS_DIR/state.json" 2>/dev/null || echo "0")

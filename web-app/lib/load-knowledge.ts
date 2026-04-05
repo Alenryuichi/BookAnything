@@ -18,25 +18,21 @@ import type {
 const KNOWLEDGE_ROOT = path.join(process.cwd(), "..", "knowledge");
 const PROJECTS_DIR = path.join(process.cwd(), "..", "projects");
 
-// ── Book index (cached for process lifetime) ──
-
-let _indexCache: BookIndex | null = null;
+// ── Book index ──
 
 export function loadBookIndex(): BookIndex {
-  if (_indexCache) return _indexCache;
   const indexPath = path.join(KNOWLEDGE_ROOT, "index.json");
   if (!fs.existsSync(indexPath)) return { books: [] };
   try {
     const raw = fs.readFileSync(indexPath, "utf-8");
-    _indexCache = parseBookIndex(raw);
-    return _indexCache;
+    return parseBookIndex(raw);
   } catch {
     return { books: [] };
   }
 }
 
 export function invalidateIndexCache(): void {
-  _indexCache = null;
+  // No-op, cache removed to avoid Next.js cross-worker stale data
 }
 
 export function resolveBookDir(bookId: string): string | null {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { DynamicTextLoader } from "@/components/DynamicTextLoader";
 
 export default function NewBookPage() {
   const [repoPath, setRepoPath] = useState("");
@@ -36,6 +37,7 @@ export default function NewBookPage() {
 
       // Success, refresh the book list to get the new book and redirect to the bookshelf
       await fetch("/api/books?refresh=true");
+      router.refresh();
       router.push("/books");
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
@@ -75,33 +77,29 @@ export default function NewBookPage() {
             </div>
           )}
 
-          <div className="flex justify-end gap-4">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Scanning Repository...
-                </>
-              ) : (
-                "Create Book"
-              )}
-            </button>
-          </div>
+          {loading ? (
+            <div className="mt-4">
+              <DynamicTextLoader text="Scanning Repository..." />
+            </div>
+          ) : (
+            <div className="flex justify-end gap-4">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Create Book
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>
