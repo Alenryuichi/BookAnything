@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Optional
+import re
+from typing import TYPE_CHECKING, Any, Optional
 
 from pyharness.log import log
-from pyharness.schemas import PlanOutput
+from pyharness.schemas import PlanOutput, ChapterJSON
 
 if TYPE_CHECKING:
     from pyharness.runner import HarnessRunner
@@ -38,6 +39,62 @@ async def step_write_chapters(
     succeeded = sum(1 for r in results if r is True)
     total = len(results)
     log("OK", f"Chapter writing: {succeeded}/{total} succeeded")
+
+
+def _extract_chapter_json(text: str) -> str:
+    """Strip markdown fences and find the JSON object in Claude's response."""
+    t = text.strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[1] if "\n" in t else t[3:]
+        if t.endswith("```"):
+            t = t[:-3].strip()
+    return t
+
+
+def _try_repair_json(raw: str) -> str | None:
+    """Attempt common repairs on broken JSON from LLM output.
+
+    Known failure modes:
+    - Missing opening quotes in string values:  ["Tool", 将输出..."]
+    - Trailing commas before ] or }
+    """
+    fixed = raw
+    # Fix missing opening quotes: , 中文..." or [中文..."
+    fixed = re.sub(
+        r'(?<=[\[,])\s*([^\s"\[\]{},][^"]*?")',
+        r' "\1',
+        fixed,
+    )
+    # Remove trailing commas
+    fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
+
+    try:
+        json.loads(fixed)
+        return fixed
+    except json.JSONDecodeError:
+        return None
+
+
+def validate_chapter(data: dict, chapter_id: str) -> dict:
+    """Validate and normalize a chapter dict against ChapterJSON schema.
+
+    Coerces common LLM mistakes (string arrays where objects expected)
+    and ensures required fields are present.
+    """
+    if "chapter_id" not in data:
+        data["chapter_id"] = chapter_id
+
+    for field in ("mermaid_diagrams", "code_snippets"):
+        items = data.get(field)
+        if isinstance(items, list):
+            data[field] = [
+                {"title": item, "chart": "", "description": ""} if isinstance(item, str)
+                else item
+                for item in items
+            ]
+
+    ChapterJSON(**data)
+    return data
 
 
 async def _write_single_chapter(
@@ -93,20 +150,32 @@ async def _write_single_chapter(
             max_turns=50,
         )
 
-        if result:
-            out_path = runner.chapters_dir / f"{chapter_id}.json"
-            # Try to parse as JSON, clean if needed
-            text = result if isinstance(result, str) else str(result)
-            text = text.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-                if text.endswith("```"):
-                    text = text[:-3].strip()
+        if not result:
+            log("ERROR", f"  {chapter_id}: empty response")
+            return False
 
+        text = _extract_chapter_json(
+            result if isinstance(result, str) else str(result),
+        )
+
+        # Parse JSON — attempt auto-repair on failure
+        try:
             parsed = json.loads(text)
-            out_path.write_text(json.dumps(parsed, ensure_ascii=False, indent=2))
-            log("OK", f"  {chapter_id}: {out_path.stat().st_size} bytes")
-            return True
+        except json.JSONDecodeError:
+            repaired = _try_repair_json(text)
+            if repaired:
+                log("WARN", f"  {chapter_id}: auto-repaired broken JSON")
+                parsed = json.loads(repaired)
+            else:
+                raise
+
+        # Validate against schema and coerce common LLM mistakes
+        parsed = validate_chapter(parsed, chapter_id)
+
+        out_path = runner.chapters_dir / f"{chapter_id}.json"
+        out_path.write_text(json.dumps(parsed, ensure_ascii=False, indent=2))
+        log("OK", f"  {chapter_id}: {out_path.stat().st_size} bytes")
+        return True
 
     except Exception as e:
         log("ERROR", f"  {chapter_id} failed: {e}")

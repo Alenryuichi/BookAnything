@@ -42,6 +42,20 @@ export const ChapterSectionSchema = z.object({
 
 // ── Chapter Content ──
 
+const coerceMermaidArray = z.preprocess((val) => {
+  if (!Array.isArray(val)) return [];
+  return val.map((item) =>
+    typeof item === "string" ? { title: item, chart: "", description: "" } : item,
+  );
+}, z.array(MermaidBlockSchema).default([]));
+
+const coerceCodeArray = z.preprocess((val) => {
+  if (!Array.isArray(val)) return [];
+  return val.map((item) =>
+    typeof item === "string" ? { title: item, code: "", description: "", language: "typescript", annotation: "" } : item,
+  );
+}, z.array(CodeSnippetSchema).default([]));
+
 export const ChapterContentSchema = z.object({
   chapter_id: z.string(),
   title: z.string(),
@@ -52,8 +66,8 @@ export const ChapterContentSchema = z.object({
   key_takeaways: z.array(z.string()).default([]),
   further_thinking: z.array(z.string()).default([]),
   analogies: z.array(z.string()).default([]),
-  mermaid_diagrams: z.array(MermaidBlockSchema).default([]),
-  code_snippets: z.array(CodeSnippetSchema).default([]),
+  mermaid_diagrams: coerceMermaidArray,
+  code_snippets: coerceCodeArray,
   word_count: z.number().default(0),
   prerequisites: z.array(z.string()).default([]),
 });
