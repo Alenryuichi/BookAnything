@@ -29,15 +29,41 @@ export const MermaidBlockSchema = z.object({
   description: z.string().default(""),
 });
 
+// ── Coerce helpers for LLM output that may be string instead of object ──
+
+const coerceCodeSnippet = z.preprocess((val) => {
+  if (val == null) return undefined;
+  if (typeof val === "string") return { title: "", description: "", code: val, language: "typescript", annotation: "" };
+  return val;
+}, CodeSnippetSchema.optional());
+
+const coerceMermaidBlock = z.preprocess((val) => {
+  if (val == null) return undefined;
+  if (typeof val === "string") return { title: "", chart: val, description: "" };
+  return val;
+}, MermaidBlockSchema.optional());
+
+const coerceCallout = z.preprocess((val) => {
+  if (val == null) return undefined;
+  if (typeof val === "string") return { type: "info", text: val };
+  return val;
+}, CalloutSchema.optional());
+
+const coerceDataTable = z.preprocess((val) => {
+  if (val == null) return undefined;
+  if (typeof val === "string") return undefined;
+  return val;
+}, DataTableSchema.optional());
+
 // ── Chapter Section ──
 
 export const ChapterSectionSchema = z.object({
   heading: z.string().default(""),
   content: z.string().default(""),
-  callout: z.any().optional(),
-  table: z.any().optional(),
-  code: z.any().optional(),
-  diagram: z.any().optional(),
+  callout: coerceCallout,
+  table: coerceDataTable,
+  code: coerceCodeSnippet,
+  diagram: coerceMermaidBlock,
 });
 
 // ── Chapter Content ──
