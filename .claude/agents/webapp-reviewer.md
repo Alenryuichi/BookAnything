@@ -10,7 +10,7 @@ allowedTools: Read,Glob,Grep,Write,Edit
 
 - 只能修改 `web-app/` 下的文件
 - 不得修改 `knowledge/` 目录下的 JSON 数据文件
-- 不得修改 `run.sh` 或 `scripts/` 下的文件
+- 不得修改 `pyharness/` 或 `scripts/` 下的文件
 - 不得创建新的顶级目录
 
 ## 输出格式

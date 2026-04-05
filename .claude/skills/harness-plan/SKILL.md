@@ -41,4 +41,4 @@ allowed-tools: Read,Glob,Grep
    - 交互分低 → 标记 `needs_webapp_improve=true`，专注交互功能修复
 5. 当所有章节已写完且内容分高时，focus 应转向 webapp 改进
 
-注意：运行时变量（iteration、上轮评估文本等）由 `run.sh` heredoc 动态注入，以 heredoc 为准。
+注意：运行时变量（iteration、上轮评估文本等）由 `pyharness/` phases 动态注入。

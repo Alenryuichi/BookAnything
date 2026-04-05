@@ -52,4 +52,4 @@ allowed-tools: Read,Glob,Grep
 2. 理解设计意图和实现细节
 3. 直接输出完整 JSON（不要用 Write 工具）
 
-注意：运行时变量（chapter_id、sources、outline 等）由 `run.sh` heredoc 动态注入，以 heredoc 为准。
+注意：运行时变量（chapter_id、sources、outline 等）由 `pyharness/` phases 动态注入。

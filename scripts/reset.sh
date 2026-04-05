@@ -50,4 +50,4 @@ fi
 
 rm -f "$HARNESS_DIR/.harness.lock"
 echo ""
-echo "Done! Run 'bash harness/run.sh --project $PROJECT_FILE' to start."
+echo "Done! Run 'python3 -m pyharness run --project $PROJECT_FILE' to start."

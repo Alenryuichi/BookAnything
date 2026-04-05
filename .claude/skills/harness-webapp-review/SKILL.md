@@ -31,7 +31,7 @@ allowed-tools: Read,Glob,Grep,Write,Edit
 
 - **只能修改 `web-app/` 下的文件**
 - 不要修改 `knowledge/` 目录下的 JSON 数据文件
-- 不要修改 `run.sh` 或 `scripts/` 下的文件
+- 不要修改 `pyharness/` 或 `scripts/` 下的文件
 - 不要创建新的顶级目录
 
 ## 常见问题和修复方向
@@ -50,4 +50,4 @@ allowed-tools: Read,Glob,Grep,Write,Edit
 3. 用 Edit/Write 修复 bug
 4. 每次修改都要确保不破坏现有功能
 
-注意：运行时变量（截图报告内容、评估反馈文本等）由 `run.sh` heredoc 动态注入，以 heredoc 为准。
+注意：运行时变量（截图报告内容、评估反馈文本等）由 `pyharness/` phases 动态注入。

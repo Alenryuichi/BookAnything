@@ -58,4 +58,4 @@ allowed-tools: Read,Glob,Grep
 - 代码高亮：有 pre/code blocks 得 5 分
 - 页面跳转：各页面正常加载得 5 分
 
-注意：运行时变量（章节摘要文本、截图报告内容等）由 `run.sh` heredoc 动态注入，以 heredoc 为准。
+注意：运行时变量（章节摘要文本、截图报告内容等）由 `pyharness/` phases 动态注入。
