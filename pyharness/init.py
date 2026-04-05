@@ -464,57 +464,50 @@ def generate_yaml(scan: ScanResult, plan: dict[str, Any], output_dir: Path) -> P
 
 async def init_project(repo_path: Path) -> Path:
     """Full init pipeline: scan → plan → generate YAML."""
+    from pyharness.log import log as hlog
+
     repo_path = repo_path.resolve()
 
-    print()
-    print("═══ Phase 1: 扫描仓库 ═══")
-    print(f"路径: {repo_path}")
+    hlog("HEAD", "Phase 1: 扫描仓库", progress=5, phase="scan")
+    hlog("INFO", f"路径: {repo_path}", progress=5, phase="scan")
 
     scan = scan_repo(repo_path)
-    print(f"  项目名: {scan.project_name}")
-    print(f"  源码目录: {scan.source_dir}")
-    print(f"  语言: {scan.language}")
-    print(f"  文件: {scan.file_count}")
-    print(f"  代码: ~{scan.line_count} 行")
+    hlog("INFO", f"项目名: {scan.project_name}", progress=15, phase="scan")
+    hlog("INFO", f"源码目录: {scan.source_dir}", progress=20, phase="scan")
+    hlog("INFO", f"语言: {scan.language}", progress=25, phase="scan")
+    hlog("INFO", f"文件: {scan.file_count}, 代码: ~{scan.line_count} 行", progress=35, phase="scan")
     if scan.dir_stats:
-        print("  顶层目录:")
+        hlog("INFO", "顶层目录:", progress=38, phase="scan")
         for name, count in scan.dir_stats:
-            print(f"    {name}/ ({count} files)")
+            hlog("INFO", f"  {name}/ ({count} files)")
+    hlog("OK", "仓库扫描完成", progress=40, phase="scan")
 
-    print()
-    print("═══ Phase 2: Claude 分析源码，规划章节 ═══")
+    hlog("HEAD", "Phase 2: Claude 分析源码，规划章节", progress=42, phase="plan")
 
     plan = await plan_chapters(repo_path, scan)
+    hlog("OK", "章节规划完成", progress=70, phase="plan")
 
-    print()
-    print("═══ Phase 3: 生成 project.yaml ═══")
+    hlog("HEAD", "Phase 3: 生成 project.yaml", progress=72, phase="yaml")
 
     output_dir = Path(__file__).resolve().parent.parent / "projects"
     output_path = generate_yaml(scan, plan, output_dir)
 
-    # Verify the generated YAML is loadable
     try:
         config = load_project_config(output_path)
         ch_count = len(config.chapters)
     except Exception as exc:
-        print(f"  WARNING: 生成的 YAML 无法加载: {exc}")
+        hlog("WARN", f"生成的 YAML 无法加载: {exc}")
         ch_count = "?"
+
+    hlog("OK", f"YAML 已写入: {output_path}", progress=90, phase="yaml")
 
     part_count = len(plan.get("parts", []))
     display_name = plan.get("project_name", scan.project_name)
 
-    print()
-    print("═══════════════════════════════════════════════════════")
-    print(f"  ✅ 项目配置已生成: {output_path}")
-    print("═══════════════════════════════════════════════════════")
-    print()
-    print(f"  项目: {display_name} ({scan.language})")
-    print(f"  统计: {scan.file_count} 文件, ~{scan.line_count} 行代码")
-    print(f"  结构: {part_count} 个 Part, {ch_count} 个章节")
-    print()
-    print("  下一步:")
-    print(f"  1. 查看: cat {output_path}")
-    print(f"  2. 运行: python3 -m pyharness run --project {output_path}")
-    print()
+    hlog("HEAD", "初始化完成", progress=100, phase="done")
+    hlog("OK", f"项目: {display_name} ({scan.language})")
+    hlog("INFO", f"统计: {scan.file_count} 文件, ~{scan.line_count} 行代码")
+    hlog("INFO", f"结构: {part_count} 个 Part, {ch_count} 个章节")
+    hlog("INFO", f"下一步: python3 -m pyharness run --project {output_path}")
 
     return output_path

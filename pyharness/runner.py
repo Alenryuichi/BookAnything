@@ -25,6 +25,7 @@ class HarnessRunner:
         max_parallel: int = 3,
         resume: bool = False,
         max_iterations: int = 0,
+        log_sink: Optional[Path] = None,
     ) -> None:
         self.config = config
         self.max_hours = max_hours
@@ -32,6 +33,7 @@ class HarnessRunner:
         self.max_parallel = max_parallel
         self.resume = resume
         self.max_iterations = max_iterations
+        self.log_sink = log_sink
 
         self.harness_dir = Path.cwd()
         self.knowledge_dir = self.harness_dir / "knowledge" / config.name
@@ -49,7 +51,7 @@ class HarnessRunner:
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         from pyharness.log import init_log
-        init_log(self.log_dir)
+        init_log(self.log_dir, sink_path=self.log_sink)
 
         if self.resume and self.state.path.exists():
             s = self.state.load()

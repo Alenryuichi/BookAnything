@@ -28,6 +28,7 @@ def main() -> None:
     run_parser.add_argument("--max-parallel", type=int, default=3, help="Max parallel chapter writes (default: 3)")
     run_parser.add_argument("--max-iterations", type=int, default=0, help="Max iterations (0=unlimited, default: 0)")
     run_parser.add_argument("--resume", action="store_true", help="Resume from previous state")
+    run_parser.add_argument("--log-sink", type=Path, default=None, help="Path to JSON-lines log sink file for SSE streaming")
 
     # ── init ──
     init_parser = sub.add_parser("init", help="Initialize a new project config from a repo")
@@ -36,6 +37,7 @@ def main() -> None:
         type=Path,
         help="Path to the target repository",
     )
+    init_parser.add_argument("--log-sink", type=Path, default=None, help="Path to JSON-lines log sink file for SSE streaming")
 
     # ── write ──
     write_parser = sub.add_parser("write", help="Write a single chapter directly")
@@ -69,6 +71,7 @@ def main() -> None:
             max_parallel=args.max_parallel,
             resume=args.resume,
             max_iterations=args.max_iterations,
+            log_sink=args.log_sink,
         )
         asyncio.run(runner.run())
 
@@ -79,6 +82,10 @@ def main() -> None:
         if not repo.is_dir():
             print("ERROR: 仓库路径不存在", file=sys.stderr)
             sys.exit(1)
+
+        if args.log_sink:
+            from pyharness.log import init_sink
+            init_sink(args.log_sink)
 
         asyncio.run(init_project(repo))
 

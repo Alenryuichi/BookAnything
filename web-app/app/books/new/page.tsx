@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { TerminalLoader } from "@/components/TerminalLoader";
 
 export default function NewBookPage() {
   const [repoPath, setRepoPath] = useState("");
   const [loading, setLoading] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const router = useRouter();
 
@@ -19,13 +20,12 @@ export default function NewBookPage() {
 
     setLoading(true);
     setError("");
+    setJobId(null);
 
     try {
       const res = await fetch("/api/books", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repo_path: repoPath.trim() }),
       });
 
@@ -35,21 +35,41 @@ export default function NewBookPage() {
         throw new Error(data.details || data.error || "Failed to create book");
       }
 
-      // Success, refresh the book list to get the new book and redirect to the bookshelf
-      await fetch("/api/books?refresh=true");
-      router.refresh();
-      router.push("/books");
+      if (data.jobId) {
+        setJobId(data.jobId);
+      } else {
+        await fetch("/api/books?refresh=true");
+        router.refresh();
+        router.push("/books");
+      }
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
-    } finally {
       setLoading(false);
     }
+  };
+
+  const handleJobDone = useCallback(async () => {
+    await fetch("/api/books?refresh=true");
+    router.refresh();
+    router.push("/books");
+  }, [router]);
+
+  const handleJobError = useCallback((msg: string) => {
+    setError(msg);
+    setLoading(false);
+    setJobId(null);
+  }, []);
+
+  const handleRetry = () => {
+    setError("");
+    setLoading(false);
+    setJobId(null);
   };
 
   return (
     <div className="max-w-2xl mx-auto py-12 px-4">
       <h1 className="text-3xl font-bold mb-8 dark:text-white">Create a New Book</h1>
-      
+
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border dark:border-slate-700 p-6">
         <form onSubmit={handleSubmit}>
           <div className="mb-6">
@@ -74,12 +94,25 @@ export default function NewBookPage() {
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-md text-sm whitespace-pre-wrap font-mono">
               {error}
+              {!loading && (
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="mt-3 block text-blue-500 hover:text-blue-400 underline text-xs"
+                >
+                  Try again
+                </button>
+              )}
             </div>
           )}
 
-          {loading ? (
+          {loading || jobId ? (
             <div className="mt-4">
-              <TerminalLoader />
+              <TerminalLoader
+                jobId={jobId ?? undefined}
+                onDone={handleJobDone}
+                onError={handleJobError}
+              />
             </div>
           ) : (
             <div className="flex justify-end gap-4">
@@ -87,13 +120,11 @@ export default function NewBookPage() {
                 type="button"
                 onClick={() => router.back()}
                 className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors"
-                disabled={loading}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={loading}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create Book

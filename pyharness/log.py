@@ -1,20 +1,36 @@
-"""Logging with level-based formatting matching bash output."""
+"""Logging with level-based formatting matching bash output.
+
+Supports an optional JSON-lines sink file for machine-readable output
+consumed by the web layer's SSE streaming.
+"""
 
 from __future__ import annotations
 
 import datetime
+import json
 from pathlib import Path
 
 _LOG_FILE: Path | None = None
+_SINK_FILE: Path | None = None
 
 
-def init_log(log_dir: Path) -> None:
-    global _LOG_FILE
+def init_log(log_dir: Path, sink_path: Path | None = None) -> None:
+    global _LOG_FILE, _SINK_FILE
     log_dir.mkdir(parents=True, exist_ok=True)
     _LOG_FILE = log_dir / "harness.log"
+    if sink_path:
+        sink_path.parent.mkdir(parents=True, exist_ok=True)
+        _SINK_FILE = sink_path
 
 
-def log(level: str, msg: str) -> None:
+def init_sink(sink_path: Path) -> None:
+    """Initialize only the JSON-lines sink (used by init command)."""
+    global _SINK_FILE
+    sink_path.parent.mkdir(parents=True, exist_ok=True)
+    _SINK_FILE = sink_path
+
+
+def log(level: str, msg: str, *, progress: int | None = None, phase: str | None = None) -> None:
     ts = datetime.datetime.now().strftime("%H:%M:%S")
 
     colors = {
@@ -44,3 +60,12 @@ def log(level: str, msg: str) -> None:
     if _LOG_FILE:
         with open(_LOG_FILE, "a") as f:
             f.write(f"[{ts}] [{level}] {msg}\n")
+
+    if _SINK_FILE:
+        record: dict = {"ts": ts, "level": level, "msg": msg}
+        if progress is not None:
+            record["progress"] = progress
+        if phase is not None:
+            record["phase"] = phase
+        with open(_SINK_FILE, "a") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
