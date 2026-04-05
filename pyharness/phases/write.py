@@ -19,6 +19,8 @@ async def step_write_chapters(
     iteration: int,
     plan: Optional[PlanOutput],
     single_chapter_id: Optional[str] = None,
+    skip_chapters: set[str] | None = None,
+    rewrite_queue: list[str] | None = None,
 ) -> None:
     """Write chapters from the plan, with bounded concurrency."""
     if single_chapter_id:
@@ -28,7 +30,27 @@ async def step_write_chapters(
         return
 
     if not plan or not plan.chapters_to_write:
-        log("WARN", "No chapters to write")
+        if not rewrite_queue:
+            log("WARN", "No chapters to write")
+            return
+
+    chapters_to_write: list[tuple[str, str]] = []
+
+    if rewrite_queue:
+        for ch_id in rewrite_queue:
+            if ch_id:
+                chapters_to_write.append((ch_id, "User-requested rewrite"))
+                log("INFO", f"Prepending rewrite chapter: {ch_id}")
+
+    if plan and plan.chapters_to_write:
+        for ch in plan.chapters_to_write:
+            if skip_chapters and ch.id in skip_chapters:
+                log("INFO", f"Skipping chapter: {ch.id}")
+                continue
+            chapters_to_write.append((ch.id, ch.focus))
+
+    if not chapters_to_write:
+        log("WARN", "No chapters to write after filtering")
         return
 
     sem = asyncio.Semaphore(runner.max_parallel)
@@ -38,7 +60,7 @@ async def step_write_chapters(
             return await _write_single_chapter(runner, iteration, chapter_id, focus)
 
     tasks = [
-        write_one(ch.id, ch.focus) for ch in plan.chapters_to_write
+        write_one(ch_id, focus) for ch_id, focus in chapters_to_write
     ]
 
     results = await asyncio.gather(*tasks, return_exceptions=True)

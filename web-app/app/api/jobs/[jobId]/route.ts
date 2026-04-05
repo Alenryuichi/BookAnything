@@ -21,6 +21,7 @@ export async function GET(
     finishedAt: job.finishedAt,
     progress: job.progress,
     exitCode: job.exitCode,
+    controlPath: job.controlPath,
     logs: job.logs,
   });
 }

@@ -29,6 +29,7 @@ def main() -> None:
     run_parser.add_argument("--max-iterations", type=int, default=0, help="Max iterations (0=unlimited, default: 0)")
     run_parser.add_argument("--resume", action="store_true", help="Resume from previous state")
     run_parser.add_argument("--log-sink", type=Path, default=None, help="Path to JSON-lines log sink file for SSE streaming")
+    run_parser.add_argument("--control-file", type=Path, default=None, help="Path to command file for interactive control")
 
     # ── init ──
     init_parser = sub.add_parser("init", help="Initialize a new project config from a repo")
@@ -72,6 +73,7 @@ def main() -> None:
             resume=args.resume,
             max_iterations=args.max_iterations,
             log_sink=args.log_sink,
+            control_file=args.control_file,
         )
         asyncio.run(runner.run())
 

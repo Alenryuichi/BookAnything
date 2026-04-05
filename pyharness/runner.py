@@ -26,6 +26,7 @@ class HarnessRunner:
         resume: bool = False,
         max_iterations: int = 0,
         log_sink: Optional[Path] = None,
+        control_file: Optional[Path] = None,
     ) -> None:
         self.config = config
         self.max_hours = max_hours
@@ -34,6 +35,12 @@ class HarnessRunner:
         self.resume = resume
         self.max_iterations = max_iterations
         self.log_sink = log_sink
+        self.control_file = control_file
+
+        self._paused = False
+        self._cancelled = False
+        self._skip_chapters: set[str] = set()
+        self._rewrite_queue: list[str] = []
 
         self.harness_dir = Path.cwd()
         self.knowledge_dir = self.harness_dir / "knowledge" / config.name
@@ -44,6 +51,38 @@ class HarnessRunner:
 
         self.state = StateManager(self.harness_dir / "state.json")
         self.start_time: float = 0
+
+
+    def _check_commands(self) -> None:
+        if not self.control_file:
+            return
+        from pyharness.commands import read_commands
+        for cmd in read_commands(self.control_file):
+            action = cmd.get("action")
+            if action == "pause":
+                self._paused = True
+                log("INFO", "\u23f8 Generation paused by user")
+            elif action == "resume":
+                self._paused = False
+                log("INFO", "\u25b6 Generation resumed")
+            elif action == "cancel":
+                self._cancelled = True
+                log("INFO", "\u23f9 Generation cancelled by user")
+            elif action == "skip":
+                self._skip_chapters.add(cmd.get("chapter", ""))
+                log("INFO", f"\u23ed Skipping chapter: {cmd.get('chapter')}")
+            elif action == "rewrite":
+                self._rewrite_queue.append(cmd.get("chapter", ""))
+                log("INFO", f"\U0001f504 Queued rewrite: {cmd.get('chapter')}")
+            elif action == "set-parallelism":
+                val = max(1, min(10, int(cmd.get("value", self.max_parallel))))
+                log("INFO", f"Parallelism: {self.max_parallel} \u2192 {val}")
+                self.max_parallel = val
+
+    async def _wait_if_paused(self) -> None:
+        while self._paused and not self._cancelled:
+            await asyncio.sleep(1)
+            self._check_commands()
 
     async def run(self) -> None:
         self._acquire_lock()
@@ -64,6 +103,12 @@ class HarnessRunner:
         last_eval_feedback = ""
 
         while True:
+            self._check_commands()
+            await self._wait_if_paused()
+            if self._cancelled:
+                log("HEAD", "Generation cancelled")
+                break
+
             elapsed_h = (time.time() - self.start_time) / 3600
             if elapsed_h > self.max_hours:
                 log("HEAD", f"Time limit reached ({self.max_hours}h). Finalizing...")
@@ -83,10 +128,25 @@ class HarnessRunner:
             from pyharness.phases.plan import step_plan
             plan = await step_plan(self, iteration, last_eval_feedback)
 
+            self._check_commands()
+            if self._cancelled:
+                log("HEAD", "Generation cancelled")
+                break
+
             # Phase 2: Write chapters
             log("STEP", "Phase 2/7: Writing Chapters...")
             from pyharness.phases.write import step_write_chapters
-            await step_write_chapters(self, iteration, plan)
+            await step_write_chapters(
+                self, iteration, plan,
+                skip_chapters=self._skip_chapters,
+                rewrite_queue=self._rewrite_queue,
+            )
+            self._rewrite_queue = []
+
+            self._check_commands()
+            if self._cancelled:
+                log("HEAD", "Generation cancelled")
+                break
 
             # Phase 3: Improve webapp
             if plan and plan.needs_webapp_improve:
@@ -99,6 +159,11 @@ class HarnessRunner:
             else:
                 log("INFO", "Phase 3/7: Skipping webapp improve")
 
+            self._check_commands()
+            if self._cancelled:
+                log("HEAD", "Generation cancelled")
+                break
+
             # Phase 4: Code review
             log("STEP", "Phase 4/7: Code Review...")
             from pyharness.phases.review import step_code_review
@@ -106,6 +171,11 @@ class HarnessRunner:
                 await step_code_review(self, iteration)
             except Exception as e:
                 log("WARN", f"Code review failed: {e}")
+
+            self._check_commands()
+            if self._cancelled:
+                log("HEAD", "Generation cancelled")
+                break
 
             # Phase 5: Build site
             log("STEP", "Phase 5/7: Building Site...")
@@ -115,6 +185,11 @@ class HarnessRunner:
             except Exception as e:
                 log("WARN", f"Site build failed: {e}")
 
+            self._check_commands()
+            if self._cancelled:
+                log("HEAD", "Generation cancelled")
+                break
+
             # Phase 6: Visual test
             log("STEP", "Phase 6/7: Visual Testing...")
             from pyharness.phases.visual_test import step_visual_test
@@ -122,6 +197,11 @@ class HarnessRunner:
                 await step_visual_test(self)
             except Exception as e:
                 log("WARN", f"Visual test failed: {e}")
+
+            self._check_commands()
+            if self._cancelled:
+                log("HEAD", "Generation cancelled")
+                break
 
             # Phase 7: Evaluate
             log("STEP", "Phase 7/7: Deterministic Evaluation...")
