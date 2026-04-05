@@ -2,123 +2,88 @@
   "chapter_id": "ch02-hello-world",
   "title": "第2章：第一个 AI 代理",
   "subtitle": "从零开始构建智能对话助手",
-  "chapter_summary": "本章通过构建一个银行客服代理，展示 Pydantic AI 的核心概念：Agent 类、依赖注入、工具注册和类型安全的结构化输出，帮助读者理解如何用少量代码构建生产级 AI 应用。",
-  "opening_hook": "凌晨两点，你的手机突然亮起。一条短信：「您的信用卡可能因异常交易被冻结」。你的心跳加速——银行账户里的钱是给下个月房租准备的。你立刻打开银行应用，接入在线客服，输入：「我的卡被锁了吗？账户里还有多少钱？」\n\n几秒钟后，客服回复：「您好 John，您的账户余额为 $123.45，卡片未被锁定，刚才的短信是系统误报。」问题解决，你松了一口气。\n\n但你从未想过，这个让你安心的「客服专员」，可能不是人类，而是一个智能 AI 代理。它理解你的问题，查询数据库，判断风险，给出结构化建议——这一切在几毫秒内完成。今天，我们就来亲手构建这样一个 AI 代理。",
+  "chapter_summary": "本章通过银行客服代理的完整实现，展示 Pydantic AI 如何将类型安全、依赖注入和工具系统完美结合，让 AI 应用开发变得简单可靠。",
+  "opening_hook": "想象一下，你是一家银行的客服系统架构师。每天有成千上万的客户咨询账户余额、报告卡片丢失、询问转账限额。传统方案需要编写大量 if-else 逻辑来处理各种场景，但客户的问题千变万化，总有你预料不到的情况。现在，你只需要创建一个智能代理，给它一些基本工具和规则，它就能像训练有素的客服专员一样，优雅地处理各种复杂咨询。这就是 Pydantic AI 带来的革命性体验——让 AI 真正成为你的得力助手，而不是需要精心编排的代码逻辑。",
   "sections": [
     {
-      "heading": "为什么需要 AI 代理框架",
-      "content": "想象你从零开始写一个银行客服程序。你需要调用 OpenAI 或 Anthropic 的 API，发送用户的问题，获取回复——这看起来很简单。但真实场景很快就变得复杂：\n\n首先，AI 需要访问实时数据。用户问「我的余额是多少？」时，它必须能查询数据库。这意味着你要编写 API 调用、错误处理、重试逻辑，还得考虑安全性——不能让 AI 随意执行任意 SQL。\n\n其次，你需要结构化的输出。AI 不应该只是「说」一些建议，它应该明确告诉系统：建议是什么、是否需要冻结卡片、用户的风险等级是多少。这让你可以自动化后续——比如高风险查询自动转人工处理。\n\n最后，你需要可测试性。当你修改了某个逻辑，怎么确保不会破坏现有功能？每个测试都要真的调用 LLM API，既慢又费钱。你需要一种方式，把「业务逻辑」和「模型调用」解耦。\n\n这就是 Pydantic AI 解决的问题。它提供了一个框架，让这些复杂需求变得优雅：依赖注入隔离数据访问，类型模型保证输出结构，工具系统安全地授予 AI 能力。你只需要告诉它「做什么」，它负责「怎么做」。",
-      "callout": {
-        "type": "quote",
-        "text": "FastAPI 革命了 Web 开发，因为它把「路由、验证、文档」这些重复工作自动化了。Pydantic AI 带着同样的野心来到 GenAI 世界——让 AI 应用开发变得「如果编译通过，就能运行」。"
-      },
+      "heading": "银行客服代理：从需求到实现",
+      "content": "银行客服代理需要解决的核心问题是什么？当客户说'我的卡片丢了'时，系统需要立即判断风险等级、决定是否冻结卡片、给出专业建议，还要用客户的名字个性化回复。传统方法需要编写复杂的业务规则引擎，但 Pydantic AI 让我们可以用声明式的方式定义这些能力。\n\n让我们把银行客服专员的工作拆解成几个关键能力：识别客户身份、查询账户信息、评估风险等级、提供专业建议。每个能力都对应着代理的一个组件——依赖注入提供上下文信息，工具系统提供数据访问，输出模型确保响应格式规范。\n\n这种设计就像给 AI 配备了一个专业工具箱，里面有各种专用工具，AI 可以根据情况自主选择使用哪些工具，而不是被预先编排的死板流程限制。",
       "diagram": {
-        "title": "传统方式 vs Pydantic AI",
-        "chart": "graph LR\n    subgraph 传统方式[传统 LLM 应用开发]\n    A[用户提问] --> B[手动构建 Prompt]\n    B --> C[调用 LLM API]\n    C --> D[解析自然语言输出]\n    D --> E{解析成功?}\n    E -->|否| F[手动重试/修复]\n    E -->|是| G[后续处理]\n    end\n\n    subgraph PydanticAI[Pydantic AI 框架]\n    H[用户提问] --> I[Agent 接受请求]\n    I --> J[动态 Instructions 注入]\n    J --> K[工具调用数据库]\n    K --> L[类型验证输出]\n    L --> M[结构化结果]\n    end",
-        "description": "传统方式需要手动处理每个步骤，而 Pydantic AI 提供了自动化的工具链"
+        "title": "银行客服代理工作流程",
+        "chart": "graph TD\n    A[客户咨询] --> B{风险评估}\n    B -->|低风险| C[查询余额工具]\n    B -->|高风险| D[冻结卡片工具]\n    C --> E[生成建议]\n    D --> E\n    E --> F[结构化输出]\n    F --> G[个性化回复]",
+        "description": "代理根据咨询内容自动选择工具链，最终生成类型安全的响应"
       }
     },
     {
-      "heading": "Agent：你的 AI 代理核心",
-      "content": "Pydantic AI 的核心是 Agent 类。你可以把它想象成一家公司的「智能前台」——你知道它的职责守则（instructions），知道它有哪些可用工具（tools），但它具体怎么做每个任务，由它自己决定。\n\n创建一个 Agent 需要指定三个关键信息：使用哪个模型、它的依赖类型是什么、输出类型是什么。这三个参数让 Agent 变得可预测和可测试。\n\n让我们看银行客服代理的定义。它使用 OpenAI 的 GPT-5.2 模型——注意这个字符串格式 `openai:gpt-5.2`，这种格式让 Pydantic AI 支持几乎所有主流模型提供商：只要改这个字符串，就能无缝切换到 Anthropic、Gemini、DeepSeek，甚至是本地运行的 Ollama。\n\n`deps_type=SupportDependencies` 定义了这个 Agent 需要什么依赖。这是一个 dataclass，其中包含客户 ID 和数据库连接。这就像给前台工作人员一个「工作证」和一个「数据库钥匙」——每次接待客户时，系统会把当前客户的信息塞进这个「包」，递给 Agent。\n\n`output_type=SupportOutput` 更有意思。这是一个 Pydantic 模型，定义了 AI 必须返回三个字段：`support_advice`（给用户的建议）、`block_card`（是否冻结卡片）、`risk`（风险级别 0-10）。这强制 AI「思考」，因为它的输出必须能解析成这个结构，否则会自动重试。\n\ninstructions 参数 Agent 的「核心守则」。这些静态指令告诉 AI：你是银行客服，要给客户支持，并判断查询风险。这就像给新员工一份工作手册。",
+      "heading": "Agent 类：智能代理的核心引擎",
+      "content": "Agent 类是 Pydantic AI 的心脏，它封装了与 LLM 交互的所有复杂性。创建代理就像组装一台精密的机器——你需要指定引擎（模型）、燃料（指令）、工具（功能）和输出格式（类型约束）。\n\n在银行客服的例子中，我们使用 `Agent('openai:gpt-5.2', deps_type=SupportDependencies, output_type=SupportOutput)` 创建代理。这里的关键在于类型参数——`SupportDependencies` 确保代理运行时能访问正确的上下文信息，`SupportOutput` 保证响应符合业务规范。\n\n这种类型安全的设计让 IDE 能在编码阶段就发现潜在错误。比如如果你尝试访问不存在的依赖字段，类型检查器会立即报错，而不是等到运行时才发现问题。",
       "code": {
-        "title": "Agent 核心定义",
-        "description": "银行客服代理的完整声明，展示了三个关键参数",
-        "code": "support_agent = Agent(\n    'openai:gpt-5.2',\n    deps_type=SupportDependencies,\n    output_type=SupportOutput,\n    instructions=(\n        'You are a support agent in our bank, give the '\n        'customer support and judge the risk level of '\n        'their query. Reply using the customer\\'s name.'\n    ),\n)",
+        "title": "创建银行客服代理",
+        "description": "核心的 Agent 初始化代码，展示如何配置模型、依赖和输出类型",
+        "code": "support_agent = Agent(\n    'openai:gpt-5.2',\n    deps_type=SupportDependencies,\n    output_type=SupportOutput,\n    instructions=(\n        'You are a support agent in our bank, give the '\n        'customer support and judge the risk level of their query.'\n    ),\n)",
         "language": "python",
-        "annotation": "Agent 是泛型类：Agent[依赖类型, 输出类型]。这里它的类型是 Agent[SupportDependencies, SupportOutput]，这意味着 run() 方法接收 SupportDependencies，返回一个包含 SupportOutput 的结果。IDE 的类型检查器能利用这个信息自动补全。"
-      },
-      "diagram": {
-        "title": "Agent 的类型系统",
-        "chart": "graph TD\n    A[Agent 类] --> B[泛型参数]\n    B --> C1[deps_type: SupportDependencies]\n    B --> C2[output_type: SupportOutput]\n    B --> C3[model: openai:gpt-5.2]\n    \n    C1 --> D1[customer_id: int]\n    C1 --> D2[db: DatabaseConn]\n    \n    C2 --> E1[support_advice: str]\n    C2 --> E2[block_card: bool]\n    C2 --> E3[risk: int 0-10]\n    \n    D1 & D2 --> F[Run Context]\n    E1 & E2 & E3 --> G[Run Result]",
-        "description": "Agent 的类型系统让它既是灵活的运行时组件，又是静态类型友好的构建块"
+        "annotation": "Agent 构造函数接收模型名称、依赖类型、输出类型和静态指令，构建一个类型安全的智能代理"
       }
     },
     {
-      "heading": "依赖注入：把「上下文」交给 Agent",
-      "content": "静态 instructions 很好，但有时我们需要给 AI 更动态的信息。比如：客服回复时，应该称呼客户的名字，但我们不能把所有客户的名字都硬编码在 instructions 里。\n\n这就是动态 instructions 的用武之地。你可以用 `@support_agent.instructions` 装饰器注册一个函数，每次 Agent 运行前，这个函数会被调用，其返回值会追加到 instructions 里。\n\n关键在于 `RunContext[SupportDependencies]` 这个参数。它是 Agent 的「管家」，负责传递运行时信息。通过 `ctx.deps`，你可以访问我们之前定义的 `SupportDependencies` 数据——也就是当前客户的 ID 和数据库连接。\n\n在 `add_customer_name` 函数中，我们用 `ctx.deps.db` 查询数据库，获取客户名字，然后返回一句动态指令：「The customer's name is 'John'」。这会和其他指令一起发给 LLM，让它知道当前在跟谁对话。\n\n这比在 prompt 里手动拼接字符串优雅得多。首先，它是类型安全的——如果你不小心写错 `ctx.deps` 的类型，静态类型检查器会立刻报警。其次，它是可测试的——你可以传入假的 `SupportDependencies` 来测试逻辑，而不用真的连接数据库。\n\n想象一下：你在写单元测试时，只需创建一个 `SupportDependencies(customer_id=123, db=MockDatabase())`，就能测试 Agent 在各种场景下的行为，而不需要真的调用 LLM API。这让测试变得快速、可靠、廉价。",
-      "code": {
-        "title": "动态 Instructions",
-        "description": "通过依赖注入获取客户信息，动态生成指令",
-        "code": "@support_agent.instructions\nasync def add_customer_name(ctx: RunContext[SupportDependencies]) -> str:\n    customer_name = await ctx.deps.db.customer_name(id=ctx.deps.customer_id)\n    return f\"The customer's name is {customer_name!r}\"",
-        "language": "python",
-        "annotation": "这个函数是 async 的，因为它可能访问数据库或执行其他异步操作。Pydantic AI 会自动等待它完成，然后把结果追加到发送给 LLM 的 Prompt 里。注意 `{customer_name!r}` 中的 `!r`——这是 Python 的 repr 格式，会把字符串用引号包裹，避免 LLM 误解边界。"
-      }
-    },
-    {
-      "heading": "工具系统：安全地授予 AI 能力",
-      "content": "AI 不能只停留在「说话」层次。银行客服需要真正的能力：查询余额、冻结卡片、记录交易日志。但这些操作不能让 AI 随意执行——你得控制它能做什么，怎么做。\n\nPydantic AI 的工具系统就是为此设计的。用 `@support_agent.tool` 装饰一个函数，它就变成 AI 可以「调用」的工具。AI 不会直接执行这个函数，而是会决定「我需要调用这个工具」，然后 Pydantic AI 执行它，把结果返回给 AI，让 AI 基于结果继续推理。\n\n这带来了两个关键好处。第一是安全性：你可以精确控制 AI 能调用哪些函数，给它什么参数。第二是可靠性：Pydantic 会验证工具的输入和输出，如果格式不对，AI 会自动重试，而不是崩坏。\n\n在 `customer_balance` 工具中，我们定义了一个返回类型为 `str` 的函数，它会从数据库查询余额并格式化。函数的参数只有 `ctx`（RunContext），所以 AI 调用这个工具时不需要传任何参数——它直接调用，系统会自动把当前客户的 ID 传给它。\n\n工具的 docstring 至关重要：「Returns the customer's current account balance.」这句话会被 AI 读取，帮助它理解这个工具是做什么的、什么时候应该调用。如果工具有参数，你可以在 docstring 里描述每个参数的作用，Pydantic AI 会自动提取这些信息，生成让 AI 能理解的 schema。\n\n当你运行 Agent 时，Pydantic AI 会分析用户的提问，判断是否需要调用工具。如果用户问「我的余额是多少？」，它识别出 `customer_balance` 工具能回答这个问题，就调用它，获取结果，再让 AI 基于结果生成最终回复。",
+      "heading": "依赖注入：为代理提供上下文信息",
+      "content": "依赖注入是 Pydantic AI 的巧妙设计之一。想象一下，客服专员在接听电话时，需要知道来电者的身份信息才能提供个性化服务。SupportDependencies 就是代理的'客户档案'，包含当前会话的所有上下文。\n\n通过 `@dataclass class SupportDependencies` 定义依赖结构，我们明确告诉代理：处理每个请求时，你都需要客户ID和数据库连接。这种设计让代理的行为可以基于运行时信息动态调整，而不是写死在代码中。\n\n当代理执行工具或指令时，RunContext 对象会自动注入这些依赖，就像给专员递上客户档案一样自然。这种机制确保了类型安全——如果你尝试访问不存在的依赖字段，类型检查器会在编码阶段就发出警告。",
       "callout": {
         "type": "tip",
-        "text": "工具的函数签名就是它的「调用契约」。参数类型就是参数 schema，返回类型就是输出 schema。你可以利用 Python 的类型注解和 Pydantic 模型，让工具的契约既清晰又可验证。"
-      },
-      "code": {
-        "title": "工具注册",
-        "description": "定义一个供 AI 调用的工具函数",
-        "code": "@support_agent.tool\nasync def customer_balance(ctx: RunContext[SupportDependencies]) -> str:\n    \"\"\"Returns the customer's current account balance.\"\"\"\n    balance = await ctx.deps.db.customer_balance(id=ctx.deps.customer_id)\n    return f'${balance:.2f}'",
-        "language": "python",
-        "annotation": "工具函数接收 RunContext 作为参数，让你能访问依赖。返回类型是 `str`，但更重要的是 docstring——这是 AI 理解工具用途的唯一途径。把描述写得清晰、准确，比任何技巧都重要。"
-      },
-      "diagram": {
-        "title": "工具调用流程",
-        "chart": "graph TD\n    A[用户提问] --> B[Agent 分析问题]\n    B --> C{需要工具?}\n    C -->|否| D[直接生成回复]\n    C -->|是| E[选择最佳工具]\n    E --> F[提取参数并验证]\n    F --> G[执行工具函数]\n    G --> H[返回工具结果]\n    H --> I[AI 基于结果推理]\n    I --> J{需要更多工具?}\n    J -->|是| E\n    J -->|否| K[生成最终回复]\n    K --> L[输出结构化结果]",
-        "description": "Agent 可以多次调用工具，直到它能生成完整的答案"
+        "text": "依赖注入不仅提供数据，还支持复杂的业务逻辑。你可以注入任何对象——数据库连接、API客户端、配置信息，甚至是其他代理，构建复杂的代理网络。"
       }
     },
     {
-      "heading": "结构化输出：Pydantic 保证质量",
-      "content": "传统的 LLM 应用面临一个核心问题：输出不可预测。AI 可能写一段长文，可能只回一句话，格式完全随机。这让后续处理变得困难——你想从中提取「是否需要冻结卡片」？可能得写复杂的正则表达式或再调用一次 LLM 解析。\n\nPydantic AI 用类型模型解决这个问题。你在创建 Agent 时指定 `output_type=SupportOutput`，这意味着 AI 必须返回一个能解析成 `SupportOutput` 的 JSON。如果 AI 返回的格式不对，Pydantic AI 会自动触发「反思与自我修正」机制，让 AI 重试。\n\n`SupportOutput` 继承自 `BaseModel`，是 Pydantic 的核心类型。每个字段都有一个描述——`support_advice` 是「建议返回给客户」，`risk` 是「查询的风险级别（0-10）」。这些描述不仅用于验证，还会转换成 JSON Schema 发送给 LLM，让它理解每个字段应该是什么格式、什么含义。\n\n字段的类型注解也很重要：`block_card: bool` 是布尔值，`risk: int` 是整数。更重要的是，你可以在 Field 里加约束——`ge=0, le=10` 表示 risk 必须在 0 到 10 之间。如果 AI 返回 risk=11，Pydantic 会拒绝，让 AI 重试。\n\n这不仅仅是验证，更是一种「引导」。当你强制 AI 输出结构化数据时，你实际上在教它「思考」。AI 必须判断用户的风险级别是高还是低，必须决定是否应该冻结卡片，而不是泛泛地说「我会帮你处理」。\n\n当你运行 Agent 时，返回的结果 `.output` 属性就是类型为 `SupportOutput` 的对象。你可以直接访问它的字段，就像普通 Python 对象一样：`result.output.block_card` 会返回 True 或 False。这让集成变得简单——不再需要解析字符串，直接在代码里使用结构化数据。",
+      "heading": "工具系统：代理的瑞士军刀",
+      "content": "工具是代理与外部世界交互的桥梁。在银行场景中，`customer_balance` 工具让代理能够查询实时账户信息，而无需预先知道所有数据。\n\n使用 `@support_agent.tool` 装饰器注册工具时，Pydantic AI 会自动分析函数签名和文档字符串，生成完整的工具描述发送给 LLM。当客户问'我的余额是多少'时，代理会智能地调用这个工具获取最新数据。\n\n工具调用的美妙之处在于它的自主性——代理根据对话上下文决定何时调用工具、传递什么参数。这种设计让代理能够处理开放式问题，而不是被限制在预设的对话流程中。",
       "code": {
-        "title": "输出模型定义",
-        "description": "用 Pydantic 模型保证输出的结构和质量",
-        "code": "class SupportOutput(BaseModel):\n    support_advice: str\n    \"\"\"Advice returned to the customer\"\"\"\n    block_card: bool\n    \"\"\"Whether to block their card or not\"\"\"\n    risk: int\n    \"\"\"Risk level of query\"\"\"",
+        "title": "定义查询余额工具",
+        "description": "工具函数通过依赖注入访问数据库，返回格式化余额信息",
+        "code": "@support_agent.tool\nasync def customer_balance(ctx: RunContext[SupportDependencies]) -> str:\n    \"\"\"Returns the customer's current account balance.\"\"\"\n    balance = await ctx.deps.db.customer_balance(id=ctx.deps.customer_id)\n    return f'${balance:.2f}'",
         "language": "python",
-        "annotation": "字段的 docstring 会变成 JSON Schema 的 description，这是 AI 理解字段含义的关键。如果你对 risk 字段加更多细节，比如「0=无风险，5=中等，10=紧急」，AI 会更准确地判断风险等级。"
-      },
+        "annotation": "工具函数自动接收 RunContext，通过依赖注入访问数据库，返回格式化字符串供代理使用"
+      }
+    },
+    {
+      "heading": "动态指令：让代理更智能",
+      "content": "静态指令告诉代理'你是什么'，而动态指令让代理'知道当前情况'。`@support_agent.instructions` 装饰器注册的函数会在每次对话开始时执行，为代理提供实时上下文。\n\n在银行例子中，`add_customer_name` 函数查询数据库获取客户姓名，然后将其作为额外指令发送给代理。这样代理在回复时就能自然地使用客户的名字，提供个性化服务。\n\n动态指令的威力在于它们可以基于运行时数据生成。比如根据客户的风险等级调整回复语气，或者根据业务时段提供不同的服务建议。这种动态性让代理能够适应各种复杂场景。",
       "table": {
-        "caption": "类型约束与 Field 选项示例",
-        "headers": ["约束", "示例", "用途"],
+        "caption": "静态指令 vs 动态指令对比",
+        "headers": ["特性", "静态指令", "动态指令"],
         "rows": [
-          ["ge, le", "risk: int = Field(ge=0, le=10)", "数值范围限制"],
-          ["min_length, max_length", "advice: str = Field(min_length=10)", "字符串长度控制"],
-          ["pattern", "email: str = Field(pattern=r'^[^@]+@[^@]+$')", "正则表达式匹配"],
-          ["default", "block_card: bool = False", "默认值"]
+          ["执行时机", "代理创建时", "每次对话开始时"],
+          ["数据来源",  "硬编码字符串", "运行时查询结果"],
+          ["适用场景", "角色定义、行为准则", "个性化信息、实时数据"],
+          ["类型安全", "字符串类型", "依赖注入确保类型安全"]
         ]
       }
     },
     {
-      "heading": "运行 Agent：见证魔法时刻",
-      "content": "现在让我们把所有东西组合起来，运行这个 Agent。首先，我们需要一个有数据的数据库。示例代码用 SQLite 内存数据库，插了一条客户记录：ID=123，名字=John，余额=123.45。\n\n接下来，创建依赖对象：`SupportDependencies(customer_id=123, db=DatabaseConn(sqlite_conn=con))`。这就像把「客户 123」和「数据库钥匙」打包，递给 Agent。\n\n然后是运行：`support_agent.run_sync('What is my balance?', deps=deps)`。`run_sync` 是同步版本（内部会调用异步逻辑），第一个参数是用户的问题，第二个参数是依赖对象。Agent 会启动，生成 Prompt，发给 LLM，可能调用工具，最后返回结果。\n\n结果是一个包含多个属性的对象：`.output` 是 `SupportOutput` 结构化数据，`.all_messages()` 是完整对话历史（包括工具调用），`.cost()` 是 API 调用成本，`.usage()` 是 token 使用量。这些信息让调试、监控变得直接。\n\n如果你问「I just lost my card!」，Agent 的行为会完全不同。它识别出这是一个高风险问题，仍然会调用工具获取客户信息，但最终输出中 `block_card=True`，`risk=8`，而 `support_advice` 会是安抚性的话术并说明已冻结卡片。\n\n这就是 Pydantic AI 的魔力：相同的 Agent，用相同代码，根据不同的输入，做出不同的决策、调用不同的工具、返回不同的结构化结果。你不需要写 if-else 逻辑——Agent 会自己推理。",
+      "heading": "类型安全：从运行时错误到编译时检查",
+      "content": "Pydantic AI 最革命性的特性是将 AI 应用开发从'运行时调试'提升到'编译时验证'。通过 SupportOutput 模型，我们定义代理必须返回的三个字段：建议内容、卡片冻结标志、风险等级。\n\n当代理生成响应时，Pydantic 会自动验证数据结构是否符合规范。如果 LLM 返回了错误的格式，系统会提示它重新生成，直到得到有效的输出。这种机制确保了生产环境的可靠性。\n\n类型安全不仅限于输出验证。整个代理系统——从依赖注入到工具调用——都建立在类型系统之上。这意味着大多数错误会在编码阶段被 IDE 捕获，而不是在深夜的生产告警中才发现。",
       "callout": {
         "type": "warning",
-        "text": "run_sync 是同步封装，只适合脚本和示例。在生产环境中，使用 async 的 `run()` 方法，因为它不会阻塞事件循环，能更好地处理并发请求和长时间运行的 Agent。"
-      },
-      "code": {
-        "title": "运行 Agent",
-        "description": "完整的数据准备和 Agent 执行流程",
-        "code": "# 创建测试数据库\nwith sqlite3.connect(':memory:') as con:\n    cur = con.cursor()\n    cur.execute('CREATE TABLE customers(id, name, balance)')\n    cur.execute(\"INSERT INTO customers VALUES (123, 'John', 123.45)\")\n    con.commit()\n    \n    # 准备依赖\n    deps = SupportDependencies(customer_id=123, db=DatabaseConn(sqlite_conn=con))\n    \n    # 运行 Agent\n    result = support_agent.run_sync('What is my balance?', deps=deps)\n    print(result.output)\n    # support_advice='Hello John, your current account balance is $123.45.'\n    # block_card=False risk=1",
-        "language": "python",
-        "annotation": "注意 `result.output` 直接是一个 `SupportOutput` 对象，不是字符串。这意味着你可以用 `result.output.risk > 5` 来判断是否需要人工介入，用 `result.output.support_advice` 直接展示给用户。类型系统让这一切变得安全和直观。"
+        "text": "虽然类型安全大大减少了运行时错误，但仍需注意：LLM 可能产生不符合预期的内容。合理的验证规则和错误处理机制仍是必要的。"
       }
     }
   ],
   "key_takeaways": [
-    "Pydantic AI 的 Agent 类是构建 AI 应用的核心，它接受模型选择、依赖类型和输出类型三个参数，形成类型安全的构建块",
-    "依赖注入通过 deps_type 和 RunContext 让你可以向 Agent 传递运行时上下文（如客户 ID、数据库连接），同时保持代码的可测试性",
-    "工具系统用 @agent.tool 装饰器注册函数，让 AI 可以安全地调用外部能力（如数据库查询），Pydantic 自动处理参数验证和错误重试",
-    "结构化输出用 Pydantic BaseModel 定义返回格式，强制 AI 返回可预测的数据，触发自我修正机制，实现从「LLM 生成」到「可靠结果」的跨越",
-    "从代码到运行的整个过程中，类型系统贯穿始终——依赖类型、工具参数、输出结构——让 IDE 能提供智能补全，让静态检查器能捕获错误，带来「如果编译通过，就能运行」的开发体验"
+    "Agent 类封装了 LLM 交互复杂性，通过类型参数确保编译时安全",
+    "依赖注入为代理提供运行时上下文，支持基于数据的动态行为",
+    "工具系统让代理能够自主访问外部数据和服务，处理开放式问题",
+    "动态指令基于实时数据调整代理行为，实现个性化交互",
+    "Pydantic 输出模型确保响应格式规范，提升生产可靠性"
   ],
   "further_thinking": [
-    "如果银行的数据库查询变得很慢，而多个用户同时咨询，我们的 Agent 会如何处理？是否需要引入队列或缓存机制？Pydantic AI 的异步设计如何帮助解决并发问题？",
-    "现在的例子中，AI 只能调用两个工具（customer_balance 和 add_customer_name）。如果我们要添加「冻结卡片」、「记录日志」、「转人工」等更多功能，应该设计什么样的工具架构？工具之间如何协作？是否会出现工具冲突或调用的循环依赖？"
+    "如果银行代理需要访问多个数据源（账户信息、交易记录、风险数据库），如何设计依赖注入结构？",
+    "考虑一个电商客服场景，代理需要处理退货、咨询、投诉等多种业务，如何设计工具和指令系统？"
   ],
   "analogies": [
-    "AI 代理就像训练有素的银行专员。你给一份工作手册（instructions）、一个客户档案夹（dependencies）和一套可用工具权限（tools），她会根据客户的具体问题，自主决定用什么工具查询什么信息，最终给出一份结构化的处理报告（structured output）。",
-    "依赖注入就像把「工作证」和「钥匙」放在一个标准化的公文包里。任何接待客户的员工只需要知道这个公文包的「接口规范」（deps_type），就能拿到里面的所有东西，而不需要关心公文包到底是谁塞进去的、里面具体有什么——这让替换、测试、mock 都变得简单。"
+    "Agent 像训练有素的客服专员，工具系统是他的专业工具箱，依赖注入是他的客户档案",
+    "类型安全像建筑蓝图，确保每个组件都按规范连接，避免运行时坍塌"
   ],
-  "mermaid_diagrams": [],
-  "code_snippets": [],
-  "word_count": 4200,
-  "prerequisites": []
+  "mermaid_diagrams": ["银行客服代理工作流程"],
+  "code_snippets": ["创建银行客服代理", "定义查询余额工具"],
+  "word_count": 3850,
+  "prerequisites": ["ch03-architecture-overview"]
 }

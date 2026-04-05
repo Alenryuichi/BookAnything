@@ -1,0 +1,28 @@
+[project]
+name = "pyharness"
+version = "0.1.0"
+description = "Source Code Book Generation Harness — Python orchestration engine"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0,<3.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+pyharness = "pyharness.__main__:main"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "slow: real Claude CLI tests (deselect with '-m \"not slow\"')",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends._legacy:_Backend"

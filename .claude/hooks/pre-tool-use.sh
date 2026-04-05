@@ -27,14 +27,14 @@ if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" ]]; then
 
   # Whitelist: harness subdirectories + root-level config files
   ALLOWED=false
-  for dir in knowledge web-app output openspec .claude scripts prompts; do
+  for dir in knowledge web-app output openspec .claude scripts prompts pyharness tests; do
     if [[ "$ABS_PATH" == "$HARNESS_DIR/$dir"* ]]; then
       ALLOWED=true
       break
     fi
   done
   # Also allow specific root-level files
-  for file in run.sh new-project.sh CLAUDE.md goals.yaml state.json .gitignore; do
+  for file in run.sh CLAUDE.md goals.yaml state.json .gitignore requirements.txt pyproject.toml; do
     if [[ "$ABS_PATH" == "$HARNESS_DIR/$file" ]]; then
       ALLOWED=true
       break

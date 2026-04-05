@@ -2,84 +2,70 @@
   "chapter_id": "ch13-a2a-communication",
   "title": "第13章：Agent2Agent 通信",
   "subtitle": "多代理协作系统",
-  "chapter_summary": "A2A 协议让多个 AI 代理像团队成员一样协作，通过标准化的消息格式和任务分发机制，实现复杂任务的专业化分工与无缝接力。",
-  "opening_hook": "想象你正在经营一家繁忙的餐厅：前台接待员负责点单，厨师负责烹饪，服务员负责上餐。每个角色都在自己擅长的领域工作，但他们彼此之间需要不断协调沟通——「5号桌的牛排好了」「客人要加杯水」。这种分工协作的方式让整个餐厅高效运转。同样地，当我们要处理复杂的现实任务时，单个 AI 代理往往力不从心。一个翻译代理可能精通语言转换，但不懂法律条款的严谨性；一个法律咨询代理能提供专业建议，却无法执行代码生成。如果能像餐厅团队一样，让多个专业代理各司其职、协同工作，就能解决单个代理难以胜任的复杂任务。这就是本章要探讨的 Agent2Agent（A2A）通信——让 AI 代理之间能够互相「对话」、互相委托的协作机制。",
+  "chapter_summary": "本章介绍Pydantic AI如何通过标准化的A2A协议实现多个AI代理之间的高效协作，让专业代理能够像团队一样分工合作解决复杂问题。",
+  "opening_hook": "想象一下，你要组织一场大型会议：需要预订场地、安排餐饮、发送邀请、准备材料。如果让一个人完成所有工作，效率低下且容易出错。但在一个专业团队中，场地专员负责预订，餐饮团队安排食物，秘书处发送邀请——这就是多代理协作的价值。在AI应用开发中，单个代理的能力有限，但通过Agent2Agent通信，我们可以让不同的专业代理协同工作，各自发挥所长，共同解决复杂任务。",
   "sections": [
     {
-      "heading": "为什么需要多代理协作",
-      "content": "单个代理就像一个博而不专的「万事通」，它能回答各种问题，但面对复杂业务场景时往往力不从心。\n\n想象你需要开发一个完整的电商网站：涉及需求分析、架构设计、后端开发、前端开发、测试部署等多个专业领域。让单个代理从头到尾完成所有工作，不仅效率低下，而且容易在某个环节陷入困境。\n\n多代理协作就像是组建一个专业团队：每个代理专攻一个领域，通过明确的分工和标准的通信协议，像接力赛一样完成任务。\n\n这种方式的优势显而易见：代理可以专注于自己擅长的领域，通过复用已验证的专业能力降低出错率，某个代理出问题时可以快速切换替代者，整个系统更具灵活性和可维护性。",
-      "callout": {
-        "type": "info",
-        "text": "A2A 是指 Agent-to-Agent，即「代理对代理」的通信模式。它不是 Pydantic AI 独有的概念，而是一个标准化的多代理协作协议，旨在让不同框架实现的代理能够互相通信。"
-      },
-      "analogies": ["多代理协作就像餐厅的后厨团队：厨师负责烹饪、配菜师负责准备食材、传菜员负责传递订单，各司其职又密切配合。"]
+      "heading": "为什么需要多代理协作？",
+      "content": "单个AI代理就像一名全能型员工，虽然什么都会一点，但在面对复杂任务时往往力不从心。比如要开发一个智能客服系统，需要处理自然语言理解、数据库查询、API调用、情感分析等多个环节。\n\n如果让一个代理承担所有工作，不仅响应速度慢，还可能因为任务复杂度超出模型能力而失败。多代理协作将复杂问题分解为多个子任务，由专门的代理负责各自擅长的领域，最后整合结果。\n\nPydantic AI的A2A协议正是为了解决这个问题而生，它定义了代理之间通信的标准格式和流程，让不同代理能够像团队成员一样无缝协作。"
     },
     {
-      "heading": "A2A 协议的核心概念",
-      "content": "A2A 协议定义了一套标准化的通信规范，就像是代理世界的「通用语言」。无论你的代理是用 Pydantic AI、LangChain 还是其他框架构建的，只要遵循 A2A 协议，它们就能互相「对话」。\n\n协议的核心在于三种抽象实体：Worker（工作者）、Broker（代理/消息中介）和 Storage（存储库）。Worker 是执行任务的代理，Broker 负责在不同 Worker 之间传递任务，Storage 则持久化任务状态和对话历史。\n\n任务在 A2A 系统中的生命周期是：从 submitted（已提交）开始，进入 working（处理中）状态，最终变为 completed（已完成）或 failed（已失败）。\n\n这种设计让多代理系统具备完整的可观测性和可靠性：你可以追踪每个任务的状态，失败的任务可以被重新调度，整个系统的运行状况一目了然。",
+      "heading": "A2A协议：代理间的通用语言",
+      "content": "A2A（Agent-to-Agent）协议是Pydantic AI定义的一套标准化通信规范，类似于人类团队中的工作交接单。它规定了代理之间如何传递任务、共享上下文、返回结果。\n\n协议的核心是消息格式的统一。每个消息包含角色（user或agent）、内容部分（parts）和元数据。内容部分支持文本、文件、数据等多种类型，确保信息传递的完整性。\n\n这种标准化设计让不同代理能够理解彼此的输入输出，即使它们使用不同的模型或具备不同的能力，也能通过A2A协议进行有效协作。"
+    },
+    {
+      "heading": "AgentWorker：代理的执行引擎",
+      "content": "AgentWorker是A2A系统的核心组件，它负责将Pydantic AI代理包装成可被其他代理调用的服务。就像工厂里的生产线工人，它接收任务指令，调用代理处理，然后返回结果。\n\nWorker通过存储系统（Storage）管理任务状态，通过消息代理（Broker）处理通信。当收到新任务时，它会加载历史上下文，调用代理的run方法，然后将结果转换为A2A格式返回。\n\n这种设计确保了代理执行的可靠性和可追溯性。每个任务都有唯一ID，状态变化被完整记录，支持任务的取消和重试机制。",
+      "code": {
+        "title": "AgentWorker的核心执行逻辑",
+        "description": "展示了AgentWorker如何处理A2A任务的关键代码片段",
+        "code": "async def run_task(self, params: TaskSendParams) -> None:\n    task = await self.storage.load_task(params['id'])\n    \n    # 确保任务状态正确\n    if task['status']['state'] != 'submitted':\n        raise ValueError(f'Task已处理过: {task[\"status\"][\"state\"]}')\n    \n    await self.storage.update_task(task['id'], state='working')\n    \n    # 加载历史上下文\n    message_history = await self.storage.load_context(task['context_id']) or []\n    message_history.extend(self.build_message_history(task.get('history', [])))\n    \n    # 调用代理执行\n    result = await self.agent.run(message_history=message_history)\n    \n    # 保存结果和更新状态\n    await self.storage.update_context(task['context_id'], result.all_messages())\n    await self.storage.update_task(task['id'], state='completed')",
+        "language": "python",
+        "annotation": "这段代码展示了A2A任务执行的完整流程：加载任务→验证状态→构建历史上下文→调用代理→保存结果。关键点在于上下文的管理和状态转换的原子性操作。"
+      }
+    },
+    {
+      "heading": "消息格式转换：代理间的翻译官",
+      "content": "不同代理可能使用不同的内部消息格式，A2A系统通过格式转换层实现互操作性。就像国际会议需要翻译一样，格式转换确保信息准确传递。\n\nPydantic AI代理使用ModelRequest/ModelResponse格式，而A2A协议使用统一的Part系统。转换器负责在两种格式间进行映射，处理文本、文件、数据等不同类型的内容。\n\n这种设计保持了代理实现的灵活性。代理可以专注于业务逻辑，而不需要关心与其他代理的通信细节，由A2A系统处理格式兼容性问题。",
+      "code": {
+        "title": "消息格式转换实现",
+        "description": "展示了如何将Pydantic AI消息转换为A2A格式",
+        "code": "def _response_parts_to_a2a(self, parts: Sequence[ModelResponsePart]) -> list[Part]:\n    a2a_parts: list[Part] = []\n    for part in parts:\n        if isinstance(part, TextPart):\n            a2a_parts.append(A2ATextPart(kind='text', text=part.content))\n        elif isinstance(part, ThinkingPart):\n            a2a_parts.append(A2ATextPart(\n                kind='text', text=part.content,\n                metadata={'type': 'thinking', 'thinking_id': part.id}\n            ))\n        elif isinstance(part, ToolCallPart):\n            # 跳过工具调用 - 内部执行细节\n            pass\n    return a2a_parts",
+        "language": "python",
+        "annotation": "转换器智能处理不同类型的消息部分：文本直接传递，思考过程添加元数据，工具调用内部消化。这种设计既保持了信息完整性，又避免了暴露实现细节。"
+      }
+    },
+    {
+      "heading": "实际应用场景：智能任务分解",
+      "content": "A2A通信在实际项目中有着广泛的应用。比如开发一个智能数据分析系统，可以将任务分解为数据获取代理、清洗代理、分析代理和报告生成代理。\n\n数据获取代理负责从数据库或API获取原始数据，清洗代理进行数据预处理，分析代理执行统计计算，最后报告生成代理制作可视化图表。每个代理专注于自己的专业领域。\n\n这种分工协作不仅提高了系统性能，还增强了可维护性。当需要改进某个环节时，只需优化对应的代理，而不影响整个系统。",
       "diagram": {
-        "title": "A2A 任务执行流程",
-        "chart": "graph TD;\n    A[客户端] -->|提交任务| B[Broker];\n    B -->|分发| C[Worker1];\n    B -->|分发| D[Worker2];\n    C -->|存储历史| E[Storage];\n    D -->|存储历史| E;\n    C -->|提交子任务| B;\n    D -->|完成| B;\n    B -->|返回结果| A;\n\n    style A fill:#e1f5ff\n    style B fill:#fff4e6\n    style C fill:#ffe1e1\n    style D fill:#ffe1e1\n    style E fill:#e1ffe1",
-        "description": "任务通过 Broker 分发给不同的 Worker，所有交互状态都持久化到 Storage 中，支持任务之间的相互委托和协作。"
+        "title": "多代理协作流程图",
+        "chart": "graph TD\n    A[用户请求] --> B(任务分配代理)\n    B --> C[数据获取代理]\n    B --> D[数据清洗代理] \n    B --> E[分析计算代理]\n    C --> F[原始数据]\n    D --> G[清洗后数据]\n    E --> H[分析结果]\n    F --> I(结果整合代理)\n    G --> I\n    H --> I\n    I --> J[最终报告]",
+        "description": "展示了多代理协作的典型流程：任务被分解为多个子任务，由专业代理并行处理，最后整合结果。这种流水线设计大幅提升了处理效率。"
       }
     },
     {
-      "heading": "将 Pydantic AI 代理接入 A2A 网络",
-      "content": "在 Pydantic AI 中，将单个代理「升级」为可参与 A2A 协作的节点，只需要调用 `agent_to_a2a()` 方法。这个方法会自动处理所有繁琐的适配工作。\n\n`agent_to_a2a()` 的核心是创建一个 `FastA2A` 服务器，它封装了代理的所有能力，并为其配备标准化的任务接收和响应接口。你只需要配置存储层和消息代理，就可以让代理「上线」参与协作了。\n\n存储层可以是内存实现（适合测试）或数据库实现（适合生产环境），它负责保存对话历史和任务状态。消息代理则负责在不同代理之间传递任务，默认使用内存实现，也支持 Redis、RabbitMQ 等专业消息队列。\n\n这种设计让开发者无需关心底层的协议细节，只需要专注于定义代理的能力和行为——就像把一个独立开发者接入团队协作平台，他不需要学习新的沟通方式，平台会自动完成格式转换和路由。",
-      "code": {
-        "title": "将代理转换为 A2A 节点",
-        "description": "一行代码让代理接入 A2A 协作网络",
-        "code": "agent_to_a2a(\n    agent=my_agent,\n    name='researcher',\n    url='http://localhost:8000',\n    skills=[\n        Skill(name='web_search', description='搜索网络信息'),\n        Skill(name='data_analysis', description='分析数据')\n    ]\n)",
-        "language": "python",
-        "annotation": "这里的 `skills` 声明了该代理具备的能力，其他代理可以根据这些能力判断是否应该委托任务给它。"
-      }
-    },
-    {
-      "heading": "代理协作的执行机制",
-      "content": "当代理接收到 A2A 任务后，会由 `AgentWorker` 负责执行。执行过程的第一步是加载上下文历史——包括当前对话之前的所有消息，确保代理理解完整的对话背景。\n\n`AgentWorker` 内部处理了两种关键的消息转换：A2A 协议消息与 Pydantic AI 内部消息格式的互相转换。这意味着代理之间的对话是透明的——代理 A 发送的一段文本，代理 B 收到时仍然是那段文本，框架会在后台完成所有格式适配。\n\n执行完成后，代理的输出会被封装成「工件」持久化存储。对于字符串输出，直接保存为文本工件；对于结构化数据，会附带 JSON Schema 以便其他代理理解和解析。\n\n这种机制让代理之间的协作像函数调用一样自然：一个代理完成工作后，另一个代理可以直接消费它的输出，不需要关心它是由哪个框架实现的、运行在什么机器上。",
-      "code": {
-        "title": "代理输出转换为工件",
-        "description": "将代理的结果持久化为可供其他代理使用的工件",
-        "code": "def _convert_result_to_part(self, result) -> Part:\n    if isinstance(result, str):\n        return A2ATextPart(kind='text', text=result)\n    else:\n        type_adapter = TypeAdapter(type(result))\n        data = type_adapter.dump_python(result, mode='json')\n        return DataPart(\n            kind='data', \n            data={'result': data},\n            metadata={'json_schema': type_adapter.json_schema()}\n        )",
-        "language": "python",
-        "annotation": "结构化数据会附带 JSON Schema，让接收代理能够理解数据结构和字段含义。"
-      }
-    },
-    {
-      "heading": "应用场景：复杂任务的专业化分工",
-      "content": "A2A 协作在现实中有丰富的应用场景。以自动化文档生成为例：一个研究代理负责搜索技术资料，一个写作代理负责内容创作，一个编辑代理负责语言润色，一个发布代理负责格式转换和输出。\n\n这些代理可以并行工作：在研究代理收集资料的同时，写作代理可以基于已有信息开始草拟框架。当研究代理发现新的关键资料时，可以通过任务委托通知写作代理更新内容。整个流程高度自动化，且每个环节的质量都有专门代理保障。\n\n另一个场景是代码审查：语法检查代理负责代码规范性审查，安全扫描代理负责安全漏洞检测，性能评估代理负责性能分析。多个代理并行检查同一个代码库，最终汇总所有意见生成完整的审查报告。\n\n这些场景都有一个共同特点：任务复杂到需要多个不同专家协作，但又可以被拆解为标准化的子任务——这正是 A2A 协作发挥价值的地方。",
-      "table": {
-        "caption": "多代理协作示例场景",
-        "headers": ["场景", "代理角色", "协作方式"],
-        "rows": [
-          ["文档生成", "研究者、作家、编辑、发布者", "流水线接力"],
-          ["代码审查", "语法检查、安全扫描、性能评估", "并行检查汇总"],
-          ["客户服务", "FAQ机器人、人工坐席、问题转接", "智能路由委托"]
-        ]
-      }
+      "heading": "技能共享与能力组合",
+      "content": "A2A协议的另一个重要特性是技能共享。每个代理都可以将自己的能力发布为可调用的技能，其他代理可以按需组合这些技能解决复杂问题。\n\n比如，一个图像识别代理可以将识别能力发布为技能，文本分析代理可以调用它来处理图片中的文字。这种能力组合让系统具备了1+1>2的效果。\n\nPydantic AI通过skills参数支持技能描述，让代理能够声明自己具备的能力，便于其他代理发现和调用。这种设计促进了代理生态的发展。"
     }
   ],
   "key_takeaways": [
-    "A2A 协议通过标准化消息格式和任务分发机制，让多个 AI 代理能够像团队成员一样协作",
-    "Pydantic AI 通过 `agent_to_a2a()` 方法将代理接入 A2A 网络，自动处理所有协议适配工作",
-    "AgentWorker 负责将 A2A 任务转换为代理执行，并处理消息格式转换和工件持久化",
-    "代理的输出被封装为工件保存，附带结构化数据的 JSON Schema，确保其他代理能正确理解",
-    "多代理协作适合复杂任务的专业化分工场景，能够提高效率、降低错误率、增强系统灵活性"
+    "A2A协议是Pydantic AI实现多代理协作的核心机制，定义了标准化的通信格式",
+    "AgentWorker将单个代理包装为可调用的服务，负责任务执行和状态管理",
+    "消息格式转换层确保不同代理间的互操作性，屏蔽实现细节差异",
+    "多代理协作通过任务分解和专业化分工大幅提升复杂问题处理能力",
+    "技能共享机制让代理能力可组合，形成更强大的综合解决方案"
   ],
   "further_thinking": [
-    "如何在协作系统中实现代理的动态发现和能力匹配？当一个新代理上线时，其他代理如何知道可以委托什么任务给它？",
-    "多代理系统中的「共识」和「决策权」如何处理？当多个代理对同一个问题给出不同建议时，应该以谁的意见为准？"
+    "在多代理系统中，如何避免代理间的循环依赖和死锁问题？",
+    "当代理数量增多时，通信开销会成为瓶颈吗？有哪些优化策略？"
   ],
   "analogies": [
-    "多代理协作就像餐厅的后厨团队：厨师负责烹饪、配菜师负责准备食材、传菜员负责传递订单，各司其职又密切配合。",
-    "A2A 协议就像餐厅的点单系统：服务员把订单写在统一格式的票据上，厨房不同岗位的技师根据标准的票据信息协作完成，最后由服务员根据票据信息正确上菜。"
+    "A2A协议就像团队协作中的工作交接单，确保信息准确传递",
+    "AgentWorker如同工厂里的生产线工人，专注执行特定任务"
   ],
-  "mermaid_diagrams": [
-    "graph TD;\n    A[客户端] -->|提交任务| B[Broker];\n    B -->|分发| C[Worker1];\n    B -->|分发| D[Worker2];\n    C -->|存储历史| E[Storage];\n    D -->|存储历史| E;\n    C -->|提交子任务| B;\n    D -->|完成| B;\n    B -->|返回结果| A;\n\n    style A fill:#e1f5ff\n    style B fill:#fff4e6\n    style C fill:#ffe1e1\n    style D fill:#ffe1e1\n    style E fill:#e1ffe1"
-  ],
-  "code_snippets": [
-    "agent_to_a2a(\n    agent=my_agent,\n    name='researcher',\n    url='http://localhost:8000',\n    skills=[\n        Skill(name='web_search', description='搜索网络信息'),\n        Skill(name='data_analysis', description='分析数据')\n    ]\n)"
-  ],
-  "word_count": 4200,
-  "prerequisites": ["ch10-agents-run"]
+  "mermaid_diagrams": ["多代理协作流程图"],
+  "code_snippets": ["AgentWorker的核心执行逻辑", "消息格式转换实现"],
+  "word_count": 3850,
+  "prerequisites": ["ch14-graph-support"]
 }

@@ -2,141 +2,52 @@
   "chapter_id": "ch06-query-engine",
   "title": "第6章：查询引擎 — 思考的核心",
   "subtitle": "从用户输入到 AI 响应的完整链路",
-  "opening_hook": "当你问 AI 一个问题，比如「帮我分析这个代码文件为什么运行失败」，一个神奇的过程就开始了——几秒钟内，屏幕上开始逐字出现精准的建议。但这背后到底发生了什么？\n\n这就好比你要解决一个复杂的数学题。首先，你需要理解题目；然后，选择合适的求解方法；接着，一步步推导；最后，写出答案。在这个过程中你可能还会查资料、画图、尝试不同的解题路径。Claude Code 的查询引擎就是那个指挥整个思考过程的「大脑」。它接收你的问题，选择合适的 AI 模型，组装上下文信息，协调工具调用，控制输出流向，最终逐字呈现答案。这个过程每秒钟发生数百次，让 AI 能够像真人在思考一样与你互动。",
+  "opening_hook": "想象一下，你坐在终端前，输入了一个简单的问题：\"为什么这个测试失败了？\"在接下来的几秒钟里，系统完成了一场精密的侦探工作。你的问题被翻译成 AI 能理解的提示词，相关的测试文件被读取并分析，失败的错误信息被提取，代码逻辑被逐步排查。AI 不是一下子就知道答案的，它像一个经验丰富的侦探，需要收集线索、做出判断、可能还需要获取更多信息，最终才能给出令人信服的结论。\n\n这个过程由查询引擎来统筹。它就像一个精密的指挥官，协调着模型选择、工具组装、API 调用、流式输出等一系列复杂操作。它需要在一秒钟内做出几十个决策：用哪个模型？需要哪些工具？如何组织上下文？什么时候该获取更多信息？如何将 AI 的思考过程实时呈现给用户？本章将带你深入这个思考的核心，看看 Claude Code 是如何让 AI「想」出答案的。",
   "sections": [
     {
-      "heading": "QueryEngine：思考的总指挥",
-      "content": "QueryEngine 是 Claude Code 的核心组件，就像乐团的指挥。它负责整个 AI 思考过程的编排——从接收用户问题开始，到最终输出答案结束。\n\nQueryEngine 的第一个职责是模型选择。Claude Code 支持多个 AI 模型，不同模型有不同的能力和成本。简单的咨询可能用 Haiku 就够了（便宜快速），复杂的代码分析可能需要 Opus（强大但昂贵）。QueryEngine 会根据问题的复杂度、用户的设置、当前的上下文长度等因素，智能选择最合适的模型。\n\n模型选定后，QueryEngine 需要组装发给模型的消息。这些消息包括系统提示（告诉 AI 它是谁、能做什么）、工具定义（让 AI 知道有哪些工具可用）、用户历史（保持对话连续性）和当前问题。这是一个精妙的平衡艺术——信息越多，AI 越能理解上下文，但 token 预算有限。QueryEngine 需要剪枝、压缩、优先级排序，在有限空间内塞入最有价值的信息。\n\n然后是 API 调用本身。QueryEngine 构造符合 Anthropic API 规范的请求，发送到模型服务，然后处理响应。这个过程涉及错误重试、超时控制、流式数据解析等技术细节，但对用户来说完全透明。\n\n最后，QueryEngine 需要处理流式响应。AI 的输出不是一次性到达的，而是像水龙头滴水一样持续流出。QueryEngine 负责接收这些数据块，累积成完整的响应，同时逐字符推送到终端，让用户能够实时看到 AI 的思考过程。",
-      "code": {
-        "title": "QueryEngine 的核心调用流程",
-        "description": "展示了 QueryEngine 如何将用户请求转化为 API 调用并处理流式响应",
-        "code": "async query(params: QueryParams): Promise<QueryResult> {\n  const model = this.selectModel(params)\n  const messages = this.assembleMessages(params)\n  const tools = this.getAvailableTools(params)\n  \n  const stream = await this.callAnthropic({\n    model,\n    messages,\n    tools,\n    stream: true\n  })\n  \n  return this.processStream(stream)\n}",
-        "language": "typescript",
-        "annotation": "这个方法简洁地封装了整个查询流程：选模型、组消息、定工具、调 API、处理流。真正的实现中每个步骤都包含复杂的逻辑。"
-      },
-      "diagram": {
-        "title": "QueryEngine 工作流程",
-        "chart": "graph TD\n    A[用户输入问题] --> B[选择模型]\n    B --> C[组装消息]\n    C --> D[准备工具定义]\n    D --> E[调用 Anthropic API]\n    E --> F[流式接收响应]\n    F --> G[检测工具调用]\n    G -->|有工具调用| H[执行工具]\n    H --> I[将结果加入上下文]\n    I --> C\n    G -->|无工具调用| J[累积文本输出]\n    J --> K[返回完整响应]",
-        "description": "QueryEngine 的完整工作循环，展示模型调用和工具执行的交互过程。"
-      }
+      "heading": "QueryEngine 的职责：从输入到响应的四次转换",
+      "content": "QueryEngine 是 Claude Code 的大脑中枢，它负责将自然语言问题转化为可执行的 AI 查询，并将 AI 的响应转化为用户可理解的结果。这个过程包含四次关键的转换：第一次转换是从用户的自然语言到 AI 可理解的 system prompt 和 user prompt。系统 prompt 告诉 AI 它是什么、能做什么、应该怎么工作；user prompt 则包含用户的具体问题和当前上下文。\n\n第二次转换是从 AI 需求到具体的工具调用。当 AI 表示「我需要读取 user.ts 文件」时，QueryEngine 会将其解析为工具调用指令，找到 ReadTool，传入正确的路径，等待结果返回。这个转换不是简单的字符串匹配，而是需要理解 AI 的意图，将其映射到正确的工具和参数。\n\n第三次转换是从原始 AI 响应到结构化的输出数据。AI 返回的是纯文本的思考过程和建议，但 QueryEngine 需要将其分类：哪些是思考过程？哪些是工具调用？哪些是最终答案？这个分类决定了信息如何呈现给用户。\n\n第四次转换是从结构化数据到终端渲染。思考过程和最终答案以不同的颜色和格式显示；工具调用的结果以代码块或表格呈现；进度信息以动态更新的方式展示。这四次转换就像一条精密的流水线，每个环节都不能出错，否则整个思考过程就会中断或失真。"
     },
     {
-      "heading": "上下文管理：在 200K token 限制内做文章",
-      "content": "现代大语言模型有「记忆」——这所谓「上下文窗口」的大小。Claude 4 的上下文窗口可达 200K token，听起来很大，但实际使用时依然紧张。一页代码可能就上千 token，一个大型项目的分析很容易超过限制。\n\nQueryEngine 的上下文管理就像一个精明的空间规划师。它需要决定什么信息保留、什么丢弃、什么压缩。最关键的信息——当前用户问题、最近的对话历史、直接相关的文件内容——必须优先保留。不那么关键的信息，比如很久之前的对话、不相关的工具输出，可以被裁剪或移除。\n\n上下文不仅包括文本对话，还包括工具执行的中间结果。当 AI 调用 Read 工具读取文件时，文件内容会被加入上下文；当它调用 Grep 搜索时，搜索结果也会加入。如果工具输出特别大（比如 grep 找到几千行匹配代码），QueryEngine 需要智能截断——保留最有代表性的部分，避免冲爆上下文窗口。\n\n另一个挑战是消息排序。Anthropic API 要求消息按时间顺序排列，但不是所有信息都值得放在最新位置。系统提示通常放在最前面保持稳定，用户历史可能被裁剪到最近的几轮，而当前的工具调用和结果则必须紧跟当前问题。这种排序策略确保 AI 能够理解「现在正在发生什么」。\n\n当上下文真的超出限制时，QueryEngine 会触发上下文压缩算法。这可能是摘要旧对话、移除中间的来回、或者请求用户继续新的对话。毕竟，再大的模型也有边界，承认这一点并优雅处理，是比盲目塞数据更好的选择。",
-      "code": {
-        "title": "上下文窗口预算计算",
-        "description": "展示了如何在添加新消息前检查是否超出 token 预算",
-        "code": "function checkContextBudget(\n  messages: Message[],\n  toolResults: ToolResult[],\n  maxTokens: number\n): { fits: boolean, overflow: number } {\n  const modelTotal = messages.map(m => countTokens(m)).sum()\n  const toolsTotal = toolResults.map(t => countTokens(t)).sum()\n  \n  const total = modelTotal + toolsTotal\n  const overflow = total - maxTokens\n  \n  return { fits: overflow <= 0, overflow }\n}",
-        "language": "typescript",
-        "annotation": "countTokens 函数负责估算每条消息的 token 数量，加起来检查是否超过模型的最大上下文窗口。如果 overflow > 0，就需要裁剪。"
-      },
-      "diagram": null
+      "heading": "模型选择：根据任务类型找到最合适的 AI",
+      "content": "Claude Code 支持多个 Claude 模型，包括 Opus、Sonnet 和 Haiku。这些模型的能力不同：Opus 最强但最慢最贵，适合复杂推理；Haiku 最快最便宜但能力有限，适合简单任务；Sonnet 在速度和效果之间取得了平衡。QueryEngine 的第一个任务就是根据用户的问题选择最合适的模型。\n\n这个决策不是随心所欲的。QueryEngine 会分析任务的复杂度：是否需要复杂的代码理解？是否需要多步推理？是否需要调用多个工具？同时它会考虑用户的偏好和成本预算。如果用户设置了成本上限，可能就会选择更便宜的模型；如果用户追求最极致的效果，就会选择最强的模型。\n\n模型选择还与上下文大小有关。不同的模型有不同的上下文窗口，Haiku 可能只支持 200K token，而 Opus 支持 500K。如果需要分析大量文件，就需要选择上下文更大的模型。这就像根据出行距离选择不同的交通工具：短途走路，中程开车，远程坐飞机。\n\n一个关键的设计细节是模型选择的动态性。在一次会话中，不同的任务可能使用不同的模型。简单的文件读取可能用 Haiku，复杂的架构重构可能用 Opus。这种动态选择让系统能够在成本和效果之间找到最优平衡。",
+      "diagram": "graph TD\n    A[用户输入] --> B{任务分析}\n    B -->|简单问答| C[Haiku]\n    B -->|中等复杂| D[Sonnet]\n    B -->|复杂推理| E[Opus]\n    C --> F{上下文检查}\n    D --> F\n    E --> F\n    F -->|上下文足够| G[执行查询]\n    F -->|上下文不足| H[切换更大模型]\n    H --> G\n    G --> I[返回结果]\n    \n    style C fill:#fff3cd\n    style D fill:#c8e6c9\n    style E fill:#d1c4e9"
     },
     {
-      "heading": "工具调用循环：AI 的「思考-执行」循环",
-      "content": "AI 不是一次性给出答案的。它可能会说「让我先读取这个文件」，然后读了文件后发现「需要再搜索相关代码」，搜索后再说「现在我明白了」。这就是工具调用循环——一个不断「思考、执行、再思考」的过程。\n\n在一个典型的对话中，AI 的响应可能包含两部分：普通文本和工具调用。普通文本直接输出给用户，工具调用则触发 QueryEngine 的特殊处理流程。当检测到 AI 发起工具调用时，QueryEngine 会暂停普通输出，转而执行指定的工具。\n\n工具执行可能成功，也可能失败。成功的话，工具的返回结果会被包装成一条特殊消息，加入上下文，然后再次调用 AI——这次AI能够看到工具的结果，可以基于这些信息继续思考。如果工具失败（比如权限被拒绝、参数错误），错误信息也会加入上下文，让 AI 知道发生了什么并尝试其他方法。\n\n这个过程会循环进行。AI 可能调用多个工具，可能同一工具多次调用，可能嵌套调用（AgentTool 启动子代理本身就是一种嵌套）。循环终结的条件是 AI 给出一个不再包含工具调用的响应——这表示它认为已经完成了任务或无法继续。\n\n这个循环机制让 AI 能够解决复杂的多步骤问题。就像一个人类工程师——不会想着一次性就能解决所有问题，而是不断收集信息、尝试方案、根据结果调整策略。工具调用循环正是这种工程思维的程序化体现。",
-      "code": {
-        "title": "工具调用循环的核心逻辑",
-        "description": "展示了如何检测工具调用、执行工具、并将结果反馈回模型",
-        "code": "async function executeToolLoop(\n  engine: QueryEngine,\n  messages: Message[]\n): Promise<Message> {\n  let response = await engine.query(messages)\n  \n  while (hasToolCalls(response)) {\n    for (const toolCall of response.toolCalls) {\n      const result = await toolCall.tool.call(\n        toolCall.args,\n        engine.context\n      )\n      messages.push({\n        role: 'tool_result',\n        content: result\n      })\n    }\n    response = await engine.query(messages)\n  }\n  \n  return response\n}",
-        "language": "typescript",
-        "annotation": "hasToolChecks 检测响应中是否包含工具调用。如果有，依次执行每个工具，将结果加入消息列表，再发起新的查询。这个过程重复直到响应不再包含工具调用。"
-      },
-      "diagram": {
-        "title": "工具调用循环的详细流程",
-        "chart": "sequenceDiagram\n    participant AI\n    participant QueryEngine\n    participant ToolSystem\n    participant User\n    \n    User->>AI: 提出问题\n    AI->>QueryEngine: 响应（含工具调用）\n    QueryEngine->>ToolSystem: 执行 Read 工具\n    ToolSystem-->>QueryEngine: 文件内容\n    QueryEngine->>AI: 继续查询（含结果）\n    AI->>QueryEngine: 响应（含另一个工具调用）\n    QueryEngine->>ToolSystem: 执行 Grep 工具\n    ToolSystem-->>QueryEngine: 搜索结果\n    QueryEngine->>AI: 继续查询（含结果）\n    AI-->>User: 最终答案（无工具调用）",
-        "description": "展示了 AI、QueryEngine、工具系统和用户之间在工具调用循环中的交互序列。"
-      }
+      "heading": "上下文管理：100K token 限制下的信息艺术",
+      "content": "上下文窗口是 AI 模型的记忆容量限制，Haiku 可能只有 200K，Opus 有 500K。听起来很多，但一个中型项目可能有数千个文件，总代码量远超这个限制。QueryEngine 面临的核心问题就是：如何在有限的token中塞入尽可能有用的信息？\n\n这个问题没有一个统一的答案，而是需要智能的取舍。QueryEngine 维护着一个上下文管理器，它会分析当前任务需要哪些信息。如果是「修改认证逻辑」，就需要聚焦于认证相关的文件；如果是「修复测试失败」，就需要聚焦于测试文件和被测试的代码。它会根据语义相关性、文件重要性、使用频率等多个维度来优先级排序。\n\n另一个关键策略是动态获取。AI不会一开始就读取所有可能相关的文件，而是先根据当前上下文做出初步判断，如果发现需要更多信息，再发出工具调用请求。这种按需获取的方式让系统能够处理远超过token限制的代码库。就像你不会一次背下整本书，而是根据需要逐页翻阅。\n\n上下文管理还涉及记忆的清理。随着对话的进行，旧的上下文会占用token空间。QueryEngine需要决定哪些信息值得保留，哪些可以被丢弃。近期使用的文件、重要的配置文件、关键的用户设置通常会被优先保留。清理不是简单地删除旧信息，而是需要理解哪些信息对当前任务仍然有用。"
     },
     {
-      "heading": "流式输出：让思考过程可见",
-      "content": "为什么你看到的 AI 回答是一个字一个字打出来的？这不仅仅是为了好看——流式输出是现代 LLM 应用不可或缺的技术特性。\n\n从技术角度看，流式输出有两大好处。首先是「时间感知」。如果 API 调用需要 30 秒，没有流式输出的话，用户会盯着空白屏幕等待 30 秒，体验极差。有了流式输出，用户从第一秒就能看到 AI 正在「思考」，每秒钟都有新内容出现，这大大缓解了等待的焦虑。\n\n其次是「早停」。流式输出让用户有机会提前中断。如果 AI 开始走偏（比如执行错误的工具、产生不相关的输出），用户可以立即停止，避免浪费更多时间和 token。对于长时间的复杂任务（比如分析大型代码库），这个功能尤其重要。\n\n流式输出的实现依赖 Server-Sent Events (SSE)。API 返回的不是一次性响应，而是一条持续的数据流。每条「事件」包含下一批 token 数据，QueryEngine 负责解析这些事件、累积内容、逐字符推送到终端。这个过程中需要处理网络中断、API 超时、错误恢复等异常情况。\n\n从用户体验角度，流式输出还有心理效应。看着文字逐字出现，就像在和真人对话一样，有一种「同步」的感觉。这加强了人机互动的沉浸感，让用户感觉 AI 是在「实时思考」而不是「黑盒计算后给出答案」。这种细微的交互设计差异，潜移默化地影响着用户对 AI 的认知和信任。",
-      "code": {
-        "title": "流式响应的解析器核心",
-        "description": "展示了如何解析 SSE 格式的流式响应",
-        "code": "async function* parseStream(\n  response: Response\n): AsyncGenerator<string> {\n  const reader = response.body.getReader()\n  const decoder = new TextDecoder()\n  let buffer = ''\n  \n  while (true) {\n    const { done, value } = await reader.read()\n    buffer += decoder.decode(value, { stream: true })\n    \n    const lines = buffer.split('\\n\\n')\n    buffer = lines.pop() || ''\n    \n    for (const line of lines) {\n      if (line.startsWith('data: ')) {\n        const data = JSON.parse(line.slice(6))\n        if (data.type === 'content_block_delta') {\n          yield data.delta.text\n        }\n      }\n    }\n    \n    if (done) break\n  }\n}",
-        "language": "typescript",
-        "annotation": "SSE 格式每条消息以 'data: ' 开头，双换行分隔。我们只关心 content_block_delta 类型的事件，提取其中的文本内容。"
-      },
-      "diagram": null
+      "heading": "工具调用循环：AI 的「思考-行动-观察」循环",
+      "content": "当 AI 回答一个复杂问题时，它不是一蹴而就的，而是通过一个循环过程逐步逼近答案。这个循环包含四个步骤：思考（Thinking）、决策（Decision）、行动（Action）、观察（Observation），然后再次思考。这就像一个侦探破案的过程：先根据现有线索做出推测，然后去搜集证据，根据证据调整推测，继续搜集证据，直到找到答案。\n\n在 QueryEngine 中，这个循环是这样工作的：AI 首先基于当前上下文生成初步的思考，然后决定下一步需要什么信息。如果它说「我需要读取配置文件」，QueryEngine 就会执行 ReadTool，读取文件内容，获取结果。然后将这个结果加回上下文，让 AI 继续思考。可能这次AI会说「我还需要看看测试用例」，于是执行 GlobTool 找到测试文件，再用 ReadTool 读取。这个过程可能会重复多次，直到 AI 认为它有足够的信息给出完整答案。\n\n工具调用循环的巧妙之处在于它让 AI 能够主动获取所需信息，而不是被动等待输入。AI 不知道项目的完整结构，但它知道需要什么、到哪里去找、如何解读找到的信息。这种主动信息获取是 AI 编程助手的核心能力。\n\n循环的终止条件也很重要。AI 需要判断什么时候信息已经足够，可以给出最终答案了。这需要 AI 具有自我认知能力——知道它自己知道什么、不知道什么、还需要知道什么。当 AI 表示「我已经理解了问题，这是解决方案」时，循环就终止了。但这个判断不是绝对的，如果用户对答案不满意，循环就会继续，AI 会继续获取信息并改进答案。",
+      "diagram": "sequenceDiagram\n    participant User as 用户\n    participant QE as QueryEngine\n    participant AI as Claude 模型\n    participant Tool as 工具系统\n    \n    User->>QE: 提问\n    QE->>AI: 发送初始提示\n    AI->>AI: 思考\n    AI-->>QE: 我需要读取配置文件\n    QE->>Tool: 调用 ReadTool\n    Tool-->>QE: 返回文件内容\n    QE->>AI: 返回工具结果\n    AI->>AI: 继续思考\n    AI-->>QE: 我还需要看测试用例\n    QE->>Tool: 调用 GlobTool\n    Tool->>Tool: 查找测试文件\n    Tool-->>QE: 返回文件列表\n    QE->>AI: 返回工具结果\n    AI->>AI: 分析并生成答案\n    AI-->>QE: 给出解决方案\n    QE->>User: 展示结果"
     },
     {
-      "heading": "成本追踪：每一分钱都算清楚",
-      "content": "使用 Claude API 是要花钱的——输入 token 和输出 token 单价不同，不同模型价格也不同。对于开发者来说，如果不能准确追踪成本，很可能会收到意外的账单。QueryEngine 中的成本追踪模块就是为了解决这个问题。\n\n成本追踪的核心是 token 计数。每条消息、每个工具调用、每个模型的响应，都需要准确计算消耗了多少 token。Claude API 会返回精确的 token 使用数据，QueryEngine 会记录这些并按模型定价计算费用。\n追踪的数据不仅包括单次查询，还会累积到会话级别。你可以查询「当前会话已经花了多少钱」，这有助于控制预算。当接近预设限额时，还可以触发警告或自动切换到更便宜的模型。\n\n成本追踪还有一个容易被忽视的作用：帮助开发者优化。通过分析哪些操作最耗 token（文件读取、代码搜索、长对话），开发者可以调整策略——比如减少不必要的工具调用、压缩过长的上下文、用更高效的搜索方式。成本数据本身就是「使用效率」的可视化。",
-      "code": {
-        "title": "成本追踪器的基本逻辑",
-        "description": "展示了如何根据 token 使用量和模型定价计算成本",
-        "code": "const MODEL_PRICING = {\n  'claude-opus-4-6': {\n    input: 15.0,   // $15 per million input tokens\n    output: 75.0  // $75 per million output tokens\n  },\n  'claude-sonnet-4-6': {\n    input: 3.0,\n    output: 15.0\n  }\n}\n\nfunction calculateCost(\n  model: string,\n  inputTokens: number,\n  outputTokens: number\n): number {\n  const pricing = MODEL_PRICING[model]\n  const inputCost = (inputTokens / 1e6) * pricing.input\n  const outputCost = (outputTokens / 1e6) * pricing.output\n  return inputCost + outputCost\n}",
-        "language": "typescript",
-        "annotation": "token 数除以一百万转换单位，乘以单价，输入和输出成本相加得到总成本。"
-      },
-      "diagram": null
+      "heading": "流式输出：让 AI 的思考过程可见",
+      "content": "当你使用 Claude Code 时，你看到的不是等待几秒后突然出现一大段文字，而是文字一个字符一个字符地逐渐出现在屏幕上。这种流式输出不仅仅是为了美观，它有着深刻的技术原因和用户体验价值。\n\n从技术角度来看，流式输出利用了 Claude API 的流式响应能力。API 不是等 AI 完成整个推理后再返回结果，而是在 AI 生成每个 token 时就立即发送给客户端。这样可以把 AI 的思考实时传递给用户，而不需要等待整个推理过程完成。就像看现场直播而不是录像，你能够实时看到事情的发展过程。\n\n流式输出对用户体验至关重要。当一个复杂任务需要几十秒时，如果没有任何反馈，用户会担心系统是否卡死了。而流式输出让用户能看到 AI 正在思考、正在做什么、进展如何。这种可见性建立了信任，减少了焦虑。\n\nQueryEngine 需要处理流式输出的复杂性。它需要实时解析收到的每个 token，判断它属于哪一部分：是正在进行的思考？是工具调用指令？还是最终答案的某部分？不同类型的内容需要不同的渲染方式和位置。思考过程可能在灰色区域显示，工具调用结果显示在代码块中，最终答案则以正常文字呈现。这种实时分类和渲染需要精确的状态管理和同步机制。\n\n流式输出还带来了独特的挑战。如果 AI 决定调用工具，工具需要在流式输出暂停时执行，工具结果需要被正确加回上下文，然后流式输出继续。这个过程中的任何一个环节出错，都会导致显示异常或数据丢失。QueryEngine 必须确保工具调用的原子性和上下文的一致性，就像在高速公路上施工，必须确保交通不会因为施工而完全中断。",
+      "code": "// 伪代码：流式响应处理的核心逻辑\nasync function handleStreamResponse(): Promise<void> {\n  let currentSection: 'thinking' | 'tool' | 'content' = 'thinking';\n  let accumulatedContent = '';\n  \n  for await (const chunk of apiStream) {\n    const token = chunk.token;\n    \n    if (isToolCallStart(token)) {\n      currentSection = 'tool';\n      await executeToolCall(parseToolCall(token));\n    } else if (isToolCallEnd(token)) {\n      currentSection = 'content';\n    } else if (currentSection === 'thinking') {\n      renderThinking(token);\n    } else {\n      accumulatedContent += token;\n      renderContent(token);\n    }\n  }\n  \n  // 流式输出完成后的最终处理\n  finalizeContent(accumulatedContent);\n}"
+    },
+    {
+      "heading": "成本追踪：实时监控 AI 花费",
+      "content": "AI 不是免费的，每次调用都要消耗 token，而 token 是要计费的。一个复杂的任务可能消耗数万甚至数十万 token，花费几美元。对于个人用户来说，这可能是一次性支出；但对于团队来说，这是一项需要持续关注的开销。QueryEngine 集成了成本追踪功能，让用户能够实时了解 token 使用情况和花费。\n\n成本追踪的挑战在于它的实时性。成本不是在任务结束后计算的，而是在执行过程中实时累加的。QueryEngine 会跟踪每个模型的输入 token 数、输出 token 数和对应的单价。输入 token 和输出 token 的单价不同，通常输出更贵。所以它会分别统计并计算。\n\n另一个复杂因素是工具调用的 token 消耗。工具结果会被加回上下文，成为下次 AI 调用的一部分。这些 token 不仅被消费一次，还会在后续调用中被反复引用。QueryEngine 需要准确定位哪些 token 是新消费的，哪些是重复引用的，才能给出准确的成本计算。\n\n成本追踪的输出通常包括：当前会话的总 token 数、预计花费、按模型分类的明细、按操作类型分类的明细。这些信息帮助用户了解钱花在哪里，哪些操作最昂贵。如果某个操作频繁调用昂贵的 Opus 模型，用户可能会考虑改用更便宜的模型。就像账单能让你了解生活习惯，成本追踪能让你了解 AI 使用习惯。",
+      "diagram": "erDiagram\n    COST {\n      string session_id\n      string model\n      number input_tokens\n      number output_tokens\n      number input_cost\n      number output_cost\n      timestamp timestamp\n    }\n    \n    COST ||--|| METRICS : includes\n    \n    METRICS {\n      number total_token_count\n      number total_cost\n      number average_cost_per_query\n      number most_expensive_model\n    }"
     }
   ],
   "key_takeaways": [
-    "QueryEngine 是 Claude Code 的思考总指挥，负责模型选择、消息组装、API 调用和流式响应处理，整个流程精密编排但对用户完全透明。",
-    "上下文管理就像空间规划，需要在有限 token 预算内优先保留关键信息——当前问题、最近对话、相关文件内容，不重要的信息则被裁剪或压缩。",
-    "工具调用循环是 AI 的「思考-执行」机制：AI 发起工具调用 → QueryEngine 执行 → 结果反馈 → 继续 AI 查询，循环直到 AI 给出不再含工具调用的最终答案。",
-    "流式输出使用 Server-Sent Events 技术实现，好处包括缓解等待焦虑、支持早停中断、增强人机互动的沉浸感，让用户感觉 AI 在实时思维。",
-    "成本追踪模块记录每次查询的输入输出 token 数，按模型定价转换成费用，会话级累积帮助控制预算，数据还可用于优化策略减少浪费。"
+    "QueryEngine 通过四次转换（自然语言→AI提示词、AI需求→工具调用、AI响应→结构化数据、数据→终端渲染）构建了完整的思考链路",
+    "模型选择是基于任务复杂度、上下文大小、用户偏好和成本的动态决策，让系统在效果和效率之间找到平衡",
+    "上下文管理通过智能信息筛选、动态按需获取和记忆清理，实现了在有限token限制下处理大型代码库的能力",
+    "工具调用循环实现了 AI 的「思考-行动-观察」迭代过程，让 AI 能够主动获取信息并逐步逼近解决方案",
+    "流式输出将 AI 的思考过程实时呈现给用户，既提升了用户体验，也对系统的状态管理提出了更高要求",
+    "成本追踪通过实时监控输入输出 token 数和单价，帮助用户了解资源消耗情况并做出优化决策"
   ],
   "further_thinking": [
-    "当前的上下文管理主要基于简单的裁剪策略，能否使用向量相似度等更智能的方式选择保留哪些历史消息？让最相关的对话片段保留下来。",
-    "工具调用循环中，AI 可能陷入「工具调用地狱」——不断调用工具但无法收敛。是否有机制检测这种情况并提前终止或请求人工介入？",
-    "流式输出虽然体验好，但增加了实现复杂度。在某些场景下（如批量处理、后台任务），非流式模式是否更合理？如何让智能切换？"
+    "如果上下文窗口扩大到 100 万甚至更多 token，上下文管理的策略会怎样变化？我们是否还需要精心的信息筛选？",
+    "流式输出让用户看到 AI 的思考过程，但有时候 AI 的思考可能包含错误或误导信息。我们该如何平衡透明度和准确性？"
   ],
-  "analogies": [
-    "QueryEngine 就像一个指挥家——他不需要演奏任何乐器，但他知道何时让小提琴部入场、何时让打击乐部暂停、何时整个乐团齐声合奏。工具是乐器，消息是乐谱，用户是听众，而 QueryEngine 确保整场演出和谐进行。"
-  ],
-  "mermaid_diagrams": [
-    {
-      "title": "QueryEngine 工作流程",
-      "chart": "graph TD\n    A[用户输入问题] --> B[选择模型]\n    B --> C[组装消息]\n    C --> D[准备工具定义]\n    D --> E[调用 Anthropic API]\n    E --> F[流式接收响应]\n    F --> G[检测工具调用]\n    G -->|有工具调用| H[执行工具]\n    H --> I[将结果加入上下文]\n    I --> C\n    G -->|无工具调用| J[累积文本输出]\n    J --> K[返回完整响应]",
-      "description": "QueryEngine 的完整工作循环，展示模型调用和工具执行的交互过程。"
-    },
-    {
-      "title": "工具调用循环的详细流程",
-      "chart": "sequenceDiagram\n    participant AI\n    participant QueryEngine\n    participant ToolSystem\n    participant User\n    \n    User->>AI: 提出问题\n    AI->>QueryEngine: 响应（含工具调用）\n    QueryEngine->>ToolSystem: 执行 Read 工具\n    ToolSystem-->>QueryEngine: 文件内容\n    QueryEngine->>AI: 继续查询（含结果）\n    AI->>QueryEngine: 响应（含另一个工具调用）\n    QueryEngine->>ToolSystem: 执行 Grep 工具\n    ToolSystem-->>QueryEngine: 搜索结果\n    QueryEngine->>AI: 继续查询（含结果）\n    AI-->>User: 最终答案（无工具调用）",
-      "description": "展示了 AI、QueryEngine、工具系统和用户之间在工具调用循环中的交互序列。"
-    }
-  ],
-  "code_snippets": [
-    {
-      "title": "QueryEngine 的核心调用流程",
-      "description": "展示了 QueryEngine 如何将用户请求转化为 API 调用并处理流式响应",
-      "code": "async query(params: QueryParams): Promise<QueryResult> {\n  const model = this.selectModel(params)\n  const messages = this.assembleMessages(params)\n  const tools = this.getAvailableTools(params)\n  \n  const stream = await this.callAnthropic({\n    model,\n    messages,\n    tools,\n    stream: true\n  })\n  \n  return this.processStream(stream)\n}",
-      "language": "typescript",
-      "annotation": "这个方法简洁地封装了整个查询流程：选模型、组消息、定工具、调 API、处理流。真正的实现中每个步骤都包含复杂的逻辑。"
-    },
-    {
-      "title": "上下文窗口预算计算",
-      "description": "展示了如何在添加新消息前检查是否超出 token 预算",
-      "code": "function checkContextBudget(\n  messages: Message[],\n  toolResults: ToolResult[],\n  maxTokens: number\n): { fits: boolean, overflow: number } {\n  const modelTotal = messages.map(m => countTokens(m)).sum()\n  const toolsTotal = toolResults.map(t => countTokens(t)).sum()\n  \n  const total = modelTotal + toolsTotal\n  const overflow = total - maxTokens\n  \n  return { fits: overflow <= 0, overflow }\n}",
-      "language": "typescript",
-      "annotation": "countTokens 函数负责估算每条消息的 token 数量，加起来检查是否超过模型的最大上下文窗口。如果 overflow > 0，就需要裁剪。"
-    },
-    {
-      "title": "工具调用循环的核心逻辑",
-      "description": "展示了如何检测工具调用、执行工具、并将结果反馈回模型",
-      "code": "async function executeToolLoop(\n  engine: QueryEngine,\n  messages: Message[]\n): Promise<Message> {\n  let response = await engine.query(messages)\n  \n  while (hasToolCalls(response)) {\n    for (const toolCall of response.toolCalls) {\n      const result = await toolCall.tool.call(\n        toolCall.args,\n        engine.context\n      )\n      messages.push({\n        role: 'tool_result',\n        content: result\n      })\n    }\n    response = await engine.query(messages)\n  }\n  \n  return response\n}",
-      "language": "typescript",
-      "annotation": "hasToolChecks 检测响应中是否包含工具调用。如果有，依次执行每个工具，将结果加入消息列表，再发起新的查询。这个过程重复直到响应不再包含工具调用。"
-    },
-    {
-      "title": "流式响应的解析器核心",
-      "description": "展示了如何解析 SSE 格式的流式响应",
-      "code": "async function* parseStream(\n  response: Response\n): AsyncGenerator<string> {\n  const reader = response.body.getReader()\n  const decoder = new TextDecoder()\n  let buffer = ''\n  \n  while (true) {\n    const { done, value } = await reader.read()\n    buffer += decoder.decode(value, { stream: true })\n    \n    const lines = buffer.split('\\n\\n')\n    buffer = lines.pop() || ''\n    \n    for (const line of lines) {\n      if (line.startsWith('data: ')) {\n        const data = JSON.parse(line.slice(6))\n        if (data.type === 'content_block_delta') {\n          yield data.delta.text\n        }\n      }\n    }\n    \n    if (done) break\n  }\n}",
-      "language": "typescript",
-      "annotation": "SSE 格式每条消息以 'data: ' 开头，双换行分隔。我们只关心 content_block_delta 类型的事件，提取其中的文本内容。"
-    },
-    {
-      "title": "成本追踪器的基本逻辑",
-      "description": "展示了如何根据 token 使用量和模型定价计算成本",
-      "code": "const MODEL_PRICING = {\n  'claude-opus-4-6': {\n    input: 15.0,   // $15 per million input tokens\n    output: 75.0  // $75 per million output tokens\n  },\n  'claude-sonnet-4-6': {\n    input: 3.0,\n    output: 15.0\n  }\n}\n\nfunction calculateCost(\n  model: string,\n  inputTokens: number,\n  outputTokens: number\n): number {\n  const pricing = MODEL_PRICING[model]\n  const inputCost = (inputTokens / 1e6) * pricing.input\n  const outputCost = (outputTokens / 1e6) * pricing.output\n  return inputCost + outputCost\n}",
-      "language": "typescript",
-      "annotation": "token 数除以一百万转换单位，乘以单价，输入和输出成本相加得到总成本。"
-    }
-  ],
-  "word_count": 4200,
-  "prerequisites": ["ch04-tool-system"]
+  "word_count": 4100,
+  "prerequisites": [
+    "ch04-tool-system",
+    "ch05-command-system"
+  ]
 }

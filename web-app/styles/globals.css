@@ -147,6 +147,18 @@ h2:hover a span {
 }
 
 /* Search */
+.search-results {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-results .card {
+  display: block;
+  margin-bottom: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+
 .search-highlight {
   background: rgba(6, 182, 212, 0.3);
   border-radius: 2px;

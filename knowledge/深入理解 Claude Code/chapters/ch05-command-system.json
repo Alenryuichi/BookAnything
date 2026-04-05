@@ -95,5 +95,7 @@
     }
   ],
   "word_count": 3850,
-  "prerequisites": ["TypeScript基础", "模块化编程概念", "软件架构基础知识"]
+  "prerequisites": [
+    "ch04-tool-system"
+  ]
 }

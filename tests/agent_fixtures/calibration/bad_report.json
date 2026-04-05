@@ -1,0 +1,63 @@
+{
+  "pages": {
+    "home": {
+      "metrics": {
+        "hasSidebar": false,
+        "hasDarkModeToggle": false,
+        "cardCount": 0,
+        "bodyText": 0,
+        "linkCount": 0,
+        "navItemCount": 0,
+        "codeBlockCount": 0,
+        "mermaidCount": 0,
+        "mermaidErrorCount": 3,
+        "hasSearchInput": false
+      },
+      "diagnostics": {
+        "mermaid": {"jsLoaded": false, "containersFound": 0, "svgsRendered": 0, "renderErrors": [], "consoleErrors": ["mermaid is not defined"]},
+        "codeBlock": {"preTagCount": 0, "codeTagCount": 0, "shikiClassesFound": false, "highlightedBlockCount": 0},
+        "search": {"inputFound": false, "queryTyped": false, "resultsAfterQuery": 0, "cardCountAfterQuery": 0}
+      },
+      "errors": ["TypeError: Cannot read properties of undefined", "ReferenceError: mermaid is not defined", "SyntaxError: Unexpected token", "Error: Hydration failed", "Error: Module not found: 'shiki'"],
+      "categorizedErrors": {
+        "mermaid": ["ReferenceError: mermaid is not defined"],
+        "shiki": ["Error: Module not found: 'shiki'"],
+        "search": [],
+        "other": ["TypeError: Cannot read properties of undefined", "SyntaxError: Unexpected token", "Error: Hydration failed"]
+      }
+    },
+    "search": {
+      "metrics": {
+        "hasSearchInput": false,
+        "cardCount": 0,
+        "codeBlockCount": 0,
+        "linkCount": 0,
+        "navItemCount": 0,
+        "mermaidCount": 0,
+        "mermaidErrorCount": 0
+      },
+      "diagnostics": {
+        "mermaid": {"jsLoaded": false, "containersFound": 0, "svgsRendered": 0, "renderErrors": [], "consoleErrors": []},
+        "codeBlock": {"preTagCount": 0, "codeTagCount": 0, "shikiClassesFound": false, "highlightedBlockCount": 0},
+        "search": {"inputFound": false, "queryTyped": false, "resultsAfterQuery": 0, "cardCountAfterQuery": 0}
+      },
+      "errors": ["Error: Search component failed to render"]
+    },
+    "chapter-ch01": {
+      "metrics": {"codeBlockCount": 0, "mermaidCount": 0, "mermaidErrorCount": 2},
+      "diagnostics": {
+        "mermaid": {"jsLoaded": false, "containersFound": 0, "svgsRendered": 0, "renderErrors": ["mermaid parse error"], "consoleErrors": ["mermaid is not defined"]},
+        "codeBlock": {"preTagCount": 0, "codeTagCount": 0, "shikiClassesFound": false, "highlightedBlockCount": 0},
+        "search": {"inputFound": false, "queryTyped": false, "resultsAfterQuery": 0, "cardCountAfterQuery": 0}
+      },
+      "errors": ["mermaid is not defined", "shiki not loaded"]
+    }
+  },
+  "summary": {
+    "totalPages": 3,
+    "pagesWithErrors": 3,
+    "totalErrors": 8,
+    "totalMermaidErrors": 2,
+    "totalMermaidRendered": 0
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "chapter_id": "ch12-mcp-integration",
+  "title": "第12章：MCP 集成",
+  "subtitle": "模型上下文协议",
+  "chapter_summary": "本章介绍 Pydantic AI 如何通过 MCP（Model Context Protocol）实现工具生态系统的统一，解释 MCP 服务器、工具发现和协议规范的核心概念。",
+
+  "opening_hook": "当你需要让 AI 能够搜索网页、读取数据库、调用 API 时，你会怎么做？为每个工具编写专门的适配器显然是重复劳动，而直接让 AI 开发者自己处理工具调用又过于底层。这就像每个电器厂商都设计自己的电源接口——如果你买了一个新电器，就得配一个专门的墙上插座。工具生态也面临着同样的碎片化问题。MCP（Model Context Protocol）就像 USB 接口标准那样，为 AI 工具生态系统提供了一个统一的「语言」，让 AI 模型可以无缝地与各种工具和服务对话。",
+
+  "sections": [
+    {
+      "heading": "为什么需要 MCP",
+      "content": "想象一下你是一位 AI 应用开发者，你需要让 AI 能够完成几十种不同的任务：搜索网页、读取文件、调用数据库、发送邮件、分析代码……如果没有统一标准，你不得为每个任务编写专门的集成代码。更糟糕的是，这些集成方式各不相同——有的用 REST API，有的用 WebSocket，有的用 gRPC，参数格式千差万别。\n\n这正是 AI 工具生态面临的现实：每个工具提供商都有自己的「方言」。Anthropic、OpenAI、Google 都在构建自己的工具系统，但这些系统之间不兼容。如果你想同时使用 GitHub 的代码搜索工具和 Notion 的笔记工具，就得分别学习两套 API。\n\nMCP（Model Context Protocol）由 Anthropic 在 2024 年提出，目标是创建一个开放、中立的工具协议标准。就像 USB 统一了电脑外设接口，MCP 试图统一 AI 模型与外部工具之间的交互方式。任何支持 MCP 的模型都可以调用任何 MCP 工具，无需额外适配。",
+
+      "diagram": {
+        "title": "工具生态系统对比",
+        "chart": "graph LR\n    subgraph A[碎片化现状]\n        A1[模型A]\"<--专用API-->\"A2[工具X]\n        A3[模型B]\"<--专用API-->\"A4[工具Y]\n        A5[模型C]\"<--专用API-->\"A6[工具Z]\n    end\n    subgraph B[MCP 统一标准]\n        B1[模型A]\"<--MCP协议-->\"B4[工具X]\n        B2[模型B]\"<--MCP协议-->\"B5[工具Y]\n        B3[模型C]\"<--MCP协议-->\"B6[工具Z]\n        B7[工具Z]\n    end\n    A1 ~~~ B1\n    A2 ~~~ B4",
+        "description": "上图对比了碎片化的工具集成现状和 MCP 带来的统一标准。"
+      }
+    },
+
+    {
+      "heading": "MCP 的核心概念",
+      "content": "MCP 的设计遵循「客户端-服务器」模型：AI 模型或框架是客户端，工具提供者运行 MCP 服务器。服务器通过标准化的协议向客户端暴露四个主要能力：工具（Tools）、资源（Resources）、提示模板（Prompts）和日志（Logging）。\n\n工具是最常用的能力——它们是可以在对话中被调用函数，比如「搜索网页」或「读取 GitHub issue」。资源指向可读取的数据源，如文件、数据库记录或 API 端点。提示模板则允许服务器提供预定义的提示结构，帮助模型更好地理解如何使用该工具。\n\nMCP 支持多种传输协议：stdio（通过标准输入输出通信）、SSE（Server-Sent Events）、HTTP 和 Streamable HTTP。stdio 适合本地进程，就像运行命令行工具；HTTP 类更适合远程服务器，就像访问网页 API。Pydantic AI 实现了 SSE 和 Streamable HTTP 两种 Web 传输方式。",
+
+      "callout": {
+        "type": "info",
+        "text": "MCP 不是 AI 模型之间的通信协议，而是模型与工具之间的通信协议。它解决的是工具生态的标准化问题，而非模型互通问题。"
+      },
+
+      "table": {
+        "caption": "MCP 四大能力对比",
+        "headers": ["能力", "用途", "类比"],
+        "rows": [
+          ["Tools（工具）", "可调用的函数", "餐厅菜单上的菜品"],
+          ["Resources（资源）", "可读取的数据源", "厨房里的食材储备"],
+          ["Prompts（提示模板）", "预定义的提示结构", "菜谱的烹饪步骤说明"],
+          ["Logging（日志）", "服务器-side 日志", "厨房操作日志"]
+        ]
+      }
+    },
+
+    {
+      "heading": "双重模式：Builtin 与 Local",
+      "content": "Pydantic AI 对 MCP 的支持采用了智能的双模式设计。当 AI 模型本身内置了 MCP 支持时，Pydantic AI 会通过 `MCPServerTool` 将 MCP 服务器信息传递给模型，让模型直接调用。这种方式称为「builtin 模式」，就像告诉你的助手「这是餐厅电话号码，你自己点餐」。\n\n但如果使用的模型不支持 MCP，Pydantic AI 会自动切换到「local 模式」。在这种模式下，由 Pydantic AI 自己充当 MCP 客户端，连接到服务器代理工具调用，并将结果返回给模型。这就像你亲自打电话到餐厅点餐，然后把菜品端给助手。对 AI 应用开发者而言，这两种模式的切换是透明的——只需要配置一次 MCP 服务器，框架会自动适配。\n\n这种设计的优势在于：既充分利用了模型原生的 MCP 能力减少网络延迟，又保证了在不支持 MCP 的模型上依然可用。你可以根据实际情况权衡：需要高性能时用 builtin，需要广泛兼容时用 local。",
+
+      "code": {
+        "title": "MCP 能力的初始化",
+        "description": "MCP 类同时支持 builtin 和 local 两种模式，通过 url 参数指定服务器地址。",
+        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.capabilities import MCP\n\n# 模式 1: 内置模式（模型原生支持 MCP）\ncapabilities = MCP(\n    url='http://localhost:3001/sse',\n    builtin=True,  # 模型直接对接 MCP 服务器\n    allowed_tools=['search', 'read_file']\n)\n\n# 模式 2: 本地理程（模型不支持 MCP）\ncapabilities = MCP(\n    url='http://localhost:8000/mcp',\n    builtin=False,  # Pydantic AI 代理连接\n    authorization_token='secret-key'\n)",
+        "language": "python",
+        "annotation": "这里的关键是 `builtin` 参数：True 时传递给模型，False 时由框架自己处理。Pydantic AI 会自动检测 URL 后缀来判断使用哪种传输方式。"
+      },
+
+      "diagram": {
+        "title": "MCP 双模式架构",
+        "chart": "graph TD\n    subgraph BuiltinMode[内置模式]\n        BM1[AI 模型]\"<--MCPServerTool-->\"BM2[MCP 服务器]\n    end\n    subgraph LocalMode[本地模式]\n        LM1[AI 模型]\"<--普通工具调用-->\"LM2[Pydantic AI MCP 客户端]\"<--SSE/HTTP-->\"LM3[MCP 服务器]\n    end\n    style BuiltinMode fill:#e1f5ff\n    style LocalMode fill:#fff4e1",
+        "description": "上图展示了 MCP 的两种工作模式。内置模式下模型直接对接，本地模式下由 Pydantic AI 中转。"
+      }
+    },
+
+    {
+      "heading": "工具发现与过滤",
+      "content": "一个 MCP 服务器可能提供几十个工具，但你的 AI 应用可能只需要其中几个。Pydantic AI 提供了精细的工具控制机制：通过 `allowed_tools` 列表，你可以指定哪些工具可以被调用。这不仅减少了模型的认知负载，也提高了安全性——避免意外调用敏感工具。\n\n工具获取过程通过 `initialize` 和 `tools/list` 两个 MCP 协议调用完成。首先是服务器握手（initialize），交换协议版本和功能协商；然后请求工具列表（tools/list），获取所有可用工具的名称、描述和参数 Schema。Pydantic AI 会将这些工具转换为自己的 `ToolDefinition` 格式，并支持缓存以避免重复请求。\n\n缓存的智能之处在于：默认情况下工具列表会被缓存，但当服务器发送 `notifications/tools/list_changed` 通知时会自动刷新。这就像订阅了推送通知——当餐厅更新菜单时，你能第一时间知道。但如果你的工具列表会频繁变化且服务器不支持通知，可以禁用缓存设置 `cache_tools=False`。",
+
+      "code": {
+        "title": "工具过滤的实现",
+        "description": "当配置了 allowed_tools 时，只有白名单中的工具会被暴露给模型。",
+        "code": "def get_toolset(self) -> AbstractToolset[AgentDepsT] | None:\n    toolset = super().get_toolset()\n    if toolset is not None and self.allowed_tools is not None:\n        allowed = set(self.allowed_tools)\n        # 过滤工具：只保留白名单中的\n        return toolset.filtered(\n            lambda _ctx, tool_def: tool_def.name in allowed\n        )\n    return toolset",
+        "language": "python",
+        "annotation": "这是 `get_toolset` 方法的简化版——它获取父类的工具集，然后用 `filtered` 方法按名称过滤。`allowed` 集合优化了查找性能，从 O(n) 降到 O(1)。"
+      },
+
+      "callout": {
+        "type": "tip",
+        "text": "如果多个 MCP 工具可能重名，使用 `id` 参数为每个服务器设置唯一标识符。这就像给每个餐厅一个代号，避免混淆。"
+      }
+    },
+
+    {
+      "heading": "传输协议的选择",
+      "content": "Pydantic AI 实现了两种 Web 传输协议：SSE（Server-Sent Events）和 Streamable HTTP。SSE 是一种服务器推送技术——客户端发起连接后，服务器可以通过这个长连接主动推送消息，适合需要双向通信的场景。Streamable HTTP 则更传统，每个请求都通过 HTTP 发送，适合较简单的交互。\n\n两种协议都支持长连接和超时管理。`read_timeout` 参数控制连接建立后多久没有新消息才算超时（默认 5 分钟）。`timeout` 参数则控制初始化阶段允许等待多久（默认 5 秒）。对于生产环境，你可能需要根据实际网络状况调整这些值。\n\n授权信息通过 `headers` 或专门的 `authorization_token` 参数传递。Pydantic AI 会自动将 token 转换为标准的 `Authorization` 头部。这种分离设计让代码更清晰：如果你只有简单的 token，用 `authorization_token`；如果有复杂的认证需求（如签名头），用 `headers`。",
+
+      "table": {
+        "caption": "SSE 和 Streamable HTTP 对比",
+        "headers": ["特性", "SSE", "Streamable HTTP"],
+        "rows": [
+          ["连接方式", "长连接，服务器可推送", "短连接，请求-响应"],
+          ["适用场景", "需要实时通信", "简单工具调用"],
+          ["延迟", "首次连接后低延迟", "每次请求有握手开销"],
+          ["复杂度", "需处理事件流", "标准 HTTP 请求"]
+        ]
+      },
+
+      "diagram": {
+        "title": "传输协议消息流",
+        "chart": "sequenceDiagram\n    participant C as 客户端\n    participant S as MCP 服务器\n    \n    Note over C,S: SSE 模式\n    C->>S: 建立 SSE 连接\n    activate S\n    S-->>C: 保持连接\n    C->>S: 工具调用请求\n    S-->>C: 推送结果\n    Note over C,S: Streamable HTTP 模式\n    C->>S: HTTP 请求\n    S-->>C: HTTP 响应",
+        "description": "上图展示了两种传输协议的消息交互方式。SSE 保持长连接，Streamable HTTP 每次独立请求。"
+      }
+    },
+
+    {
+      "heading": "实战应用：集成 GitHub MCP",
+      "content": "假设你正在开发一个代码审查助手，需要让 AI 能够读取 GitHub 代码仓库的内容。用 Pydantic AI 集成 GitHub MCP 服务器只需要几行代码。首先，确保你的 GitHub MCP 服务器运行在指定端口（比如 `http://localhost:3000/sse`），然后创建 Agent 时传入 MCP 能力。\n\n这里有个细节：`include_instructions` 参数决定是否将服务器的「提示说明」追加到 Agent 的指令中。MCP 服务器可以提供使用指南（instructions），告诉模型如何正确调用工具。对于复杂的服务器，启用这个选项通常有帮助，但对于你熟悉的工具，它可能引入冗余信息。\n\n完整的错误处理也很重要。MCP 服务器可能会返回错误，比如工具参数不合法或服务器内部问题。Pydantic AI 会将这些错误包装成 `MCPError` 异常，包含错误码和详细消息。在捕获异常时，你可以根据错误码（如 `-32602` 代表参数错误）决定如何处理：重试、回退到其他工具或给出友好的错误提示。",
+
+      "code": {
+        "title": "GitHub MCP 集成示例",
+        "description": "这是一个完整的 Agent 配置，集成 GitHub MCP 服务器实现代码读取和搜索。",
+        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.capabilities import MCP\n\n# 配置 GitHub MCP 能力\ngithub_mcp = MCP(\n    url='http://localhost:3000/sse',\n    id='github-tools',      # 唯一标识符\n    authorization_token='ghp_xxx',\n    allowed_tools=['read_file', 'search_code'],\n    include_instructions=True  # 包含服务器使用指南\n)\n\n# 创建包含 MCP 能力的 Agent\ncode_reviewer = Agent(\n    'openai:gpt-4o',\n    instructions='你是一位资深代码审查者...',\n    capabilities=[github_mcp]\n)",
+        "language": "python",
+        "annotation": "`id` 参数用于在日志或错误中标识这个 MCP 服务器，在多个服务器时尤其重要。`include_instructions=True` 让模型获得来自服务器的额外使用提示。"
+      }
+    }
+  ],
+
+  "key_takeaways": [
+    "MCP（Model Context Protocol）是一个开放标准，统一了 AI 模型与工具之间的交互方式，类似 USB 接口统一了外设连接。",
+    "Pydantic AI 采用双模式设计：builtin 模式让原生支持 MCP 的模型直接对接，local 模式则由 Pydantic AI 作为 MCP 客户端代理工具调用。",
+    "通过 `allowed_tools` 可以精确控制哪些 MCP 工具可被调用，既减少模型认知负载也提高了安全性。",
+    "SSE 和 Streamable HTTP 是两种 Web 传输协议，分别适用于需要实时通信和简单调用的场景。",
+    "工具列表默认缓存，当服务器发送 `tools/list_changed` 通知时自动刷新，支持动态工具环境。"
+  ],
+
+  "further_thinking": [
+    "如果 MCP 服务器提供几十个工具，而你的应用只需要其中几个，应该如何组织这些工具的权限管理？",
+    "在多租户环境中，如何确保不同用户的 MCP 工具调用不会互相干扰？你会如何设计隔离机制？"
+  ],
+
+  "analogies": [
+    "MCP 就像计算机的 USB 接口标准，让任何厂商的设备都能连接到任何品牌的电脑。",
+    "MCP 双模式就像点外卖：builtin 模式是你告诉餐厅电话号码让助手直接点，local 模式是你亲自打电话然后端给助手。"
+  ],
+
+  "mermaid_diagrams": [
+    "graph LR\n    subgraph A[碎片化现状]\n        A1[模型A]\"<--专用API-->\"A2[工具X]\n        A3[模型B]\"<--专用API-->\"A4[工具Y]\n        A5[模型C]\"<--专用API-->\"A6[工具Z]\n    end\n    subgraph B[MCP 统一标准]\n        B1[模型A]\"<--MCP协议-->\"B4[工具X]\n        B2[模型B]\"<--MCP协议-->\"B5[工具Y]\n        B3[模型C]\"<--MCP协议-->\"B6[工具Z]\n        B7[工具Z]\n    end\n    A1 ~~~ B1\n    A2 ~~~ B4",
+    "graph TD\n    subgraph BuiltinMode[内置模式]\n        BM1[AI 模型]\"<--MCPServerTool-->\"BM2[MCP 服务器]\n    end\n    subgraph LocalMode[本地模式]\n        LM1[AI 模型]\"<--普通工具调用-->\"LM2[Pydantic AI MCP 客户端]\"<--SSE/HTTP-->\"LM3[MCP 服务器]\n    end\n    style BuiltinMode fill:#e1f5ff\n    style LocalMode fill:#fff4e1",
+    "sequenceDiagram\n    participant C as 客户端\n    participant S as MCP 服务器\n    \n    Note over C,S: SSE 模式\n    C->>S: 建立 SSE 连接\n    activate S\n    S-->>C: 保持连接\n    C->>S: 工具调用请求\n    S-->>C: 推送结果\n    Note over C,S: Streamable HTTP 模式\n    C->>S: HTTP 请求\n    S-->>C: HTTP 响应"
+  ],
+
+  "code_snippets": [
+    {
+      "title": "MCP 能力的初始化",
+      "description": "MCP 类同时支持 builtin 和 local 两种模式，通过 url 参数指定服务器地址。",
+      "code": "from pydantic_ai import Agent\nfrom pydantic_ai.capabilities import MCP\n\n# 模式 1: 内置模式（模型原生支持 MCP）\ncapabilities = MCP(\n    url='http://localhost:3001/sse',\n    builtin=True,  # 模型直接对接 MCP 服务器\n    allowed_tools=['search', 'read_file']\n)\n\n# 模式 2: 本地理程（模型不支持 MCP）\ncapabilities = MCP(\n    url='http://localhost:8000/mcp',\n    builtin=False,  # Pydantic AI 代理连接\n    authorization_token='secret-key'\n)",
+      "language": "python"
+    },
+    {
+      "title": "工具过滤的实现",
+      "description": "当配置了 allowed_tools 时，只有白名单中的工具会被暴露给模型。",
+      "code": "def get_toolset(self) -> AbstractToolset[AgentDepsT] | None:\n    toolset = super().get_toolset()\n    if toolset is not None and self.allowed_tools is not None:\n        allowed = set(self.allowed_tools)\n        # 过滤工具：只保留白名单中的\n        return toolset.filtered(\n            lambda _ctx, tool_def: tool_def.name in allowed\n        )\n    return toolset",
+      "language": "python"
+    },
+    {
+      "title": "GitHub MCP 集成示例",
+      "description": "这是一个完整的 Agent 配置，集成 GitHub MCP 服务器实现代码读取和搜索。",
+      "code": "from pydantic_ai import Agent\nfrom pydantic_ai.capabilities import MCP\n\n# 配置 GitHub MCP 能力\ngithub_mcp = MCP(\n    url='http://localhost:3000/sse',\n    id='github-tools',      # 唯一标识符\n    authorization_token='ghp_xxx',\n    allowed_tools=['read_file', 'search_code'],\n    include_instructions=True  # 包含服务器使用指南\n)\n\n# 创建包含 MCP 能力的 Agent\ncode_reviewer = Agent(\n    'openai:gpt-4o',\n    instructions='你是一位资深代码审查者...',\n    capabilities=[github_mcp]\n)",
+      "language": "python"
+    }
+  ],
+
+  "word_count": 4200,
+  "prerequisites": ["ch09-tools-system", "ch10-capabilities"]
+}

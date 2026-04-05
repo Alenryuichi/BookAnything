@@ -1,0 +1,24 @@
+{
+  "chapter_id": "ch99-placeholder",
+  "title": "占位章节",
+  "subtitle": "低质量示例",
+  "chapter_summary": "这是一个低质量章节。",
+  "opening_hook": "简短开头。",
+  "sections": [
+    {
+      "heading": "概述",
+      "content": "这个章节内容很少，没有深度分析。"
+    },
+    {
+      "heading": "总结",
+      "content": "以上就是全部内容。"
+    }
+  ],
+  "key_takeaways": ["内容不足"],
+  "further_thinking": [],
+  "analogies": [],
+  "mermaid_diagrams": [],
+  "code_snippets": [],
+  "word_count": 500,
+  "prerequisites": []
+}

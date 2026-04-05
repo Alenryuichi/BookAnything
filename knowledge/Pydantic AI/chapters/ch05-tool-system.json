@@ -2,101 +2,106 @@
   "chapter_id": "ch05-tool-system",
   "title": "第5章：工具系统",
   "subtitle": "让 AI 代理拥有执行能力",
-  "chapter_summary": "工具系统是Pydantic AI框架中连接AI思考与现实世界执行的关键桥梁，通过类型安全的工具抽象让代理能够安全可靠地执行各种操作。",
-  "opening_hook": "想象一下，你有一个极其聪明的AI助手，它能理解你的需求、分析问题、制定计划，但它的双手却被束缚着——这就是没有工具系统的AI代理。在Pydantic AI中，工具系统就像给AI装上了一双灵巧的手，让它不仅能思考，还能行动。当你让AI代理帮你分析数据时，它需要读取文件；当你让它总结网页内容时，它需要访问网络；当你让它执行计算时，它需要调用函数。工具系统正是实现这一切的魔法所在。",
+  "chapter_summary": "工具系统是 Pydantic AI 赋予 AI 代理「行动力」的核心机制，它将 Python 函数封装为 AI 可调用的工具，并支持内置工具、动态工具注册等多种使用方式。",
+  "opening_hook": "想象一下，你正坐在图书馆里查阅资料。你脑海里的念头是「我需要了解某个概念」，但你并不能直接让脑海中涌进答案——你还需要走到书架前、翻开书本、阅读文字。\n\nAI 代理也是如此。没有工具的 AI，就像一个被困在自己思维空间里的聪明人——它能思考、能推理、能规划，但无法真正「触碰」外部世界。它无法查询实时新闻，无法计算复杂公式，无法调用数据库，无法与任何 Python 代码交互。\n\n工具系统就是这座图书馆与书架之间的桥梁。它让 AI 代理能够「伸手」调用 Python 函数，访问外部 API，执行代码，搜索网络。当你注册了一个工具，你本质上是在告诉 AI：「当你需要做某某事时，你可以让这个 Python 函数帮你。」",
   "sections": [
     {
-      "heading": "工具系统的设计哲学",
-      "content": "Pydantic AI的工具系统设计遵循一个核心理念：类型安全优先。这意味着每个工具都有明确的输入输出类型定义，就像给AI的操作戴上了安全帽。\n\n这种设计避免了传统AI框架中常见的运行时错误，比如工具返回了预期之外的数据格式，或者参数类型不匹配导致的执行失败。通过Pydantic的强大类型系统，工具调用在编译时就能发现大部分潜在问题。\n\n工具系统的另一个重要设计原则是组合性。单个工具可能很简单，但通过组合多个工具，AI代理可以完成复杂的多步骤任务。这种模块化设计让框架既灵活又易于扩展。",
+      "heading": "从函数到工具：Tool 装饰器的工作原理",
+      "content": "在 Pydantic AI 中，任何 Python 函数都可以成为工具。你只需要用 `Tool` 类包装它，系统会自动完成剩余的工作。\n\n这个过程就像是给一个普通的厨房刀具做「智能化改造」。原本它只能手动拿起使用，现在它可以被语音召唤、自动定位、参数校验、安全限制——但切割的本质没变，使用的方式变得更智能了。\n\n让我们看看最简单的工具定义方式。当你定义一个工具时，Pydantic AI 会自动扫描你的函数签名，从类型注解中提取参数信息，从函数名和文档字符串中生成工具的描述。这一切都是自动完成的，你不需要编写任何额外的配置。",
       "callout": {
         "type": "tip",
-        "text": "工具系统不是让AI无所不能，而是让AI在安全边界内有所作为。每个工具都经过精心设计，确保执行的可控性和可预测性。"
-      }
-    },
-    {
-      "heading": "Tool装饰器：定义工具的优雅方式",
-      "content": "在Pydantic AI中，定义一个新工具就像给函数戴上魔法帽。使用@tool装饰器，开发者可以将普通Python函数转化为AI代理可用的工具。\n\n这个装饰器不仅标记函数为工具，还会自动提取函数的类型注解和文档字符串，生成完整的工具描述。AI模型通过这些描述来理解工具的功能和使用方法。\n\n装饰器还负责处理工具的注册和发现机制。当代理启动时，它会扫描所有被@tool装饰的函数，构建一个工具目录供AI调用。",
+        "text": "工具的 `name` 和 `description` 会被发送给 AI 模型。好的描述应该告诉模型「何时使用这个工具」和「如何正确调用它」。"
+      },
       "code": {
-        "title": "工具定义示例",
-        "description": "使用@tool装饰器定义简单的计算工具",
-        "code": "from pydantic_ai import tool\nfrom pydantic import BaseModel\n\nclass CalculationInput(BaseModel):\n    a: float\n    b: float\n    operation: Literal['add', 'subtract', 'multiply', 'divide']\n\n@tool\ndef calculator(input: CalculationInput) -> float:\n    \"\"\"执行基本数学运算。\"\"\"\n    if input.operation == 'add':\n        return input.a + input.b\n    elif input.operation == 'subtract':\n        return input.a - input.b\n    elif input.operation == 'multiply':\n        return input.a * input.b\n    elif input.operation == 'divide':\n        return input.a / input.b",
+        "title": "最简单的工具定义",
+        "description": "一个简单的数学计算工具，自动从类型注解生成 schema",
+        "code": "from pydantic_ai import Agent, RunContext, Tool\n\n# 定义工具函数接受 context 和参数\ndef calculate(ctx: RunContext[int], operation: str, x: float, y: float) -> str:\n    \"\"\"执行基本数学运算。\"\"\"\n    result = {'add': x + y, 'subtract': x - y, 'multiply': x * y, 'divide': x / y}\n    return f'{ctx.deps}: {x} {operation} {y} = {result[operation]}'\n\n# 包装为工具并传递给 Agent\nagent = Agent('test', tools=[Tool(calculate)])",
         "language": "python",
-        "annotation": "这个示例展示了工具定义的核心要素：类型化的输入模型、明确的返回值类型、清晰的文档字符串。AI代理通过这个描述知道如何调用calculator工具。"
-      }
-    },
-    {
-      "heading": "RunContext：工具执行的上下文环境",
-      "content": "每个工具调用都在一个RunContext中执行，这个上下文就像工具执行的舞台。它包含了当前会话的所有相关信息，比如用户身份、权限设置、执行历史等。\n\nRunContext的一个重要功能是提供依赖注入。如果工具需要访问数据库连接、API客户端或其他服务，可以通过上下文自动获取，而不需要在工具内部硬编码。\n\n上下文还负责工具执行的生命周期管理，包括超时控制、错误处理和结果缓存。这确保了工具执行的可靠性和性能。",
+        "annotation": "RunContext[int] 表示这个工具可以访问类型为 int 的依赖，通过 ctx.deps 获取"
+      },
       "diagram": {
-        "title": "工具执行上下文流程",
-        "chart": "graph TD\n    A[AI代理请求工具调用] --> B[创建RunContext]\n    B --> C[权限验证]\n    C --> D[依赖注入]\n    D --> E[工具执行]\n    E --> F[结果验证]\n    F --> G[返回AI代理]\n    G --> H[上下文清理]",
-        "description": "这个流程图展示了工具执行的完整生命周期，从请求到清理，每个步骤都在RunContext的管理下进行。"
+        "title": "工具注册与调用流程",
+        "chart": "graph TD;\n    A[Python 函数] -->|Tool 类包装| B[Tool 实例]\n    B -->|函数签名解析| C[FunctionSchema]\n    C -->|生成| D[JSON Schema]\n    E[Agent 初始化] -->|tools 参数| F[工具集]\n    F -->|向模型注册| G[ToolDefinition 列表]\n    G -->|模型调用| H[ToolCall]\n    H -->|参数校验| I[执行函数]\n    I -->|返回结果| J[ToolReturn]",
+        "description": "从 Python 函数到 AI 可调用工具的完整生命周期"
       }
     },
     {
-      "heading": "内置工具集：开箱即用的能力",
-      "content": "Pydantic AI提供了一系列内置工具，覆盖了常见的AI应用场景。这些工具经过精心设计和测试，可以直接在生产环境中使用。\n\n文件操作工具允许AI读取、写入和操作文件系统，但通过权限控制确保安全性。网络工具提供了HTTP请求能力，让AI可以访问外部API和网页内容。\n\n计算工具包括数学运算、数据转换等功能，而系统工具则提供了一些基本的系统级操作。每个内置工具都遵循最小权限原则，只提供必要的功能。",
+      "heading": "RunContext：工具的随身背包",
+      "content": "当工具需要访问外部依赖时，`RunContext` 就是它的随身背包。你定义 Agent 时指定的依赖类型（比如数据库连接、API 客户端），都会通过 RunContext 传递给每个工具。\n\n这就像是给每位登山运动员配备一个装备包。不同的工具需要不同的装备——数据库工具需要连接池，网络工具需要 HTTP 客户端。RunContext 确保工具「手边就有」它需要的一切。\n\n工具的第一参数可以是 RunContext 或完全省略。Pydantic AI 会自动检测：如果你的函数签名接受 `ctx: RunContext[...]` 作为第一个参数，系统会自动注入上下文；否则，工具就是一个纯函数。",
       "table": {
-        "caption": "Pydantic AI内置工具分类",
-        "headers": ["工具类别", "主要功能", "典型应用"],
+        "caption": "RunContext 核心字段",
+        "headers": ["字段", "类型", "说明"],
         "rows": [
-          ["文件工具", "读写文件、目录操作", "数据分析、日志处理"],
-          ["网络工具", "HTTP请求、API调用", "网页抓取、服务集成"],
-          ["计算工具", "数学运算、数据转换", "数值计算、格式转换"],
-          ["系统工具", "进程管理、环境变量", "系统监控、配置管理"]
+          ["deps", "AgentDepsT", "Agent 级别的依赖对象，运行时注入"],
+          ["model", "Model", "当前使用的模型实例"],
+          ["retry_prompt", "str | None", "如果需要模型重试时的提示信息"],
+          ["tool_call_metadata", "dict | None", "本次工具调用的元数据"]
         ]
       }
     },
     {
-      "heading": "工具注册与发现机制",
-      "content": "Pydantic AI的工具注册机制支持两种方式：静态注册和动态注册。静态注册在应用启动时完成，通过装饰器自动发现所有工具。\n\n动态注册允许在运行时添加新工具，这为插件系统和热加载提供了可能。当新的工具被注册时，AI代理会立即获得这个新能力，无需重启应用。\n\n工具发现机制基于类型系统和元数据。AI模型通过工具的描述信息来理解每个工具的功能，并在需要时选择合适的工具来调用。",
+      "heading": "动态工具：prepare 函数的魔法",
+      "content": "有时候，你不想让某些工具一直「挂」在 AI 身上。比如，「发送邮件」工具应该只在用户登录后才可用，或者「高级查询」工具应该只在付费账户下启用。\n\n`prepare` 函数就是这种条件控制的开关。它在每次工具注册前被调用，返回 ToolDefinition 让工具上场，返回 None 则将工具暂时雪藏。\n\n这就像是餐厅的「今日菜单」。餐厅的基础菜品（工具）是固定的，但根据季节、库存、客人的会员等级，厨师可以动态调整当日特供。prepare 函数就是那位看情况上菜的厨师。",
+      "code": {
+        "title": "条件性工具注册",
+        "description": "只在特定条件下才向模型提供工具",
+        "code": "from pydantic_ai import Agent, RunContext, Tool\nfrom pydantic_ai.tools import ToolDefinition\n\n# 工具函数：仅管理员可用\ndef delete_user(ctx: RunContext[list[str]], user_id: str) -> str:\n    \"\"\"删除指定用户（仅限管理员）。\"\"\"\n    return f'User {user_id} deleted by admin of {ctx.deps}'\n\n# prepare 函数：检查当前用户是否是管理员\ndef only_if_admin(\n    ctx: RunContext[list[str]], tool_def: ToolDefinition\n) -> ToolDefinition | None:\n    # deps 中的列表代表允许的管理员用户名\n    if ctx.deps:  # 如果管理员列表非空\n        return tool_def\n    return None  # 非管理员上下文，不提供此工具\n\n# 只有依赖列表非空时，delete_user 工具才可用\nagent = Agent(\n    'test',\n    tools=[Tool(delete_user, prepare=only_if_admin)],\n    deps_type=list[str]\n)",
+        "language": "python",
+        "annotation": "deps_type=list[str] 意味着运行时需要传入一个字符串列表作为依赖"
+      },
       "callout": {
-        "type": "warning",
-        "text": "动态工具注册虽然灵活，但需要谨慎使用。每个新工具都可能改变AI的行为模式，需要进行充分的测试和验证。"
+        "type": "info",
+        "text": "Agent 级别的 `prepare_tools` 函数可以一次性调整所有工具的定义，适合批量修改工具属性（比如全局开启 strict 模式）"
       }
     },
     {
-      "heading": "安全与权限控制",
-      "content": "工具系统的安全性是Pydantic AI设计的重中之重。每个工具调用都会经过多层安全检查，确保不会执行危险操作。\n\n权限系统基于角色和上下文，不同的用户或场景可能有不同的工具访问权限。例如，生产环境可能禁用某些高风险工具，而开发环境则允许更多操作。\n\n工具执行还受到资源限制，包括内存使用、执行时间和网络访问等。这些限制防止了工具被滥用或导致系统资源耗尽。",
+      "heading": "内置工具：开箱即用的能力",
+      "content": "Pydantic AI 提供了一套内置工具，这些工具的功能直接由底层 AI 模型提供支持，你无需编写任何代码即可使用。\n\n这些内置工具就像是手机出厂预装的系统应用——相机、日历、天气。它们虽然功能强大，但你可能需要告诉模型「可以用相机拍照」，模型才会意识到这个能力的存在。\n\n内置工具的设计体现了 Pydantic AI 的「桥接」哲学。同样的 API 接口（WebSearchTool），在 Anthropic、OpenAI、Google 等不同模型上会映射到各自的原生实现。作为开发者，你只需要声明「我要搜索能力」，剩下的适配工作由 Pydantic AI 完成。",
+      "table": {
+        "caption": "主要内置工具一览",
+        "headers": ["工具", "用途", "支持的模型"],
+        "rows": [
+          ["WebSearchTool", "网络搜索", "Anthropic, OpenAI, Groq, Google, xAI"],
+          ["CodeExecutionTool", "代码执行", "Anthropic, OpenAI, Google, xAI"],
+          ["WebFetchTool", "网页抓取", "Anthropic, Google"],
+          ["ImageGenerationTool", "图像生成", "OpenAI, Google"],
+          ["MemoryTool", "记忆机制", "Anthropic"],
+          ["MCPServerTool", "MCP 服务集成", "OpenAI, Anthropic, xAI"]
+        ]
+      },
+      "code": {
+        "title": "使用内置工具",
+        "description": "通过 Agent 参数启用内置工具",
+        "code": "from pydantic_ai import Agent\nfrom pydantic_ai.builtin_tools import WebSearchTool, CodeExecutionTool\n\nagent = Agent(\n    'anthropic:claude-3-5-sonnet',\n    tools=[\n        WebSearchTool(\n            search_context_size='high',\n            max_uses=3  # 最多搜索3次\n        ),\n        CodeExecutionTool()  # 允许执行代码\n    ]\n)\n\n# AI 现在可以主动搜索网络和运行代码了\nresult = await agent.run('帮我查询今天比特币的价格并计算涨跌幅')",
+        "language": "python",
+        "annotation": "内置工具自动处理底层转换，同一个 API 在不同模型上都能工作"
+      },
       "diagram": {
-        "title": "工具安全验证流程",
-        "chart": "graph TD\n    A[工具调用请求] --> B[用户身份验证]\n    B --> C[权限检查]\n    C --> D[输入验证]\n    D --> E[资源配额检查]\n    E --> F[执行环境隔离]\n    F --> G[工具实际执行]",
-        "description": "安全验证流程确保每个工具调用都在可控的环境中执行，多层防护机制共同保障系统安全。"
+        "title": "内置工具的模型映射",
+        "chart": "graph LR;\n    A[Pydantic AI] -->|WebSearchTool| B[Anthropic]\n    A -->|WebSearchTool| C[OpenAI]\n    A -->|WebSearchTool| D[Google]\n    A -->|WebSearchTool| E[xAI]\n    B -->|原生 API| B1[计算机使用API]\n    C -->|原生API| C1[Web Search API]\n    D -->|原生API| D1[Grounding API]\n    E -->|原生API| E1[搜索工具]",
+        "description": "同一个内置工具在不同模型上的路由映射"
+      }
+    },
+    {
+      "heading": "工具的瑞士军刀特性",
+      "content": "Pydantic AI 的工具系统就像一把瑞士军刀——它是模块化的、可组合的、场景适应的。\n\n工具可以是单功能的小刀（一个简单的函数），也可以是复杂的多功能模块（内嵌多个子操作的工具集）。你可以通过 `ToolSet` 组织工具，通过 M 系列前缀命名空间分组，通过 MCP 协议集成外部工具。\n\n更重要的是，这些工具是「可重载」的。你可以用本地实现替换内置工具（通过 `prefer_builtin` 配置），可以用工具搜索动态发现工具，可以通过人类审批控制高危操作的执行。这一切设计都围绕着同一个目标：让 AI 安全、可控、灵活地拥抱外部世界。",
+      "callout": {
+        "type": "warning",
+        "text": "工具的 `requires_approval=True` 会启用人工审批模式。适合删除文件、发送邮件、数据库变更等高风险操作"
       }
     }
   ],
   "key_takeaways": [
-    "工具系统是AI代理与现实世界交互的桥梁，通过类型安全的设计确保可靠性",
-    "@tool装饰器提供了定义工具的简洁方式，自动处理类型验证和文档生成",
-    "RunContext为工具执行提供完整的上下文环境，支持依赖注入和生命周期管理",
-    "内置工具集覆盖常见场景，遵循最小权限原则确保安全性",
-    "灵活的注册机制支持静态和动态工具发现，便于扩展和维护",
-    "多层安全控制机制确保工具执行的可靠性和系统安全"
+    "Tool 类将 Python 函数封装为 AI 可调用工具，自动从类型注解生成 JSON Schema",
+    "RunContext 是工具的依赖注入容器，让工具能访问 Agent 级别的资源和状态",
+    "prepare 函数支持条件性工具注册，实现按需动态暴露工具能力",
+    "内置工具（WebSearchTool、CodeExecutionTool 等）直接使用模型原生能力，无需自定义实现",
+    "工具系统支持多种工作流模式：立即执行、延迟执行、人工审批、外部服务调用"
   ],
   "further_thinking": [
-    "如果让你设计一个自定义工具，你会选择什么功能？如何确保它的类型安全？",
-    "工具系统如何平衡灵活性和安全性？在什么情况下需要限制工具的能力？"
+    "如果你想让工具支持流式逐步输出结果，应该如何设计？（提示：考虑 Tool 的 sequential 参数和 Generator 返回值）",
+    "当工具执行失败时，是直接返回错误信息还是让模型重试？不同的重试策略对对话流畅度有何影响？"
   ],
-  "analogies": [
-    "工具系统就像瑞士军刀——每个工具都有特定用途，组合起来能解决复杂问题",
-    "RunContext就像手术室——提供无菌环境、必要设备和专业团队，确保手术安全进行"
-  ],
-  "mermaid_diagrams": [
-    {
-      "title": "工具系统架构全景",
-      "chart": "graph TB\n    subgraph \"AI代理层\"\n        A[AI模型] --> B[工具选择]\n    end\n    \n    subgraph \"工具系统\"\n        B --> C[工具注册表]\n        C --> D[静态工具]\n        C --> E[动态工具]\n        D --> F[工具执行器]\n        E --> F\n        F --> G[RunContext]\n        G --> H[安全验证]\n        H --> I[实际执行]\n    end\n    \n    subgraph \"外部世界\"\n        I --> J[文件系统]\n        I --> K[网络服务]\n        I --> L[计算资源]\n    end",
-      "description": "这个架构图展示了工具系统在AI代理和外部世界之间的桥梁作用，以及内部的组件关系。"
-    }
-  ],
-  "code_snippets": [
-    {
-      "title": "工具调用示例",
-      "description": "AI代理如何调用工具的实际代码",
-      "code": "# AI代理的思考过程\n\"我需要计算两个数字的和，可以使用calculator工具\"\n\n# 工具调用\nresult = await agent.run(\n    \"请计算123和456的和\",\n    tools=[calculator]  # 注册可用的工具\n)\n\n# 系统自动生成的工具调用\n{\n    \"tool\": \"calculator\",\n    \"input\": {\n        \"a\": 123,\n        \"b\": 456,\n        \"operation\": \"add\"\n    }\n}",
-      "language": "python",
-      "annotation": "这个示例展示了AI代理如何决定使用哪个工具，以及系统如何将自然语言请求转换为结构化的工具调用。"
-    }
-  ],
-  "word_count": 3850,
-  "prerequisites": ["ch04-agent-system"]
+  "word_count": 4200,
+  "prerequisites": ["ch06-capabilities"]
 }

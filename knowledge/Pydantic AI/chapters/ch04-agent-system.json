@@ -2,107 +2,131 @@
   "chapter_id": "ch04-agent-system",
   "title": "第4章：代理系统深度解析",
   "subtitle": "AbstractAgent 的设计哲学",
-  "chapter_summary": "AbstractAgent 作为 Pydantic AI 的核心抽象基类，通过泛型类型系统和统一接口设计，为所有代理实现提供了类型安全、可扩展的执行框架。",
-  "opening_hook": "想象你走进一家现代化的汽车工厂，看到各种车型在流水线上组装。虽然每款车的外观、性能各不相同，但它们都基于同一个底盘架构——这就是 AbstractAgent 在 Pydantic AI 中的角色。当你调用 `agent.run('帮我分析数据')` 时，背后发生了什么？为什么一个简单的接口调用能支撑起复杂的 AI 对话、工具调用、流式响应等高级功能？本章将深入解析这个'底盘架构'的设计智慧。",
+  "chapter_summary": "本章深入剖析 AbstractAgent 抽象基类的设计理念，揭示 Pydantic AI 如何通过泛型类型系统实现类型安全的 AI 代理框架，并阐述同步与异步执行模式的内在差异。",
+  "opening_hook": "当你轻轻按下回车键，输入了一句简单的「你好」并等待 AI 回复时，一个精妙的系统在幕后悄然启动。\n\n这个系统需要协调多个复杂的组件：理解你的意图，调用可能需要的工具，与遥远的模型服务通信，然后将结果以你期望的格式呈现给你。\n\n这一切的背后，是一个被称为「代理」的核心角色。它不是一个简单的函数，而是一个精心设计的抽象基类，像一个隐形的指挥家，将所有这些组件有机地组合在一起。\n\nPydantic AI 的 AbstractAgent 就是这位指挥家的灵魂。它定义了代理系统应该具备的一切能力，却又把具体实现交给了子类。这种设计既保证了系统的灵活性，又确保了所有代理都能遵循统一的规范。",
   "sections": [
     {
-      "heading": "为什么需要抽象基类：统一性与扩展性的平衡",
-      "content": "在 AI 应用开发中，我们经常面临一个核心矛盾：既要提供简单易用的 API，又要支持复杂的定制需求。Pydantic AI 通过 AbstractAgent 抽象基类完美解决了这个矛盾。\n\n想象一下，如果没有抽象基类，每个代理实现都会有自己独特的接口设计，开发者需要学习不同的调用方式。而 AbstractAgent 就像汽车行业的标准化接口，确保所有代理都遵循相同的使用模式。\n\n更重要的是，抽象基类为框架的演进提供了稳定基础。无论底层实现如何变化，只要保持接口兼容，现有代码就能继续工作。这种设计让 Pydantic AI 既能快速迭代，又能保持向后兼容。",
-      "code": {
-        "title": "AbstractAgent 的核心定义",
-        "description": "通过泛型类型参数定义代理的依赖和输出类型",
-        "code": "class AbstractAgent(Generic[AgentDepsT, OutputDataT], ABC):\n    \"\"\"Abstract superclass for Agent, WrapperAgent, and your own custom agent implementations.\"\"\"\n    \n    @property\n    @abstractmethod\n    def model(self) -> models.Model | models.KnownModelName | str | None:\n        \"\"\"The default model configured for this agent.\"\"\"\n        raise NotImplementedError",
-        "language": "python",
-        "annotation": "这里使用了 Python 的 ABC（抽象基类）和 Generic（泛型）机制。AgentDepsT 代表依赖类型，OutputDataT 代表输出类型，这种设计确保了类型安全，同时允许具体实现灵活定义自己的数据类型。"
+      "heading": "为什么需要抽象的代理基类",
+      "content": "在探讨 AbstractAgent 的具体实现之前，我们首先要问：为什么 Pydantic AI 需要一个抽象的代理基类？\n\n想象你正在构建一个智能客服系统。你需要定义一些基本的能力：接收用户输入、与模型对话、返回结果。但同时，你可能还需要特殊的能力：对特定的输出类型进行验证、在每次对话时访问数据库、记录详细的日志。\n\n如果没有一个清晰的抽象，你可能会发现自己在多个地方重复编写相同的代码。每次你想添加一个新的代理，都要重新实现这些基本功能，这不仅浪费时间，还容易引入 bug。\n\n抽象基类就是解决这个问题的利器。",
+      "callout": {
+        "type": "tip",
+        "text": "抽象基类是面向对象编程中的一种设计模式，它定义了子类必须实现的方法和属性，但自己不提供具体实现。这确保了所有子类都遵循相同的契约，同时又可以各自拥有独特的行为。"
       },
       "diagram": {
-        "title": "AbstractAgent 类层次结构",
-        "chart": "graph TD\n    A[AbstractAgent<AgentDepsT, OutputDataT>] --> B[Agent]\n    A --> C[WrapperAgent]\n    A --> D[CustomAgent]\n    B --> E[具体业务逻辑]\n    C --> F[包装其他代理]\n    D --> G[用户自定义实现]\n    \n    style A fill:#e1f5fe\n    style B fill:#f3e5f5\n    style C fill:#e8f5e8\n    style D fill:#fff3e0",
-        "description": "AbstractAgent 作为基类，定义了统一的接口规范，具体实现类在此基础上添加特定功能"
+        "title": "代理系统层次结构",
+        "chart": "graph TD\n    A[AbstractAgent&lt;DepsT, OutputT&gt;] -->|继承| B[Agent]\n    A -->|继承| C[WrapperAgent]\n    A -->|继承| D[自定义代理]\n    B -.->|实现| E[run方法]\n    B -.->|实现| F[run_sync方法]\n    C -.->|重写| G[特殊逻辑]\n    D -.->|扩展| H[新增功能]",
+        "description": "AbstractAgent 作为所有代理类型的基类，定义了统一的契约，子类可以根据需要实现或扩展特定的行为。"
       }
     },
     {
-      "heading": "泛型类型系统：类型安全的基石",
-      "content": "Pydantic AI 最令人印象深刻的设计之一是其强大的类型系统。AbstractAgent 使用两个泛型参数：AgentDepsT 和 OutputDataT，这不仅仅是技术细节，更是类型安全的保证。\n\nAgentDepsT 代表依赖注入类型，它确保了在运行时传递的依赖对象符合预期类型。想象一下，如果你在开发一个需要数据库连接的代理，类型系统会在编译期就检查你是否正确传递了数据库连接对象。\n\nOutputDataT 则保证了代理的输出类型一致性。无论代理返回的是简单字符串、复杂数据结构还是自定义对象，类型系统都会确保调用方能够正确处理返回值。这种设计大大减少了运行时错误。",
+      "heading": "核心概念：泛型类型参数",
+      "content": "AbstractAgent 的第一个核心设计是它的泛型类型参数。\n\n在 Python 的类型系统中，泛型允许我们编写可以处理不同类型的代码，同时还能保持类型安全。Pydantic AI 的 AbstractAgent 使用两个泛型类型参数：AgentDepsT 和 OutputDataT。\n\nAgentDepsT 代表「代理依赖类型」。这是代理在执行过程中可能需要访问的依赖对象。想象一个聊天机器人，它可能需要访问用户会话、数据库连接或配置信息。所有这些都可以通过依赖类型传递给代理。\n\nOutputDataT 代表「输出数据类型」。这是代理运行后返回的数据类型。默认情况下，它是一个字符串，但你可以让它返回任何 Pydantic 类型，这让你能够在获取 AI 响应后进行严格的类型验证。",
       "callout": {
-        "type": "tip",
-        "text": "类型安全不是限制，而是保护。就像汽车的安全带，它不会阻碍你驾驶，但会在意外发生时保护你。Pydantic AI 的类型系统同样如此，它在开发阶段就帮你发现潜在问题。"
+        "type": "info",
+        "text": "泛型类型参数让 AbstractAgent 能够在编译时就知道它处理的是什么类型的依赖和输出，这让 IDE 能够提供更好的代码补全和类型检查，也让运行时错误能在开发阶段就被发现。"
       },
       "table": {
-        "caption": "AbstractAgent 核心属性对比",
-        "headers": ["属性", "类型", "作用", "设计意图"],
+        "caption": "泛型类型参数说明",
+        "headers": ["类型参数", "含义", "默认值", "示例"],
         "rows": [
-          ["model", "Model | str | None", "配置默认模型", "支持多种模型提供商的统一接口"],
-          ["name", "str | None", "代理名称（用于日志）", "支持运行时推断和手动设置"],
-          ["deps_type", "type", "依赖类型", "确保类型安全的依赖注入"],
-          ["output_type", "OutputSpec[OutputDataT]", "输出规范", "结构化输出的类型验证"]
+          ["AgentDepsT", "代理依赖类型", "None", "数据库连接、用户会话、配置对象"],
+          ["OutputDataT", "输出数据类型", "str", "Pydantic模型、列表、字典、自定义类型"]
         ]
       }
     },
     {
-      "heading": "执行模式：同步与异步的统一抽象",
-      "content": "在现代 Python 开发中，同步和异步编程模式并存。AbstractAgent 通过方法重载提供了统一的调用体验，无论你偏好哪种编程风格。\n\n`run()` 方法是异步执行的核心，它使用 `async with self.iter()` 上下文管理器来构建和执行代理图（agent graph）。这种设计将复杂的执行流程封装在简单的接口背后。\n\n`run_sync()` 方法则是对异步版本的同步包装，它使用 `asyncio.get_event_loop().run_until_complete()` 来在同步代码中运行异步操作。这种设计让不熟悉异步编程的开发者也能轻松使用框架。\n\n最巧妙的是，两种模式共享相同的底层实现，确保了行为一致性。无论你选择哪种方式，得到的都是相同的结果和错误处理。",
+      "heading": "核心概念：依赖管理与输出规范",
+      "content": "依赖管理是 AbstractAgent 设计的另一个核心概念。\n\n每个代理都可能需要不同的依赖。一个查询天气的代理可能需要 API 密钥，一个推荐商品的代理可能需要用户偏好数据。AbstractAgent 通过 properties 暴露了代理的依赖类型，让调用者清楚地知道需要提供什么。\n\n输出规范同样重要。AI 代理的一个常见问题是它们返回的响应格式不可预测。有时它是一个字符串，有时是一个 JSON 对象，有时甚至是格式错误的文本。AbstractAgent 通过 output_type 属性定义了预期的输出格式，让框架能够在运行时验证模型的输出是否符合预期。",
       "code": {
-        "title": "run 方法的实现核心",
-        "description": "展示了异步执行的核心逻辑",
-        "code": "async def run(self, user_prompt: str | None = None, ...) -> AgentRunResult[Any]:\n    async with self.iter(\n        user_prompt=user_prompt,\n        output_type=output_type,\n        # ... 其他参数\n    ) as agent_run:\n        node = agent_run.next_node\n        while not isinstance(node, End):\n            if _stream_step is not None:\n                node = await agent_run._run_node_with_hooks(node, _stream_step)\n            else:\n                node = await agent_run.next(node)\n    \n    assert agent_run.result is not None, 'The graph run did not finish properly'\n    return agent_run.result",
+        "title": "AbstractAgent 的关键属性",
+        "description": "AbstractAgent 通过多个抽象属性定义了代理的基本契约。这些属性让子类必须实现特定的行为。",
+        "code": "@property\n@abstractmethod\ndef deps_type(self) -> type:\n    \"\"\"代理使用的依赖类型。\"\"\"\n    ...\n\n@property\n@abstractmethod\ndef output_type(self) -> OutputSpec[OutputDataT]:\n    \"\"\"代理输出的数据类型，用于验证模型返回的数据。\"\"\"\n    ...\n\n@property\n@abstractmethod\ndef model(self) -> models.Model | models.KnownModelName | str | None:\n    \"\"\"代理配置的默认模型。\"\"\"\n    ...",
         "language": "python",
-        "annotation": "这里使用了代理图（agent graph）的概念，将执行过程分解为多个节点（Node）。每个节点代表一个执行步骤，如用户提示、模型请求、工具调用等。这种设计支持复杂的多步对话流程。"
-      }
-    },
-    {
-      "heading": "流式处理：实时响应的艺术",
-      "content": "在 AI 对话中，实时响应体验至关重要。AbstractAgent 提供了多种流式处理方式，满足不同场景的需求。\n\n`run_stream()` 方法允许你在模型生成内容时实时获取部分结果，就像聊天应用中的打字指示器。这种即时反馈大大提升了用户体验。\n\n`run_stream_events()` 则提供了更细粒度的事件流，你可以监听模型响应的每个部分（文本块开始、增量更新、结束等）。这对于构建复杂的 UI 交互非常有用。\n\n流式处理的核心挑战在于状态管理和错误处理。AbstractAgent 通过上下文管理器和异步迭代器模式，确保了资源的安全释放和异常的妥善处理。",
+        "annotation": "这些抽象属性确保了所有代理都提供了依赖类型、输出格式和模型配置的基本信息。"
+      },
       "diagram": {
-        "title": "流式处理数据流",
-        "chart": "sequenceDiagram\n    participant User\n    participant Agent\n    participant Model\n    participant Tools\n    \n    User->>Agent: run_stream()\n    Agent->>Model: 发送请求\n    Model-->>Agent: 流式响应开始\n    Agent-->>User: PartStartEvent\n    loop 流式内容\n        Model-->>Agent: PartDeltaEvent\n        Agent-->>User: 实时更新\n    end\n    Model-->>Agent: FinalResultEvent\n    Agent->>Tools: 执行工具调用（如果需要）\n    Agent-->>User: 完整结果",
-        "description": "展示了从用户请求到流式响应的完整数据流，包括模型响应和可能的工具调用"
+        "title": "代理的数据流",
+        "chart": "flowchart LR\n    A[用户输入] --> B[代理接收\nuser_prompt]\n    B --> C[合并依赖\ndeps_type]\n    B --> D[应用指令\ninstructions]\n    C --> E[构建请求\nmodel配置]\n    D --> E\n    E --> F[发送至模型]\n    F --> G[模型响应]\n    G --> H[验证输出\noutput_type]\n    H --> I[返回结果\nAgentRunResult]",
+        "description": "代理运行时，用户输入、依赖和指令被合并成请求，发送给模型后，响应会经过输出类型验证，最终返回运行结果。"
       }
     },
     {
-      "heading": "上下文管理器：资源管理的优雅方案",
-      "content": "AbstractAgent 实现了 `__aenter__` 和 `__aexit__` 方法，支持异步上下文管理器模式。这种设计确保了资源（如网络连接、文件句柄）的正确管理。\n\n`override()` 上下文管理器允许临时修改代理的配置，这在测试场景中特别有用。你可以临时替换模型、工具或依赖，而无需创建新的代理实例。\n\n`parallel_tool_call_execution_mode()` 提供了工具调用执行模式的动态切换，支持并行、顺序等不同策略。这种灵活性让开发者能够根据具体需求优化性能。",
+      "heading": "代码解读：AbstractAgent 的关键方法实现",
+      "content": "AbstractAgent 提供了多个执行代理的方法，它们各有不同的用途。\n\n最核心的是 `run` 方法，这是一个异步方法，用于执行代理。它接收用户提示和可选的各种配置参数，然后构建内部代理图并运行到完成。\n\n`run_sync` 方法是 `run` 的同步版本，它使用事件循环包装异步调用，提供了一个便利的同步接口。这在简单脚本或没有异步环境的场景中非常有用。\n\n`run_stream` 方法提供了流式输出能力，它允许你在模型生成响应时实时查看内容，而不是等待整个响应完成。这对于需要即时反馈的交互式应用非常重要。",
+      "code": {
+        "title": "run 方法的关键实现逻辑",
+        "description": "这是 AbstractAgent.run 方法的核心执行流程，展示了代理如何通过图节点逐步执行。",
+        "code": "async def run(\n    self,\n    user_prompt: str | ...,\n    *,\n    output_type: ...,\n    ...\n) -> AgentRunResult[Any]:\n    async with self.iter(\n        user_prompt=user_prompt,\n        output_type=output_type,\n        ...\n    ) as agent_run:\n        node = agent_run.next_node\n        while not isinstance(node, End):\n            # 处理短路场景：结果已经可用\n            if agent_run.result is not None:\n                break\n            # 如果有事件流处理器，执行流式步骤\n            if _stream_step is not None:\n                node = await agent_run._run_node_with_hooks(\n                    node, _stream_step\n                )\n            else:\n                node = await agent_run.next(node)\n    return agent_run.result",
+        "language": "python",
+        "annotation": "run 方法通过 iter 获取代理图，然后按照节点的顺序逐步执行，直到到达 End 节点，最后返回运行结果。"
+      }
+    },
+    {
+      "heading": "运行机制：同步与异步执行的区别",
+      "content": "Pydantic AI 同时提供了同步和异步执行接口，这看似冗余，实际上有着深刻的考虑。\n\n异步执行（run、run_stream）是现代 Python 开发的首选模式。它可以在等待模型响应时释放控制权，让其他任务继续执行。这对于需要同时处理多个请求的 Web 应用尤为重要。\n\n同步执行（run_sync、run_stream_sync）则适用于简单的脚本或无法使用异步的环境。它通过获取事件循环并调用 `run_until_complete` 来执行异步代码。\n\n这两种模式共享相同的底层实现，区别只在于接口。这种设计让开发者可以根据自己的需求选择最合适的模式，而不必担心行为的不一致。",
       "callout": {
         "type": "warning",
-        "text": "上下文管理器不是可选的装饰，而是资源安全的保证。在异步编程中，正确的资源管理尤为重要，否则可能导致内存泄漏或连接耗尽。"
+        "text": "需要注意的是，run_sync 不能在已经有活动事件循环的异步环境中使用。如果在 async 函数中调用它，会抛出 RuntimeError。在这种情况下，应该直接使用异步版本的 run 方法。"
+      },
+      "table": {
+        "caption": "同步与异步执行模式对比",
+        "headers": ["特性", "异步模式", "同步模式"],
+        "rows": [
+          ["适用场景", "Web 服务器、高并发应用", "简单脚本、命令行工具"],
+          ["性能", "高，可并发处理多个请求", "中，串行处理请求"],
+          ["使用限制", "需要在 async/await 上下文中", "不能在已有事件循环中使用"],
+          ["底层实现", "原生 async/await", "事件循环包装 async"]
+        ]
       }
     },
     {
-      "heading": "多场景适配：从 CLI 到 Web 应用的统一桥梁",
-      "content": "AbstractAgent 最令人惊叹的设计之一是它的多场景适配能力。通过 `to_*` 系列方法，同一个代理可以轻松适配不同的运行环境。\n\n`to_cli()` 方法将代理转换为命令行聊天界面，使用 Rich 库提供漂亮的终端体验。这对于快速测试和演示非常方便。\n\n`to_ag_ui()` 方法生成基于 Starlette 的 Web 应用，支持 AG-UI 协议。这意味着你可以用几行代码就将代理部署为 Web 服务。\n\n`to_a2a()` 方法则支持 FastA2A 协议，为代理间通信提供标准化接口。这种设计体现了'一次编写，到处运行'的理念。",
-      "code": {
-        "title": "多场景适配示例",
-        "description": "展示如何将同一个代理用于不同场景",
-        "code": "# 同一个代理，多种使用方式\nagent = Agent('openai:gpt-4')\n\n# 命令行界面\nawait agent.to_cli()\n\n# Web 应用\napp = agent.to_ag_ui()\n\n# A2A 服务\na2a_app = agent.to_a2a()",
-        "language": "python",
-        "annotation": "这种设计体现了'关注点分离'原则：代理的核心逻辑与运行环境解耦。无论在哪里运行，代理的行为都是一致的，这大大提高了代码的可复用性。"
+      "heading": "比喻：AbstractAgent 就像汽车的底盘架构",
+      "content": "为了更好地理解 AbstractAgent 的设计，我们可以用一个日常生活中的物品来比喻：汽车的底盘。\n\n汽车的底盘提供了汽车最基本的架构框架。它定义了汽车应该有哪些基本组件：发动机、转向系统、刹车系统、传动系统。\n\n但底盘本身不决定汽车是什么样的。你可以在同样的底盘上构建一辆跑车、一辆轿车，甚至一辆卡车。每种汽车都保留了底盘的基本结构，但根据各自的需求进行了定制。\n\nAbstractAgent 就像这个底盘。它定义了代理系统应该具备的基本组件：模型配置、依赖管理、输出验证、执行流程。但它不规定具体的行为。\n\n你可以在 AbstractAgent 的基础上构建各种类型的代理：一个简单的对话代理、一个复杂的工具调用代理、一个自定义的流式处理代理。每种代理都保留了基本的结构，但根据特定的需求进行了扩展。\n\n这种设计让 Pydantic AI 既保持了系统的统一性和可预测性，又赋予了开发者极大的灵活性。",
+      "callout": {
+        "type": "quote",
+        "text": "抽象的目标不是隐藏复杂性，而是为复杂性提供一个清晰的理解框架。一个好的抽象应该让简单的事情变得简单，同时也让复杂的事情变得可能。"
       }
     }
   ],
   "key_takeaways": [
-    "AbstractAgent 通过泛型类型系统提供了编译期类型安全，大大减少了运行时错误",
-    "统一的接口设计让同步/异步调用、流式处理等复杂功能对开发者透明",
-    "上下文管理器模式确保了资源的正确管理，特别是在异步环境中",
-    "多场景适配能力让同一个代理可以轻松部署到 CLI、Web、A2A 等不同环境",
-    "代理图（agent graph）的概念将复杂对话流程分解为可管理的执行节点"
+    "AbstractAgent 是 Pydantic AI 的核心抽象基类，它定义了代理系统必须具备的所有基本能力和契约",
+    "泛型类型参数 AgentDepsT 和 OutputDataT 让代理能够在编译时就知道它处理的依赖和输出类型，提供了强大的类型安全",
+    "AbstractAgent 提供了异步和同步两种执行模式，它们共享相同的底层实现，但适应不同的使用场景",
+    "代理的执行通过内部图结构实现，每个节点代表执行流程中的一个步骤，这种设计让复杂的多步对话和工具调用变得可控",
+    "AbstractAgent 的设计哲学类似于汽车底盘，提供了统一的架构框架，同时为各种定制化实现留出了足够的空间"
   ],
   "further_thinking": [
-    "如果让你设计一个自定义代理，你会如何利用 AbstractAgent 的扩展点？",
-    "在什么场景下需要重写 AbstractAgent 的默认行为？如何平衡定制化与兼容性？"
+    "在你自己的项目中，是否需要类似的抽象基类来管理多个类似的组件？它应该如何设计才能既保持灵活性又不失一致性？",
+    "如果你的代理需要在每次执行时访问复杂的依赖（如数据库、缓存、外部 API），你会如何设计依赖类型来传递这些资源？"
   ],
   "analogies": [
-    "AbstractAgent 就像汽车的底盘架构，提供了标准化的接口和扩展点，让不同车型（具体代理）可以共享基础功能",
-    "类型系统如同建筑蓝图，在施工前就确保了结构的安全性，而不是等到建成后再发现问题"
+    "AbstractAgent 就像汽车的底盘架构，提供了基本框架但允许各种定制化实现",
+    "代理的泛型类型参数就像乐高的标准接口，让不同的模块能够安全地组合在一起"
   ],
   "mermaid_diagrams": [
-    "graph TD\n    A[AbstractAgent<AgentDepsT, OutputDataT>] --> B[Agent]\n    A --> C[WrapperAgent]\n    A --> D[CustomAgent]\n    B --> E[具体业务逻辑]\n    C --> F[包装其他代理]\n    D --> G[用户自定义实现]",
-    "sequenceDiagram\n    participant User\n    participant Agent\n    participant Model\n    participant Tools\n    \n    User->>Agent: run_stream()\n    Agent->>Model: 发送请求\n    Model-->>Agent: 流式响应开始\n    Agent-->>User: PartStartEvent\n    loop 流式内容\n        Model-->>Agent: PartDeltaEvent\n        Agent-->>User: 实时更新\n    end\n    Model-->>Agent: FinalResultEvent\n    Agent->>Tools: 执行工具调用（如果需要）\n    Agent-->>User: 完整结果"
+    {
+      "title": "代理系统层次结构",
+      "chart": "graph TD\n    A[AbstractAgent&lt;DepsT, OutputT&gt;] -->|继承| B[Agent]\n    A -->|继承| C[WrapperAgent]\n    A -->|继承| D[自定义代理]\n    B -.->|实现| E[run方法]\n    B -.->|实现| F[run_sync方法]\n    C -.->|重写| G[特殊逻辑]\n    D -.->|扩展| H[新增功能]"
+    },
+    {
+      "title": "代理的数据流",
+      "chart": "flowchart LR\n    A[用户输入] --> B[代理接收\nuser_prompt]\n    B --> C[合并依赖\ndeps_type]\n    B --> D[应用指令\ninstructions]\n    C --> E[构建请求\nmodel配置]\n    D --> E\n    E --> F[发送至模型]\n    F --> G[模型响应]\n    G --> H[验证输出\noutput_type]\n    H --> I[返回结果\nAgentRunResult]"
+    }
   ],
   "code_snippets": [
-    "class AbstractAgent(Generic[AgentDepsT, OutputDataT], ABC):\n    \"\"\"Abstract superclass for Agent, WrapperAgent, and your own custom agent implementations.\"\"\"\n    \n    @property\n    @abstractmethod\n    def model(self) -> models.Model | models.KnownModelName | str | None:\n        \"\"\"The default model configured for this agent.\"\"\"\n        raise NotImplementedError",
-    "async def run(self, user_prompt: str | None = None, ...) -> AgentRunResult[Any]:\n    async with self.iter(\n        user_prompt=user_prompt,\n        output_type=output_type,\n        # ... 其他参数\n    ) as agent_run:\n        node = agent_run.next_node\n        while not isinstance(node, End):\n            if _stream_step is not None:\n                node = await agent_run._run_node_with_hooks(node, _stream_step)\n            else:\n                node = await agent_run.next(node)\n    \n    assert agent_run.result is not None, 'The graph run did not finish properly'\n    return agent_run.result",
-    "# 同一个代理，多种使用方式\nagent = Agent('openai:gpt-4')\n\n# 命令行界面\nawait agent.to_cli()\n\n# Web 应用\napp = agent.to_ag_ui()\n\n# A2A 服务\na2a_app = agent.to_a2a()"
+    {
+      "title": "AbstractAgent 的关键属性",
+      "description": "AbstractAgent 通过多个抽象属性定义了代理的基本契约。",
+      "code": "@property\n@abstractmethod\ndef deps_type(self) -> type:\n    \"\"\"代理使用的依赖类型。\"\"\"\n    ...\n\n@property\n@abstractmethod\ndef output_type(self) -> OutputSpec[OutputDataT]:\n    \"\"\"代理输出的数据类型。\"\"\"\n    ...",
+      "language": "python"
+    },
+    {
+      "title": "run 方法的关键实现逻辑",
+      "description": "展示了代理如何通过图节点逐步执行。",
+      "code": "async def run(\n    self,\n    user_prompt: str | ...,\n    *,\n    output_type: ...,\n    ...\n) -> AgentRunResult[Any]:\n    async with self.iter(\n        user_prompt=user_prompt,\n        output_type=output_type,\n        ...\n    ) as agent_run:\n        node = agent_run.next_node\n        while not isinstance(node, End):\n            if agent_run.result is not None:\n                break\n            if _stream_step is not None:\n                node = await agent_run._run_node_with_hooks(\n                    node, _stream_step\n                )\n            else:\n                node = await agent_run.next(node)\n    return agent_run.result",
+      "language": "python"
+    }
   ],
-  "word_count": 3850,
-  "prerequisites": ["ch05-tool-system"]
+  "word_count": 3800,
+  "prerequisites": []
 }
