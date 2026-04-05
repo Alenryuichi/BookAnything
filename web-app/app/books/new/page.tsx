@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { DynamicTextLoader } from "@/components/DynamicTextLoader";
+import { TerminalLoader } from "@/components/TerminalLoader";
 
 export default function NewBookPage() {
   const [repoPath, setRepoPath] = useState("");
@@ -79,7 +79,7 @@ export default function NewBookPage() {
 
           {loading ? (
             <div className="mt-4">
-              <DynamicTextLoader text="Scanning Repository..." />
+              <TerminalLoader />
             </div>
           ) : (
             <div className="flex justify-end gap-4">
