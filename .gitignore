@@ -46,3 +46,4 @@ venv/
 .vscode/
 *.swp
 web-app_fix_report.json
+workspaces/

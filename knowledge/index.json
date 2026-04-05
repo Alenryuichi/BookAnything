@@ -61,6 +61,21 @@
       }
     },
     {
+      "id": "pretext",
+      "name": "pretext",
+      "dirName": "pretext",
+      "description": "TODO: 填写项目简介",
+      "language": "TypeScript",
+      "chapterCount": 2,
+      "writtenCount": 0,
+      "lastUpdated": "",
+      "score": 51,
+      "stats": {
+        "files": 10,
+        "lines": 6325
+      }
+    },
+    {
       "id": "pydantic-ai",
       "name": "Pydantic AI",
       "dirName": "Pydantic AI",
