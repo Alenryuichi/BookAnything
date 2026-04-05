@@ -1,9 +1,9 @@
-"""Tests for pyharness.claude_client — CLI contract + JSON parsing."""
+"""Tests for pyharness.claude_client — CLI contract + JSON parsing + retry."""
 
 import asyncio
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, call
 
 import pytest
 
@@ -220,3 +220,138 @@ class TestFixtureParsing:
 
         assert result is not None
         assert len(result) > 100
+
+
+# ── Retry tests ──
+
+class TestRetry:
+    @pytest.mark.asyncio
+    async def test_succeeds_after_transient_failure(self):
+        """Retry recovers from a single transient error."""
+        fail_proc = _mock_process(stdout=b"", stderr=b"overloaded", returncode=1)
+        ok_proc = _mock_process(stdout=json.dumps({"type": "result", "result": "ok"}).encode())
+        call_count = 0
+
+        async def fake_exec(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return fail_proc if call_count == 1 else ok_proc
+
+        with (
+            patch("pyharness.claude_client.asyncio.create_subprocess_exec", side_effect=fake_exec),
+            patch("pyharness.claude_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
+            client = ClaudeClient(cmd="claude", timeout=9999, max_retries=2, base_delay=1.0)
+            result = await client.run(prompt="test")
+
+        assert result == "ok"
+        assert call_count == 2
+        mock_sleep.assert_awaited_once_with(1.0)
+
+    @pytest.mark.asyncio
+    async def test_exponential_backoff_delays(self):
+        """Backoff doubles each attempt: base_delay * 2^attempt."""
+        fail_proc = _mock_process(stdout=b"", stderr=b"err", returncode=1)
+        ok_proc = _mock_process(stdout=json.dumps({"type": "result", "result": "ok"}).encode())
+        call_count = 0
+
+        async def fake_exec(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return ok_proc if call_count == 3 else fail_proc
+
+        with (
+            patch("pyharness.claude_client.asyncio.create_subprocess_exec", side_effect=fake_exec),
+            patch("pyharness.claude_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
+            client = ClaudeClient(cmd="claude", timeout=9999, max_retries=2, base_delay=2.0)
+            result = await client.run(prompt="test")
+
+        assert result == "ok"
+        assert mock_sleep.await_count == 2
+        mock_sleep.assert_any_await(2.0)   # attempt 0: 2 * 2^0 = 2
+        mock_sleep.assert_any_await(4.0)   # attempt 1: 2 * 2^1 = 4
+
+    @pytest.mark.asyncio
+    async def test_raises_after_all_retries_exhausted(self):
+        """When all retries fail, the last error is raised."""
+        fail_proc = _mock_process(stdout=b"", stderr=b"always fails", returncode=1)
+
+        async def fake_exec(*args, **kwargs):
+            return fail_proc
+
+        with (
+            patch("pyharness.claude_client.asyncio.create_subprocess_exec", side_effect=fake_exec),
+            patch("pyharness.claude_client.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            client = ClaudeClient(cmd="claude", timeout=9999, max_retries=1, base_delay=0.1)
+            with pytest.raises(RuntimeError, match="always fails"):
+                await client.run(prompt="test")
+
+    @pytest.mark.asyncio
+    async def test_no_retry_when_disabled(self):
+        """max_retries=0 means single attempt, no retry."""
+        fail_proc = _mock_process(stdout=b"", stderr=b"fail", returncode=1)
+        call_count = 0
+
+        async def fake_exec(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return fail_proc
+
+        with (
+            patch("pyharness.claude_client.asyncio.create_subprocess_exec", side_effect=fake_exec),
+            patch("pyharness.claude_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
+            client = ClaudeClient(cmd="claude", timeout=9999, max_retries=0, base_delay=1.0)
+            with pytest.raises(RuntimeError):
+                await client.run(prompt="test")
+
+        assert call_count == 1
+        mock_sleep.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_retries_on_empty_response(self):
+        """Empty stdout triggers retry."""
+        empty_proc = _mock_process(stdout=b"", stderr=b"", returncode=0)
+        ok_proc = _mock_process(stdout=json.dumps({"type": "result", "result": "ok"}).encode())
+        call_count = 0
+
+        async def fake_exec(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return empty_proc if call_count == 1 else ok_proc
+
+        with (
+            patch("pyharness.claude_client.asyncio.create_subprocess_exec", side_effect=fake_exec),
+            patch("pyharness.claude_client.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            client = ClaudeClient(cmd="claude", timeout=9999, max_retries=1, base_delay=0.1)
+            result = await client.run(prompt="test")
+
+        assert result == "ok"
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_retries_on_parse_failure_with_response_model(self):
+        """response_model parse failure triggers retry."""
+        bad_proc = _mock_process(stdout=json.dumps({"type": "result", "result": "not json"}).encode())
+        good_json = '{"plan_summary":"ok","chapters_to_write":[],"needs_webapp_improve":false}'
+        good_proc = _mock_process(stdout=json.dumps({"type": "result", "result": good_json}).encode())
+        call_count = 0
+
+        async def fake_exec(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return bad_proc if call_count == 1 else good_proc
+
+        with (
+            patch("pyharness.claude_client.asyncio.create_subprocess_exec", side_effect=fake_exec),
+            patch("pyharness.claude_client.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            client = ClaudeClient(cmd="claude", timeout=9999, max_retries=1, base_delay=0.1)
+            result = await client.run(prompt="plan", response_model=PlanOutput)
+
+        assert isinstance(result, PlanOutput)
+        assert result.plan_summary == "ok"
+        assert call_count == 2

@@ -26,6 +26,7 @@ def main() -> None:
     run_parser.add_argument("--max-hours", type=float, default=12, help="Max runtime in hours (default: 12)")
     run_parser.add_argument("--threshold", type=int, default=85, help="Pass score threshold (default: 85)")
     run_parser.add_argument("--max-parallel", type=int, default=3, help="Max parallel chapter writes (default: 3)")
+    run_parser.add_argument("--max-iterations", type=int, default=0, help="Max iterations (0=unlimited, default: 0)")
     run_parser.add_argument("--resume", action="store_true", help="Resume from previous state")
 
     # ── init ──
@@ -54,6 +55,7 @@ def main() -> None:
             threshold=args.threshold,
             max_parallel=args.max_parallel,
             resume=args.resume,
+            max_iterations=args.max_iterations,
         )
         asyncio.run(runner.run())
 

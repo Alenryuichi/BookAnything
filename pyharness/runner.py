@@ -24,12 +24,14 @@ class HarnessRunner:
         threshold: int = 85,
         max_parallel: int = 3,
         resume: bool = False,
+        max_iterations: int = 0,
     ) -> None:
         self.config = config
         self.max_hours = max_hours
         self.threshold = threshold
         self.max_parallel = max_parallel
         self.resume = resume
+        self.max_iterations = max_iterations
 
         self.harness_dir = Path.cwd()
         self.knowledge_dir = self.harness_dir / "knowledge" / config.name
@@ -67,6 +69,10 @@ class HarnessRunner:
 
             s = self.state.load()
             iteration = s.iteration + 1
+
+            if self.max_iterations > 0 and iteration > self.max_iterations:
+                log("HEAD", f"Iteration limit reached ({self.max_iterations}). Finalizing...")
+                break
 
             log("HEAD", f"Iteration #{iteration} | Score: {s.score}/100 | Time: {elapsed_h:.2f}h / {self.max_hours}h")
 
