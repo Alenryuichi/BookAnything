@@ -3,41 +3,41 @@ import { z } from "zod";
 // ── Callout & Table ──
 
 export const CalloutSchema = z.object({
-  type: z.enum(["tip", "warning", "info", "quote"]),
-  text: z.string(),
+  type: z.string().default("info"),
+  text: z.string().default(""),
 });
 
 export const DataTableSchema = z.object({
   caption: z.string().optional(),
-  headers: z.array(z.string()),
-  rows: z.array(z.array(z.string())),
+  headers: z.array(z.string()).default([]),
+  rows: z.array(z.array(z.string())).default([]),
 });
 
 // ── Code & Diagram ──
 
 export const CodeSnippetSchema = z.object({
-  title: z.string(),
-  description: z.string(),
-  code: z.string(),
-  language: z.string(),
-  annotation: z.string(),
+  title: z.string().default(""),
+  description: z.string().default(""),
+  code: z.string().default(""),
+  language: z.string().default("typescript"),
+  annotation: z.string().default(""),
 });
 
 export const MermaidBlockSchema = z.object({
-  title: z.string(),
-  chart: z.string(),
-  description: z.string(),
+  title: z.string().default(""),
+  chart: z.string().default(""),
+  description: z.string().default(""),
 });
 
 // ── Chapter Section ──
 
 export const ChapterSectionSchema = z.object({
-  heading: z.string(),
-  content: z.string(),
-  callout: CalloutSchema.optional(),
-  table: DataTableSchema.optional(),
-  code: CodeSnippetSchema.optional(),
-  diagram: MermaidBlockSchema.optional(),
+  heading: z.string().default(""),
+  content: z.string().default(""),
+  callout: z.any().optional(),
+  table: z.any().optional(),
+  code: z.any().optional(),
+  diagram: z.any().optional(),
 });
 
 // ── Chapter Content ──
