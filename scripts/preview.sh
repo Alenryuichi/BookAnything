@@ -1,38 +1,30 @@
 #!/bin/bash
-# 预览网页应用
+# Preview the book website
 set -euo pipefail
 
-HARNESS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+HARNESS_DIR="$(dirname "$SCRIPT_DIR")"
 WEBAPP_DIR="$HARNESS_DIR/web-app"
-PORT="${PORT:-3000}"
 
-# ── 命令行参数 ──
-PROJECT_FILE=""
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --project) PROJECT_FILE="$2"; shift 2 ;;
-    --port)    PORT="$2"; shift 2 ;;
-    [0-9]*)    PORT="$1"; shift ;;  # backward compat: positional port
-    *) shift ;;
-  esac
-done
+# Rebuild index first
+bash "$SCRIPT_DIR/rebuild-index.sh"
 
-# ── 加载项目配置 ──
-PROJECT_FILE="${PROJECT_FILE:-$HARNESS_DIR/projects/claude-code.yaml}"
-if [ -f "$PROJECT_FILE" ]; then
-  PROJECT_NAME=$(grep "^name:" "$PROJECT_FILE" | head -1 | sed 's/.*name: *//' | tr -d '"')
-else
-  PROJECT_NAME="深入理解 Claude Code"
+cd "$WEBAPP_DIR"
+
+# Install deps if needed
+if [ ! -d "node_modules" ]; then
+  echo "Installing dependencies..."
+  npm install --silent
 fi
 
-export KNOWLEDGE_PROJECT="$PROJECT_NAME"
-
-if [ ! -d "$WEBAPP_DIR/out" ]; then
-  echo "No build output. Building for project: $PROJECT_NAME ..."
-  cd "$WEBAPP_DIR" && KNOWLEDGE_PROJECT="$PROJECT_NAME" npx next build
+# Build if needed
+if [ ! -d ".next" ]; then
+  echo "Building..."
+  npm run build
 fi
 
-echo "Project: $PROJECT_NAME"
-echo "Serving: $WEBAPP_DIR/out/"
-echo "Open: http://localhost:$PORT"
-cd "$WEBAPP_DIR" && npx serve out -l "$PORT"
+echo ""
+echo "Starting server at http://localhost:3000"
+echo "  Book shelf: http://localhost:3000/books"
+echo ""
+npm run start

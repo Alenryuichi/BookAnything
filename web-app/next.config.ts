@@ -1,12 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export",
-  images: { unoptimized: true },
-  // knowledge/ JSON is outside web-app, allow imports
-  transpilePackages: [],
-  env: {
-    KNOWLEDGE_PROJECT: process.env.KNOWLEDGE_PROJECT || "深入理解 Claude Code",
+  output: "standalone",
+  async redirects() {
+    return [
+      {
+        source: "/chapters/:id",
+        destination: "/books/claude-code/chapters/:id",
+        permanent: false,
+      },
+    ];
   },
 };
 
