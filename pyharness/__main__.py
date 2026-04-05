@@ -37,6 +37,19 @@ def main() -> None:
         help="Path to the target repository",
     )
 
+    # ── write ──
+    write_parser = sub.add_parser("write", help="Write a single chapter directly")
+    write_parser.add_argument(
+        "--project",
+        required=True,
+        help="Project config file (e.g. projects/claude-code.yaml)",
+    )
+    write_parser.add_argument(
+        "--chapter",
+        required=True,
+        help="Chapter ID to write (e.g. ch01-overview)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "run":
@@ -68,6 +81,21 @@ def main() -> None:
             sys.exit(1)
 
         asyncio.run(init_project(repo))
+
+    elif args.command == "write":
+        from pyharness.config import load_project_config
+        from pyharness.runner import HarnessRunner
+        from pyharness.phases.write import step_write_chapters
+
+        project_path = Path(args.project)
+        if not project_path.exists():
+            print(f"ERROR: Project file not found: {project_path}", file=sys.stderr)
+            sys.exit(1)
+
+        config = load_project_config(project_path)
+        runner = HarnessRunner(config=config)
+        runner.chapters_dir.mkdir(parents=True, exist_ok=True)
+        asyncio.run(step_write_chapters(runner, 0, None, single_chapter_id=args.chapter))
 
     else:
         parser.print_help()

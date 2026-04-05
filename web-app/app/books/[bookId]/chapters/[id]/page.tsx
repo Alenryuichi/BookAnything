@@ -6,6 +6,7 @@ import { DataTable } from "@/components/DataTable";
 import { ReadingProgress } from "@/components/ReadingProgress";
 import { TableOfContents } from "@/components/TableOfContents";
 import Link from "next/link";
+import { ChapterActions } from "@/components/ChapterActions";
 
 function slugify(text: string): string {
   return text
@@ -84,6 +85,8 @@ export default async function ChapterPage({ params }: { params: Promise<{ bookId
           </div>
         )}
       </header>
+
+      <ChapterActions bookId={bookId} chapterId={id} />
 
       {ch.chapter_summary && (
         <blockquote className="my-8 pl-5 py-2 border-l-4 border-foreground text-muted-foreground text-lg italic tracking-tight">

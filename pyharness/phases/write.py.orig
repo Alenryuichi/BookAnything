@@ -18,15 +18,8 @@ async def step_write_chapters(
     runner: HarnessRunner,
     iteration: int,
     plan: Optional[PlanOutput],
-    single_chapter_id: Optional[str] = None,
 ) -> None:
     """Write chapters from the plan, with bounded concurrency."""
-    if single_chapter_id:
-        log("INFO", f"Writing single chapter: {single_chapter_id}")
-        # Run directly without gathering tasks
-        await _write_single_chapter(runner, iteration, single_chapter_id, "Single chapter rewrite")
-        return
-
     if not plan or not plan.chapters_to_write:
         log("WARN", "No chapters to write")
         return
