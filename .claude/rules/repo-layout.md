@@ -16,7 +16,6 @@
 ## 关键文件
 
 - `run.sh` — 主循环驱动（Plan → Write → Improve → Review → Build → Test → Eval）
-- `new-project.sh` — 新项目配置生成器
 - `state.json` — 当前运行状态（iteration、score、phase、history）
 - `goals.yaml` — 通用质量标准和评分权重
 - `CLAUDE.md` — 写作风格总纲和规则索引

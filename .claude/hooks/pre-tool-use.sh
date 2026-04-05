@@ -34,7 +34,7 @@ if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" ]]; then
     fi
   done
   # Also allow specific root-level files
-  for file in run.sh new-project.sh CLAUDE.md goals.yaml state.json .gitignore requirements.txt pyproject.toml; do
+  for file in run.sh CLAUDE.md goals.yaml state.json .gitignore requirements.txt pyproject.toml; do
     if [[ "$ABS_PATH" == "$HARNESS_DIR/$file" ]]; then
       ALLOWED=true
       break

@@ -12,7 +12,7 @@
 ## 根文件（允许但需谨慎）
 
 以下根文件允许修改，但属于核心配置，修改前应确认意图：
-`run.sh`、`new-project.sh`、`CLAUDE.md`、`goals.yaml`、`state.json`
+`run.sh`、`CLAUDE.md`、`goals.yaml`、`state.json`
 
 ## 禁止写入
 

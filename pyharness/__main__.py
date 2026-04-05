@@ -1,4 +1,4 @@
-"""CLI entry point: python -m pyharness run --project projects/pydantic-ai.yaml"""
+"""CLI entry point: python -m pyharness {run,init}"""
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -16,6 +16,7 @@ def main() -> None:
     )
     sub = parser.add_subparsers(dest="command")
 
+    # ── run ──
     run_parser = sub.add_parser("run", help="Run the harness loop")
     run_parser.add_argument(
         "--project",
@@ -26,6 +27,14 @@ def main() -> None:
     run_parser.add_argument("--threshold", type=int, default=85, help="Pass score threshold (default: 85)")
     run_parser.add_argument("--max-parallel", type=int, default=3, help="Max parallel chapter writes (default: 3)")
     run_parser.add_argument("--resume", action="store_true", help="Resume from previous state")
+
+    # ── init ──
+    init_parser = sub.add_parser("init", help="Initialize a new project config from a repo")
+    init_parser.add_argument(
+        "repo_path",
+        type=Path,
+        help="Path to the target repository",
+    )
 
     args = parser.parse_args()
 
@@ -47,6 +56,17 @@ def main() -> None:
             resume=args.resume,
         )
         asyncio.run(runner.run())
+
+    elif args.command == "init":
+        from pyharness.init import init_project
+
+        repo = args.repo_path.resolve()
+        if not repo.is_dir():
+            print("ERROR: 仓库路径不存在", file=sys.stderr)
+            sys.exit(1)
+
+        asyncio.run(init_project(repo))
+
     else:
         parser.print_help()
         sys.exit(1)
