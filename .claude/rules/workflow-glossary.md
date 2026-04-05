@@ -1,3 +1,7 @@
+---
+description: 核心术语定义（iteration/score/threshold）和 7 阶段流程说明
+---
+
 # 工作流术语与流程
 
 ## 核心术语

@@ -1,3 +1,8 @@
+---
+alwaysApply: true
+description: 可写目录白名单与禁写路径
+---
+
 # 路径边界
 
 ## 允许写入的目录
