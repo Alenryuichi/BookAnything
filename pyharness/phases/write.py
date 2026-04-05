@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from typing import TYPE_CHECKING, Any, Optional
 
-from pyharness.log import log
+from pyharness.log import log, log_event
 from pyharness.schemas import PlanOutput, ChapterJSON
 
 if TYPE_CHECKING:
@@ -53,11 +54,30 @@ async def step_write_chapters(
         log("WARN", "No chapters to write after filtering")
         return
 
+    for ch in plan.chapters_to_write:
+        log_event("chapter_status", {"chapter_id": ch.id, "status": "waiting"})
+
     sem = asyncio.Semaphore(runner.max_parallel)
 
     async def write_one(chapter_id: str, focus: str) -> bool:
         async with sem:
-            return await _write_single_chapter(runner, iteration, chapter_id, focus)
+            log_event("chapter_status", {"chapter_id": chapter_id, "status": "writing"})
+            t0 = time.time()
+            ok = await _write_single_chapter(runner, iteration, chapter_id, focus)
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if ok:
+                ch_path = runner.chapters_dir / f"{chapter_id}.json"
+                wc = 0
+                try:
+                    import json as _json
+                    data = _json.loads(ch_path.read_text())
+                    wc = data.get("word_count", 0)
+                except Exception:
+                    pass
+                log_event("chapter_status", {"chapter_id": chapter_id, "status": "done", "word_count": wc, "elapsed_ms": elapsed_ms})
+            else:
+                log_event("chapter_status", {"chapter_id": chapter_id, "status": "failed", "error": f"Chapter {chapter_id} write failed", "elapsed_ms": elapsed_ms})
+            return ok
 
     tasks = [
         write_one(ch_id, focus) for ch_id, focus in chapters_to_write

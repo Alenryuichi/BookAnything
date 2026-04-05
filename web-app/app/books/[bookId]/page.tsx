@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { loadKnowledge, loadParts, loadBookTitle, loadBookStats } from "@/lib/load-knowledge";
 import Link from "next/link";
 import { GraphTriggerButton } from "@/components/GraphTriggerButton";
+import { StartGenerationButton } from "@/components/StartGenerationButton";
 
 export default async function BookPage({ params }: { params: Promise<{ bookId: string }> }) {
   const { bookId } = await params;
@@ -130,6 +131,7 @@ export default async function BookPage({ params }: { params: Promise<{ bookId: s
       </div>
 
       <div className="flex gap-4 mt-12 justify-center">
+        <StartGenerationButton bookId={bookId} className="px-5 py-2.5 rounded-lg bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50" />
         <GraphTriggerButton className="px-5 py-2.5 rounded-lg border border-border bg-card text-sm font-medium hover:border-foreground transition-colors">
           🔗 架构依赖图
         </GraphTriggerButton>
