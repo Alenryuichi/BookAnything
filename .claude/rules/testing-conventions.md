@@ -1,3 +1,8 @@
+---
+description: 测试层级、运行方式、fixture 项目和 golden data 约定
+globs: ["tests/**", "pyproject.toml"]
+---
+
 # 测试约定
 
 ## 测试层级

@@ -1,3 +1,8 @@
+---
+alwaysApply: true
+description: 仓库目录结构与关键文件说明
+---
+
 # 仓库目录布局
 
 | 目录 | 职责 |
@@ -12,6 +17,8 @@
 | `scripts/` | 辅助脚本（preview.sh、rebuild-index.sh、visual-test.js） |
 | `tests/` | 单元测试和 E2E 测试 |
 | `tests/e2e/` | E2E 测试套件（fixture-repo、golden data、pipeline 测试） |
+| `tests/agent/` | Agent 收敛测试（需要 Claude CLI，标记 `slow`） |
+| `tests/agent_fixtures/` | Agent 测试用的 fixture 数据 |
 | `openspec/` | OpenSpec 变更管理（harness 演进用） |
 | `.claude/` | Claude Code 能力层（rules/skills/agents/commands/hooks） |
 

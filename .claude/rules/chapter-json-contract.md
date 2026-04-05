@@ -1,3 +1,8 @@
+---
+description: 章节 JSON 输出格式、必需字段和内容要求
+globs: ["knowledge/**/*.json"]
+---
+
 # 章节 JSON 契约
 
 ## 输出格式
