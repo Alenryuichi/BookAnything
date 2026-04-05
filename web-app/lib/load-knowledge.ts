@@ -177,7 +177,7 @@ function normalizeModule(data: any, id: string): ModuleAnalysis {
 
 // ── Project YAML helpers ──
 
-function findProjectYaml(bookId: string): string | null {
+export function findProjectYaml(bookId: string): string | null {
   if (!fs.existsSync(PROJECTS_DIR)) return null;
 
   const index = loadBookIndex();

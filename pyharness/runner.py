@@ -12,7 +12,7 @@ from typing import Optional
 
 from pyharness.config import ProjectConfig
 from pyharness.eval import eval_content, eval_visual, eval_interaction, merge_scores
-from pyharness.log import log
+from pyharness.log import log, log_event
 from pyharness.state import StateManager
 
 
@@ -122,9 +122,11 @@ class HarnessRunner:
                 break
 
             log("HEAD", f"Iteration #{iteration} | Score: {s.score}/100 | Time: {elapsed_h:.2f}h / {self.max_hours}h")
+            log_event("iteration_start", {"iteration": iteration, "max_iterations": self.max_iterations, "score": s.score, "elapsed_h": round(elapsed_h, 2)})
 
             # Phase 1: Plan
             log("STEP", "Phase 1/7: Planning...")
+            log_event("phase_change", {"iteration": iteration, "phase": "plan", "phase_index": 1, "phase_total": 7})
             from pyharness.phases.plan import step_plan
             plan = await step_plan(self, iteration, last_eval_feedback)
 
@@ -135,6 +137,7 @@ class HarnessRunner:
 
             # Phase 2: Write chapters
             log("STEP", "Phase 2/7: Writing Chapters...")
+            log_event("phase_change", {"iteration": iteration, "phase": "write", "phase_index": 2, "phase_total": 7})
             from pyharness.phases.write import step_write_chapters
             await step_write_chapters(
                 self, iteration, plan,
@@ -151,6 +154,7 @@ class HarnessRunner:
             # Phase 3: Improve webapp
             if plan and plan.needs_webapp_improve:
                 log("STEP", "Phase 3/7: Improving Web App...")
+            log_event("phase_change", {"iteration": iteration, "phase": "improve", "phase_index": 3, "phase_total": 7})
                 from pyharness.phases.improve import step_improve_webapp
                 try:
                     await step_improve_webapp(self, iteration, last_eval_feedback)
@@ -166,6 +170,7 @@ class HarnessRunner:
 
             # Phase 4: Code review
             log("STEP", "Phase 4/7: Code Review...")
+            log_event("phase_change", {"iteration": iteration, "phase": "review", "phase_index": 4, "phase_total": 7})
             from pyharness.phases.review import step_code_review
             try:
                 await step_code_review(self, iteration)
@@ -179,6 +184,7 @@ class HarnessRunner:
 
             # Phase 5: Build site
             log("STEP", "Phase 5/7: Building Site...")
+            log_event("phase_change", {"iteration": iteration, "phase": "build", "phase_index": 5, "phase_total": 7})
             from pyharness.phases.build import step_build_site
             try:
                 await step_build_site(self)
@@ -192,6 +198,7 @@ class HarnessRunner:
 
             # Phase 6: Visual test
             log("STEP", "Phase 6/7: Visual Testing...")
+            log_event("phase_change", {"iteration": iteration, "phase": "visual_test", "phase_index": 6, "phase_total": 7})
             from pyharness.phases.visual_test import step_visual_test
             try:
                 await step_visual_test(self)
@@ -205,6 +212,7 @@ class HarnessRunner:
 
             # Phase 7: Evaluate
             log("STEP", "Phase 7/7: Deterministic Evaluation...")
+            log_event("phase_change", {"iteration": iteration, "phase": "evaluate", "phase_index": 7, "phase_total": 7})
             try:
                 content_eval = eval_content(self.chapters_dir, self.config.total_chapters)
                 visual_eval = eval_visual(self.webapp_dir, self.harness_dir / "output" / "screenshots" / "report.json")
@@ -216,6 +224,7 @@ class HarnessRunner:
 
                 self.state.update_after_eval(iteration, merged)
                 log("OK", f"Score: {new_score}/100 (content:{merged.scores.content}/40 visual:{merged.scores.visual}/35 interaction:{merged.scores.interaction}/25)")
+                log_event("eval_result", {"iteration": iteration, "score": new_score, "content": merged.scores.content, "visual": merged.scores.visual, "interaction": merged.scores.interaction})
 
                 if new_score >= self.threshold:
                     log("HEAD", f"Target reached! Score {new_score} >= {self.threshold}")

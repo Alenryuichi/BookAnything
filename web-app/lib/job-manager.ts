@@ -85,6 +85,12 @@ class JobManagerSingleton {
     return this.jobs.get(jobId) ?? null;
   }
 
+  listActive(): Job[] {
+    return [...this.jobs.values()].filter(
+      (j) => j.state === "queued" || j.state === "running",
+    );
+  }
+
   subscribe(jobId: string, callback: (entry: LogEntry) => void): () => void {
     const job = this.jobs.get(jobId);
     if (!job) return () => {};

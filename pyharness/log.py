@@ -69,3 +69,17 @@ def log(level: str, msg: str, *, progress: int | None = None, phase: str | None 
             record["phase"] = phase
         with open(_SINK_FILE, "a") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def log_event(event_type: str, payload: dict) -> None:
+    """Write a structured event as JSON-lines to the sink file.
+
+    Each record is {"type": event_type, "ts": "HH:MM:SS", ...payload}.
+    No-op when no sink is configured.
+    """
+    if not _SINK_FILE:
+        return
+    ts = datetime.datetime.now().strftime("%H:%M:%S")
+    record = {"type": event_type, "ts": ts, **payload}
+    with open(_SINK_FILE, "a") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
