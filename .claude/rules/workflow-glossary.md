@@ -1,4 +1,5 @@
 ---
+alwaysApply: true
 description: 核心术语定义（iteration/score/threshold）和 7 阶段流程说明
 ---
 
