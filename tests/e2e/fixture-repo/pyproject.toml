@@ -1,0 +1,8 @@
+[project]
+name = "minipipe"
+version = "0.1.0"
+description = "Minimal pipeline-based text processing library"
+requires-python = ">=3.11"
+
+[project.scripts]
+minipipe = "minipipe.cli:main"

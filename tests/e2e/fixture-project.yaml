@@ -1,0 +1,67 @@
+name: "MiniPipe"
+repo_path: "PLACEHOLDER"
+target_dir: "src"
+language: "Python"
+description: "A minimal pipeline-based text processing library"
+
+book:
+  title: "深入理解 MiniPipe"
+  subtitle: "一本由浅入深的交互式技术书"
+  stats:
+    files: 10
+    lines: 311
+
+chapters:
+
+  # ──────────────────────────────
+  # Part 1 - 建立直觉
+  # ──────────────────────────────
+  - id: ch01-overview
+    title: "第1章：MiniPipe 是什么"
+    subtitle: "管道式文本处理的全景图"
+    sources: "src/__init__.py,src/core.py"
+    prerequisites: []
+    outline: |
+      - 开篇：当你需要对文本做一连串操作时
+      - Pipeline 模式的核心思想
+      - Token 数据模型简介
+      - 项目架构：Tokenizer → Transform → Formatter
+
+  # ──────────────────────────────
+  # Part 2 - 核心引擎
+  # ──────────────────────────────
+  - id: ch02-core-model
+    title: "第2章：核心数据模型"
+    subtitle: "Token、Stage 和 Pipeline 的设计"
+    sources: "src/core.py"
+    prerequisites: ["ch01-overview"]
+    outline: |
+      - Token dataclass 的设计选择
+      - Stage 抽象基类：process() 契约
+      - Pipeline 的职责链模式
+      - clone() 的不可变设计
+
+  - id: ch03-processing
+    title: "第3章：文本处理流水线"
+    subtitle: "Tokenizer 和 Transform 的实现"
+    sources: "src/tokenizer.py,src/transforms.py"
+    prerequisites: ["ch02-core-model"]
+    outline: |
+      - TokenizerStage 的正则分词策略
+      - 标点分离的边界处理
+      - 四种内置变换器的策略模式
+      - FilterStage 的函数式设计
+
+  # ──────────────────────────────
+  # Part 3 - 对外接口
+  # ──────────────────────────────
+  - id: ch04-cli-and-output
+    title: "第4章：CLI 与输出格式化"
+    subtitle: "从命令行到格式化输出的最后一公里"
+    sources: "src/cli.py,src/formatter.py"
+    prerequisites: ["ch03-processing"]
+    outline: |
+      - 三种 Formatter 的策略模式
+      - CLI 的 argparse 设计
+      - Pipeline 的组装与运行
+      - 可扩展性设计思考

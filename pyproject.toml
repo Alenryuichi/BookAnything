@@ -19,8 +19,10 @@ pyharness = "pyharness.__main__:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+norecursedirs = ["tests/e2e/fixture-repo"]
 markers = [
     "slow: real Claude CLI tests (deselect with '-m \"not slow\"')",
+    "live: live e2e tests requiring real Claude CLI (run with '-m live')",
 ]
 
 [build-system]

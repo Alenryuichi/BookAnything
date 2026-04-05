@@ -1,0 +1,54 @@
+{
+  "chapter_id": "ch02-core-model",
+  "title": "第2章：核心数据模型",
+  "subtitle": "Token、Stage 和 Pipeline 的设计",
+  "chapter_summary": "深入探索 MiniPipe 的三个核心抽象：Token 数据对象、Stage 抽象基类和 Pipeline 编排器。",
+  "opening_hook": "每个优秀的软件系统背后，都有几个精心设计的核心抽象。在 MiniPipe 中，这些抽象只有三个：Token（数据）、Stage（处理）、Pipeline（编排）。它们就像乐高积木的三种基础形状——看似简单，组合起来却能构建出任何你想要的结构。\n\n让我们一个一个来拆解它们的设计智慧。",
+  "sections": [
+    {
+      "heading": "Token：不可变的数据载体",
+      "content": "Token 使用 Python 的 dataclass 实现，包含 text、kind 和 metadata 三个字段。关键的设计决策是 clone() 方法：它不修改原对象，而是返回一个新实例。这种不可变设计使得 Token 可以安全地在多个 Stage 之间传递，不用担心意外的副作用。\n\nmetadata 字典是一个精妙的扩展点。任何 Stage 都可以在 Token 上附加自定义信息，而不需要修改 Token 类本身。这是开放封闭原则的优雅体现。",
+      "code": {
+        "title": "Token 的 clone 方法",
+        "description": "创建一个新的 Token 实例，可以覆盖任意字段",
+        "code": "def clone(self, **overrides: Any) -> Token:\n    data = {\"text\": self.text, \"kind\": self.kind, \"metadata\": {**self.metadata}}\n    data.update(overrides)\n    return Token(**data)",
+        "language": "python",
+        "annotation": "通过 **overrides 接收关键字参数，可以只修改需要变化的字段。"
+      }
+    },
+    {
+      "heading": "Stage：处理阶段的契约",
+      "content": "Stage 是一个抽象基类，定义了所有处理阶段必须遵守的契约：实现 process() 方法，接收 Token 列表，返回 Token 列表。这个简洁的接口是整个系统灵活性的基石。\n\n无论是 Tokenizer、Transform 还是 Formatter，都是 Stage 的子类。统一的接口意味着它们可以自由组合，Pipeline 不需要知道具体处理逻辑。",
+      "diagram": {
+        "title": "Stage 类型继承关系",
+        "chart": "graph TB\nA[Stage ABC] --> B[TokenizerStage]\nA --> C[UpperTransform]\nA --> D[LowerTransform]\nA --> E[ReverseTransform]\nA --> F[PlainFormatter]\nA --> G[MarkdownFormatter]",
+        "description": "所有处理阶段都继承自 Stage 抽象基类"
+      }
+    },
+    {
+      "heading": "Pipeline：职责链编排器",
+      "content": "Pipeline 将多个 Stage 串联起来，实现经典的职责链模式。它的 run() 方法是整个系统的入口：先用 Tokenizer 切分文本，再依次通过各个 Transform，最后用 Formatter 输出结果。\n\nadd() 方法返回 self，支持链式调用。stage_names 属性提供内省能力，方便调试和日志记录。"
+    }
+  ],
+  "key_takeaways": [
+    "Token 的 clone() 实现不可变设计，避免 Stage 之间的副作用",
+    "Stage 抽象基类定义了 process() 契约，统一所有处理阶段的接口",
+    "Pipeline 实现职责链模式，通过 add() 链式调用组装流水线"
+  ],
+  "further_thinking": [
+    "如果 Token 不使用 clone() 而是直接修改，会带来什么问题？"
+  ],
+  "analogies": [
+    "Token/Stage/Pipeline 就像乐高积木的三种基础形状，组合起来能构建任何结构"
+  ],
+  "mermaid_diagrams": [
+    {
+      "title": "Stage 类型继承关系",
+      "chart": "graph TB\nA[Stage ABC] --> B[TokenizerStage]\nA --> C[UpperTransform]\nA --> D[LowerTransform]\nA --> E[ReverseTransform]\nA --> F[PlainFormatter]\nA --> G[MarkdownFormatter]",
+      "description": "所有处理阶段都继承自 Stage 抽象基类"
+    }
+  ],
+  "code_snippets": [],
+  "word_count": 1050,
+  "prerequisites": ["ch01-overview"]
+}
