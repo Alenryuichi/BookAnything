@@ -57,5 +57,4 @@
 
 ## 文件约定
 - 章节写入: `harness/knowledge/{项目名}/chapters/{chapter-id}.json`
-- 旧模块分析保留在: `harness/knowledge/{项目名}/modules/`（向后兼容）
 - 章节 JSON 格式详见 `.claude/rules/chapter-json-contract.md`

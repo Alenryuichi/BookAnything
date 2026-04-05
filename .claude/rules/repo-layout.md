@@ -5,7 +5,6 @@
 | `projects/` | 项目配置 YAML（书名、章节列表、源码路径、大纲） |
 | `prompts/` | 早期提示模板（plan/analyze/evaluate），已被 `pyharness/` 取代 |
 | `knowledge/{项目名}/chapters/` | 生成的章节 JSON 文件 |
-| `knowledge/{项目名}/modules/` | 旧版模块分析数据（向后兼容） |
 | `output/logs/` | 运行日志、阶段提示、原始 Claude 响应 |
 | `output/screenshots/` | Playwright 视觉测试截图和报告 |
 | `web-app/` | Next.js 静态站点，读取 knowledge 渲染书籍 |
