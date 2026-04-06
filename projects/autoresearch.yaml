@@ -1,5 +1,6 @@
 name: "autoresearch"
 repo_path: "/Users/kylinmiao/.cursor/worktrees/harness/skm/workspaces/autoresearch"
+remote_url: "https://github.com/karpathy/autoresearch"
 target_dir: "."
 language: "Python"
 description: "TODO: 填写项目简介"

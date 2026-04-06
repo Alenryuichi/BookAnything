@@ -1,5 +1,5 @@
 name: "fixture-repo"
-repo_path: "/Users/kylinmiao/.cursor/worktrees/harness/skm/tests/e2e/fixture-repo"
+repo_path: "tests/e2e/fixture-repo"
 target_dir: "src"
 language: "Python"
 description: "TODO: 填写项目简介"

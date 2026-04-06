@@ -1,0 +1,137 @@
+name: "minBPE: Minimal Byte Pair Encoding"
+repo_path: "workspaces/minbpe"
+remote_url: "https://github.com/karpathy/minbpe"
+target_dir: "."
+language: "Python"
+description: "A clean, educational implementation of the BPE algorithm that powers modern LLM tokenizers"
+
+book:
+  title: "深入理解 minBPE: Minimal Byte Pair Encoding"
+  subtitle: "一本由浅入深的交互式技术书"
+  stats:
+    files: 16
+    lines: 699
+
+chapters:
+
+  # ──────────────────────────────
+  # Part 1 - 建立直觉
+  # ──────────────────────────────
+  - id: ch01-what-is-tokenization
+    title: "第1章：为什么 LLM 需要分词"
+    subtitle: "从字符到 Token 的认知飞跃"
+    sources: "README.md"
+    prerequisites: []
+    outline: |
+      - 开篇：GPT 处理 "hello world" 时实际看到了什么
+      - 字符、字节、Token 的区别
+      - 为什么不能直接用 UTF-8 字节
+      - 词表大小的权衡：256 vs 100K
+      - 比喻：字典分页与 BPE 的自适应分组
+  - id: ch02-bpe-core-idea
+    title: "第2章：BPE 算法的核心直觉"
+    subtitle: "像编辑一样合并最频繁的组合"
+    sources: "minbpe/basic.py"
+    prerequisites: ["ch01-what-is-tokenization"]
+    outline: |
+      - 开篇：从 "aaabdaaabac" 看压缩的魔法
+      - BPE 训练过程：统计频率 → 找最频繁 → 合并
+      - 合并树的视觉化理解
+      - 编码与解码的双向映射
+      - 比喻：BPE 就像给常用短语造新词
+  - id: ch03-first-implementation
+    title: "第3章：第一个实现：BasicTokenizer"
+    subtitle: "60 行代码实现完整 BPE"
+    sources: "minbpe/basic.py"
+    prerequisites: ["ch02-bpe-core-idea"]
+    outline: |
+      - 开篇：能跑的最小版本
+      - train() 方法的循环结构
+      - encode() 与 train() 的对称性
+      - decode() 的简洁实现
+      - 为什么 256 是起点而不是 1
+
+  # ──────────────────────────────
+  # Part 2 - 核心算法深入
+  # ──────────────────────────────
+  - id: ch04-get-stats-and-merge
+    title: "第4章：两个核心工具函数"
+    subtitle: "统计频次与执行合并"
+    sources: "minbpe/base.py"
+    prerequisites: ["ch03-first-implementation"]
+    outline: |
+      - 开篇：复杂操作由简单函数组合而成
+      - get_stats() 的滑动窗口实现
+      - merge() 的扫描-跳过-替换模式
+      - 为什么用字典存储统计
+      - 性能优化的切入点
+  - id: ch05-vocab-and-merges
+    title: "第5章：词表与合并规则的持久化"
+    subtitle: "训练成果的保存与加载"
+    sources: "minbpe/base.py"
+    prerequisites: ["ch04-get-stats-and-merge"]
+    outline: |
+      - 开篇：训练好模型后怎么用
+      - merges 字典的结构和作用
+      - vocab 如何从 merges 反向构建
+      - save() 的双文件设计原则
+      - 加载时的词表重建
+  - id: ch06-encoding-process
+    title: "第6章：编码的完整流程"
+    subtitle: "从文本到 Token ID 的转换"
+    sources: "minbpe/basic.py,minbpe/regex.py"
+    prerequisites: ["ch05-vocab-and-merges"]
+    outline: |
+      - 开篇：编码不是训练的逆过程
+      - UTF-8 字节化的第一步
+      - 贪心合并：每次找最低 merge index
+      - 终止条件：没有可合并的 pair
+      - 编码与训练的根本差异
+  - id: ch07-decoding-process
+    title: "第7章：解码的完整流程"
+    subtitle: "从 Token ID 还原原始文本"
+    sources: "minbpe/base.py,minbpe/basic.py"
+    prerequisites: ["ch04-get-stats-and-merge"]
+    outline: |
+      - 开篇：解码比编码简单得多
+      - ID 到字节序列的查表操作
+      - UTF-8 解码的容错处理
+      - 为什么解码不需要 merges
+      - 错误替换字符  的出现
+
+  # ──────────────────────────────
+  # Part 3 - 进阶设计
+  # ──────────────────────────────
+  - id: ch08-regex-preprocessing
+    title: "第8章：正则预处理与类别隔离"
+    subtitle: "GPT 为什么不让字母和数字合并"
+    sources: "minbpe/regex.py"
+    prerequisites: ["ch06-encoding-process"]
+    outline: |
+      - 开篇："hello123" 应该拆成多少 token
+      - GPT-4 的正则模式解析
+      - 类别边界：字母、数字、标点、空白
+      - RegexTokenizer 的架构设计
+      - 分块编码的意义
+  - id: ch09-special-tokens
+    title: "第9章：特殊 Token 的处理"
+    subtitle: "与普通 Token 的隔离机制"
+    sources: "minbpe/regex.py"
+    prerequisites: ["ch08-regex-preprocessing"]
+    outline: |
+      - 开篇：为什么特殊 Token 很危险
+      - allowed_special 的安全设计
+      - encode_ordinary vs encode 的分工
+      - special_tokens 注册机制
+      - 比喻：VIP 专用通道
+  - id: ch10-reproducing-gpt4
+    title: "第10章：复刻 GPT-4 Tokenizer"
+    subtitle: "从 tiktoken 恢复合并规则"
+    sources: "minbpe/gpt4.py"
+    prerequisites: ["ch09-special-tokens"]
+    outline: |
+      - 开篇：能用 minbpe 复现 tiktoken 吗
+      - byte_shuffle 的历史遗留问题
+      - recover_merges() 的逆向工程
+      - GPT4Tokenizer 的包装模式
+      - 为什么不能 save/load
