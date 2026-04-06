@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     }
 
     const quickMode = quick === true;
+    let repoName = "";
 
     const harnessRoot = path.resolve(process.cwd(), "..");
     let targetRepoPath = repo_path;
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       try {
         const repoUrl = new URL(targetRepoPath);
         const parts = repoUrl.pathname.split("/").filter(Boolean);
-        const repoName = parts[parts.length - 1]?.replace(".git", "");
+        repoName = parts[parts.length - 1]?.replace(".git", "");
         if (!repoName) {
           return NextResponse.json({ error: "Invalid Git URL" }, { status: 400 });
         }
@@ -53,6 +54,10 @@ export async function POST(request: Request) {
       } catch {
         return NextResponse.json({ error: "Invalid Git URL" }, { status: 400 });
       }
+    }
+
+    if (!repoName) {
+      repoName = path.basename(targetRepoPath);
     }
 
     const onComplete = async () => {
@@ -94,7 +99,7 @@ fi`);
       "bash",
       ["-c", scriptParts.join("\n")],
       harnessRoot,
-      { onComplete },
+      { onComplete, bookId: repoName },
     );
 
     return NextResponse.json({ jobId: job.id }, { status: 202 });

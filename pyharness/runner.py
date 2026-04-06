@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from pyharness.config import ProjectConfig
+from pyharness.errors import ErrorLedger
 from pyharness.eval import eval_content, eval_visual, eval_interaction, merge_scores
 from pyharness.log import log, log_event
 from pyharness.state import StateManager
@@ -52,6 +53,7 @@ class HarnessRunner:
         self.lock_file = self.harness_dir / ".harness.lock"
 
         self.state = StateManager(self.harness_dir / "state.json")
+        self.error_ledger: ErrorLedger | None = None
         self.start_time: float = 0
 
 
@@ -94,6 +96,8 @@ class HarnessRunner:
         from pyharness.log import init_log
         init_log(self.log_dir, sink_path=self.log_sink)
 
+        self.error_ledger = ErrorLedger(self.log_dir / "errors.jsonl")
+
         if self.resume and self.state.path.exists():
             s = self.state.load()
             log("INFO", f"Resuming from iteration {s.iteration} (score: {s.score})")
@@ -128,6 +132,8 @@ class HarnessRunner:
 
             log("HEAD", f"Iteration #{iteration} | Score: {s.score}/100 | Time: {elapsed_h:.2f}h / {self.max_hours}h")
             log_event("iteration_start", {"iteration": iteration, "max_iterations": self.max_iterations, "score": s.score, "elapsed_h": round(elapsed_h, 2)})
+            if self.error_ledger:
+                self.error_ledger.reset_iteration()
 
             # Phase 1: Plan
             log("STEP", "Phase 1/7: Planning...")
@@ -150,6 +156,34 @@ class HarnessRunner:
                 rewrite_queue=self._rewrite_queue,
             )
             self._rewrite_queue = []
+
+            # Persist failed chapters from this iteration to state
+            if self.error_ledger:
+                from pyharness.schemas import FailedChapter
+                unresolved = self.error_ledger.get_unresolved(iteration)
+                if unresolved:
+                    failed = [
+                        FailedChapter(
+                            chapter_id=e["chapter_id"],
+                            error_class=e["error_class"],
+                            error_message=e["error_message"][:200],
+                            iteration=iteration,
+                            attempts=e["attempt"],
+                        )
+                        for e in unresolved
+                    ]
+                    s_now = self.state.load()
+                    existing_ids = {fc.chapter_id for fc in s_now.failed_chapters}
+                    for fc in failed:
+                        if fc.chapter_id in existing_ids:
+                            s_now.failed_chapters = [
+                                fc if x.chapter_id == fc.chapter_id else x
+                                for x in s_now.failed_chapters
+                            ]
+                        else:
+                            s_now.failed_chapters.append(fc)
+                    self.state._write(s_now)
+                    log("WARN", f"{len(unresolved)} chapter(s) failed all retry attempts this iteration")
 
             self._check_commands()
             if self._cancelled:

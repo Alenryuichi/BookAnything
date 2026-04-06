@@ -152,8 +152,9 @@ async def _write_single_chapter(
     chapter_id: str,
     focus: str,
 ) -> bool:
-    """Write a single chapter using Claude."""
+    """Write a single chapter using Claude, with retry and error context."""
     from pyharness.claude_client import ClaudeClient
+    from pyharness.errors import ErrorClass, classify_error, build_error_context, RETRYABLE
 
     ch_config = runner.config.get_chapter(chapter_id)
     if not ch_config:
@@ -162,9 +163,15 @@ async def _write_single_chapter(
 
     log("INFO", f"  Writing: {chapter_id} ({ch_config.title})")
 
-    client = ClaudeClient(cwd=runner.harness_dir)
+    client = ClaudeClient(cwd=runner.harness_dir, max_retries=0)
 
-    prompt = f"""你是一位顶级技术科普作家。请为《{runner.config.book_title}》撰写一个章节。
+    MAX_ATTEMPTS = 3
+    last_error_context = ""
+
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        raw_output = ""
+        try:
+            base_prompt = f"""你是一位顶级技术科普作家。请为《{runner.config.book_title}》撰写一个章节。
 
 ## 项目信息
 - 项目: {runner.config.name}
@@ -192,41 +199,77 @@ async def _write_single_chapter(
 ## 输出：纯 JSON 对象
 不要写任何其他文字，直接输出 JSON。"""
 
-    try:
-        result = await client.run(
-            prompt=prompt,
-            allowed_tools=["Read", "Glob", "Grep"],
-            max_turns=50,
-        )
+            prompt = base_prompt
+            if last_error_context:
+                prompt = base_prompt + "\n\n" + last_error_context
 
-        if not result:
-            log("ERROR", f"  {chapter_id}: empty response")
-            return False
+            if attempt > 1:
+                log("INFO", f"  {chapter_id}: retry attempt {attempt}/{MAX_ATTEMPTS}")
 
-        text = _extract_chapter_json(
-            result if isinstance(result, str) else str(result),
-        )
+            result = await client.run(
+                prompt=prompt,
+                allowed_tools=["Read", "Glob", "Grep"],
+                max_turns=50,
+            )
 
-        # Parse JSON — attempt auto-repair on failure
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
-            repaired = _try_repair_json(text)
-            if repaired:
-                log("WARN", f"  {chapter_id}: auto-repaired broken JSON")
-                parsed = json.loads(repaired)
+            if not result:
+                raise RuntimeError("Claude CLI returned empty response")
+
+            raw_output = result if isinstance(result, str) else str(result)
+            text = _extract_chapter_json(raw_output)
+
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                repaired = _try_repair_json(text)
+                if repaired:
+                    log("WARN", f"  {chapter_id}: auto-repaired broken JSON")
+                    parsed = json.loads(repaired)
+                else:
+                    raise
+
+            parsed = validate_chapter(parsed, chapter_id)
+
+            out_path = runner.chapters_dir / f"{chapter_id}.json"
+            out_path.write_text(json.dumps(parsed, ensure_ascii=False, indent=2))
+            log("OK", f"  {chapter_id}: {out_path.stat().st_size} bytes")
+
+            if runner.error_ledger:
+                runner.error_ledger.clear_for_chapter(chapter_id)
+
+            return True
+
+        except Exception as e:
+            error_class = classify_error(e, raw_output)
+            log("ERROR", f"  {chapter_id} attempt {attempt}/{MAX_ATTEMPTS} failed [{error_class.value}]: {e}")
+
+            if runner.error_ledger:
+                runner.error_ledger.record(
+                    iteration=iteration,
+                    phase="write",
+                    chapter_id=chapter_id,
+                    error_class=error_class,
+                    attempt=attempt,
+                    max_attempts=MAX_ATTEMPTS,
+                    error_message=str(e),
+                    raw_output_preview=raw_output[:300],
+                )
+
+            log_event("chapter_error", {
+                "chapter_id": chapter_id,
+                "error_class": error_class.value,
+                "attempt": attempt,
+                "max_attempts": MAX_ATTEMPTS,
+                "message": str(e)[:200],
+            })
+
+            if error_class not in RETRYABLE:
+                log("ERROR", f"  {chapter_id}: non-retryable error ({error_class.value}), giving up")
+                break
+
+            if attempt < MAX_ATTEMPTS:
+                last_error_context = build_error_context(error_class, str(e), raw_output[:500])
             else:
-                raise
-
-        # Validate against schema and coerce common LLM mistakes
-        parsed = validate_chapter(parsed, chapter_id)
-
-        out_path = runner.chapters_dir / f"{chapter_id}.json"
-        out_path.write_text(json.dumps(parsed, ensure_ascii=False, indent=2))
-        log("OK", f"  {chapter_id}: {out_path.stat().st_size} bytes")
-        return True
-
-    except Exception as e:
-        log("ERROR", f"  {chapter_id} failed: {e}")
+                log("ERROR", f"  {chapter_id}: all {MAX_ATTEMPTS} attempts exhausted")
 
     return False

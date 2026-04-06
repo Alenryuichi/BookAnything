@@ -16,14 +16,17 @@ export type JobState = "queued" | "running" | "done" | "failed";
 
 export interface LogEntry {
   ts: string;
-  level: string;
-  msg: string;
+  level?: string;
+  msg?: string;
   progress?: number;
   phase?: string;
+  type?: string;
+  [key: string]: any;
 }
 
 export interface Job {
   id: string;
+  bookId?: string;
   state: JobState;
   startedAt: number;
   finishedAt?: number;
@@ -49,7 +52,7 @@ class JobManagerSingleton {
     command: string,
     args: string[],
     cwd: string,
-    opts?: { onComplete?: () => Promise<void> },
+    opts?: { onComplete?: () => Promise<void>; bookId?: string },
   ): Job {
     const activeCount = [...this.jobs.values()].filter(
       (j) => j.state === "queued" || j.state === "running",
@@ -66,6 +69,7 @@ class JobManagerSingleton {
 
     const job: Job = {
       id,
+      bookId: opts?.bookId,
       state: "queued",
       startedAt: Date.now(),
       logs: [],
@@ -89,6 +93,15 @@ class JobManagerSingleton {
     return [...this.jobs.values()].filter(
       (j) => j.state === "queued" || j.state === "running",
     );
+  }
+
+  findActiveByBook(bookId: string): Job | null {
+    for (const job of this.jobs.values()) {
+      if (job.bookId === bookId && (job.state === "queued" || job.state === "running")) {
+        return job;
+      }
+    }
+    return null;
   }
 
   subscribe(jobId: string, callback: (entry: LogEntry) => void): () => void {
@@ -129,17 +142,43 @@ class JobManagerSingleton {
     }
   }
 
+  private _loadDotEnv(dir: string): Record<string, string> {
+    const envPath = path.join(dir, ".env");
+    if (!existsSync(envPath)) return {};
+    try {
+      const content = readFileSync(envPath, "utf-8");
+      const vars: Record<string, string> = {};
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx <= 0) continue;
+        const key = trimmed.slice(0, eqIdx).trim();
+        let val = trimmed.slice(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        vars[key] = val;
+      }
+      return vars;
+    } catch {
+      return {};
+    }
+  }
+
   private _startProcess(
     job: Job,
     command: string,
     args: string[],
     cwd: string,
   ) {
+    const dotEnv = this._loadDotEnv(cwd);
     const child = spawn(command, args, {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
+        ...dotEnv,
         SINK_PATH: job.sinkPath,
         CONTROL_PATH: job.controlPath,
       },
@@ -247,9 +286,9 @@ class JobManagerSingleton {
           if (!trimmed) return;
           try {
             const parsed = JSON.parse(trimmed) as LogEntry;
-            if (parsed.ts && parsed.level && parsed.msg) {
+            if (parsed.ts && (parsed.type || (parsed.level && parsed.msg))) {
               const isDuplicate = job.logs.some(
-                (e) => e.ts === parsed.ts && e.msg === parsed.msg && e.level === parsed.level,
+                (e) => e.ts === parsed.ts && e.msg === parsed.msg && e.level === parsed.level && e.type === parsed.type,
               );
               if (!isDuplicate) {
                 job.logs.push(parsed);
@@ -314,10 +353,13 @@ class JobManagerSingleton {
   }
 }
 
-export const jobManager = new JobManagerSingleton();
-
-if (typeof process !== "undefined") {
-  const cleanup = () => jobManager.shutdown();
-  process.on("SIGTERM", cleanup);
-  process.on("SIGINT", cleanup);
+const globalForJobs = globalThis as unknown as { __jobManager?: JobManagerSingleton };
+export const jobManager = globalForJobs.__jobManager ?? new JobManagerSingleton();
+if (!globalForJobs.__jobManager) {
+  globalForJobs.__jobManager = jobManager;
+  if (typeof process !== "undefined") {
+    const cleanup = () => jobManager.shutdown();
+    process.on("SIGTERM", cleanup);
+    process.on("SIGINT", cleanup);
+  }
 }

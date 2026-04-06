@@ -23,7 +23,7 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <body className={`${inter.className} bg-background text-foreground antialiased`}>
         <ThemeProvider>
-          <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-3 border-b border-border bg-background/80 backdrop-blur-md">
+          <header className="h-14 sticky top-0 z-50 flex items-center justify-between px-6 border-b border-border bg-background/80 backdrop-blur-md">
             <div className="flex items-center gap-8">
               <Link href="/books" className="text-base font-bold tracking-tight no-underline text-foreground">
                 BookAnything

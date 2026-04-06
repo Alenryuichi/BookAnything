@@ -130,7 +130,7 @@ export default async function BookPage({ params }: { params: Promise<{ bookId: s
         ))}
       </div>
 
-      <div className="flex gap-4 mt-12 justify-center">
+      <div className="flex gap-4 mt-12 justify-center items-center">
         <StartGenerationButton bookId={bookId} className="px-5 py-2.5 rounded-lg bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50" />
         <GraphTriggerButton className="px-5 py-2.5 rounded-lg border border-border bg-card text-sm font-medium hover:border-foreground transition-colors">
           🔗 架构依赖图

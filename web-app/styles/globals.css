@@ -59,10 +59,10 @@ body {
   width: var(--sidebar-width);
   background: var(--bg-primary);
   border-right: 1px solid var(--border);
-  height: 100vh;
+  height: calc(100vh - 56px);
   position: fixed;
   left: 0;
-  top: 0;
+  top: 56px;
   overflow-y: auto;
   z-index: 40;
   transition: transform 0.3s ease;

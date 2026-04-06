@@ -149,6 +149,14 @@ class ScoreRecord(BaseModel):
     time: Optional[str] = None
 
 
+class FailedChapter(BaseModel):
+    chapter_id: str
+    error_class: str
+    error_message: str = ""
+    iteration: int = 0
+    attempts: int = 0
+
+
 class HarnessState(BaseModel):
     iteration: int = 0
     score: int = 0
@@ -157,4 +165,5 @@ class HarnessState(BaseModel):
     start_time: Optional[str] = None
     modules_analyzed: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+    failed_chapters: list[FailedChapter] = Field(default_factory=list)
     history: list[ScoreRecord] = Field(default_factory=list)
