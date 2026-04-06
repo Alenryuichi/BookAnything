@@ -16,7 +16,7 @@ const PHASES = [
 type ChapterStatus = "waiting" | "writing" | "done" | "failed";
 interface ChapterState { id: string; title: string; status: ChapterStatus; wordCount: number; elapsedMs: number; error?: string; errorClass?: string; errorAttempt?: number; errorMaxAttempts?: number; }
 interface EvalScores { score: number; content: number; visual: number; interaction: number; }
-interface DashboardState { plan: Record<string, any> | null; iteration: number; maxIterations: number; score: number; elapsedH: number; activePhaseIndex: number; completedPhases: Set<number>; chapters: Map<string, ChapterState>; eval: EvalScores | null; status: "connecting" | "running" | "done" | "error"; rawLogs: Array<Record<string, unknown>>; }
+interface DashboardState { plan: Record<string, any> | null; iteration: number; maxIterations: number; score: number; elapsedH: number; activePhaseIndex: number; completedPhases: Set<number>; chapters: Map<string, ChapterState>; eval: EvalScores | null; status: "connecting" | "running" | "done" | "error"; isPaused?: boolean; rawLogs: Array<Record<string, unknown>>; }
 
 type Action =
   | { type: "iteration_start"; payload: Record<string, unknown> }
@@ -26,7 +26,7 @@ type Action =
   | { type: "eval_result"; payload: Record<string, unknown> }
   | { type: "chapter_error"; payload: Record<string, unknown> }
   | { type: "raw_log"; payload: Record<string, unknown> }
-  | { type: "done" } | { type: "error" } | { type: "connected" };
+  | { type: "done" } | { type: "error" } | { type: "connected" } | { type: "set_paused"; payload: boolean };
 
 function reducer(state: DashboardState, action: Action): DashboardState {
   switch (action.type) {
@@ -40,6 +40,7 @@ function reducer(state: DashboardState, action: Action): DashboardState {
     case "raw_log": return { ...state, rawLogs: [...state.rawLogs, action.payload].slice(-200) };
     case "done": return { ...state, status: "done" };
     case "error": return { ...state, status: "error" };
+    case "set_paused": return { ...state, isPaused: action.payload };
     default: return state;
   }
 }
@@ -47,8 +48,11 @@ function reducer(state: DashboardState, action: Action): DashboardState {
 function processLogEntry(entry: Record<string, unknown>, dispatch: React.Dispatch<Action>) {
   const eventType = entry.type as string | undefined;
   if (eventType && ["iteration_start", "phase_change", "chapter_status", "eval_result", "plan_result", "chapter_error"].includes(eventType)) {
-    dispatch({ type: eventType as Action["type"], payload: entry });
+    dispatch({ type: eventType as any, payload: entry });
   } else {
+    // Intercept SIGSTOP/SIGCONT logs to update UI state
+    if (entry.msg === 'Generation paused via SIGSTOP') dispatch({ type: 'set_paused', payload: true });
+    if (entry.msg === 'Generation resumed via SIGCONT') dispatch({ type: 'set_paused', payload: false });
     dispatch({ type: "raw_log", payload: entry });
   }
 }
@@ -97,32 +101,61 @@ export function GenerationDashboard({ jobId, bookId, chapters: initialChapters }
   );
 }
 
+import { useState as useStateLocal } from "react";
+
 function IterationHeader({ state, jobId }: { state: DashboardState; jobId: string }) {
+  const [pending, setPending] = useStateLocal<string | null>(null);
+
   const sendCommand = async (action: string) => {
+    if (pending) return;
+    setPending(action);
     try {
       await fetch(`/api/jobs/${jobId}/control`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
+      setTimeout(() => setPending(null), 1000);
     } catch (e) {
       console.error("Failed to send command", e);
+      setPending(null);
     }
   };
 
   return (
     <div className="flex items-baseline justify-between flex-wrap gap-4">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">
-          Iteration {state.iteration || "—"}{" "}
-          <span className="text-muted-foreground font-normal text-lg">/ {state.maxIterations}</span>
+        <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-3">
+          <span>Iteration {state.iteration || "—"} <span className="text-muted-foreground font-normal text-lg">/ {state.maxIterations}</span></span>
+          {state.status === "done" && <span className="px-2.5 py-0.5 rounded-full bg-green-500/10 text-green-600 border border-green-500/20 text-sm font-medium">Completed</span>}
+          {state.status === "error" && <span className="px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-600 border border-red-500/20 text-sm font-medium">Failed</span>}
         </h1>
         {state.elapsedH > 0 && <p className="text-sm text-muted-foreground mt-1">Elapsed: {state.elapsedH.toFixed(2)}h</p>}
         {state.status === "running" && (
-          <div className="flex items-center gap-2 mt-3">
-            <button onClick={() => sendCommand("pause")} className="px-3 py-1.5 text-xs font-medium bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 rounded transition-colors">Pause</button>
-            <button onClick={() => sendCommand("resume")} className="px-3 py-1.5 text-xs font-medium bg-green-500/10 text-green-600 hover:bg-green-500/20 rounded transition-colors">Resume</button>
-            <button onClick={() => sendCommand("cancel")} className="px-3 py-1.5 text-xs font-medium bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded transition-colors">Cancel</button>
+          <div className="flex items-center gap-2 mt-3 bg-muted/30 p-1.5 rounded-lg border border-border/50 inline-flex">
+            <button 
+              onClick={() => sendCommand("pause")} 
+              disabled={!!pending}
+              className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${pending === 'pause' ? 'bg-amber-500 text-white shadow-sm' : 'text-amber-600 hover:bg-amber-500/10'}`}
+            >
+              {pending === 'pause' ? 'Pausing...' : 'Pause'}
+            </button>
+            <div className="w-px h-4 bg-border"></div>
+            <button 
+              onClick={() => sendCommand("resume")} 
+              disabled={!!pending}
+              className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${pending === 'resume' ? 'bg-green-500 text-white shadow-sm' : 'text-green-600 hover:bg-green-500/10'}`}
+            >
+              {pending === 'resume' ? 'Resuming...' : 'Resume'}
+            </button>
+            <div className="w-px h-4 bg-border"></div>
+            <button 
+              onClick={() => sendCommand("cancel")} 
+              disabled={!!pending}
+              className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${pending === 'cancel' ? 'bg-red-500 text-white shadow-sm' : 'text-red-600 hover:bg-red-500/10'}`}
+            >
+              {pending === 'cancel' ? 'Canceling...' : 'Cancel'}
+            </button>
           </div>
         )}
       </div>
@@ -133,9 +166,8 @@ function IterationHeader({ state, jobId }: { state: DashboardState; jobId: strin
     </div>
   );
 }
-
 function PhaseTimeline({ state }: { state: DashboardState }) {
-  return (<div className="flex items-center gap-1 overflow-x-auto pb-2">{PHASES.map((phase, i) => {const isActive = i === state.activePhaseIndex; const isDone = state.completedPhases.has(i); return (<div key={phase.key} className="flex items-center"><div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${isActive ? "bg-foreground text-background" : isDone ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>{isDone ? (<svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>) : isActive ? (<svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>) : (<span className="w-3.5 h-3.5 flex items-center justify-center text-[10px]">{i + 1}</span>)}{phase.label}</div>{i < PHASES.length - 1 && <div className={`w-4 h-px mx-0.5 ${isDone ? "bg-green-500/40" : "bg-border"}`} />}</div>);})}</div>);
+  return (<div className="flex items-center gap-1 overflow-x-auto pb-2">{PHASES.map((phase, i) => {const isActive = i === state.activePhaseIndex; const isDone = state.completedPhases.has(i); const showSpinner = isActive && !state.isPaused; return (<div key={phase.key} className="flex items-center"><div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${isActive ? "bg-foreground text-background" : isDone ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>{isDone ? (<svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>) : showSpinner ? (<svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>) : isActive && state.isPaused ? (<svg className="w-3.5 h-3.5 opacity-50" viewBox="0 0 24 24" fill="none"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>) : (<span className="w-3.5 h-3.5 flex items-center justify-center text-[10px]">{i + 1}</span>)}{phase.label}</div>{i < PHASES.length - 1 && <div className={`w-4 h-px mx-0.5 ${isDone ? "bg-green-500/40" : "bg-border"}`} />}</div>);})}</div>);
 }
 
 function ChapterGrid({ state, jobId }: { state: DashboardState; jobId: string }) {
@@ -246,33 +278,6 @@ function TerminalLogViewer({ logs }: { logs: Array<Record<string, unknown>> }) {
     </div>
   );
 }
-function InteractiveControls({ jobId, state }: { jobId: string, state: DashboardState }) {
-  if (state.status !== "running") return null;
-  
-  const handleAction = async (action: string) => {
-    await fetch(`/api/jobs/${jobId}/control`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action })
-    });
-  };
-
-  return (
-    <div className="flex gap-2 mb-6">
-      <button onClick={() => handleAction("pause")} className="px-3 py-1.5 rounded bg-yellow-500/10 text-yellow-600 border border-yellow-500/20 text-xs font-medium hover:bg-yellow-500/20 transition-colors">
-        Pause
-      </button>
-      <button onClick={() => handleAction("resume")} className="px-3 py-1.5 rounded bg-blue-500/10 text-blue-600 border border-blue-500/20 text-xs font-medium hover:bg-blue-500/20 transition-colors">
-        Resume
-      </button>
-      <button onClick={() => handleAction("cancel")} className="px-3 py-1.5 rounded bg-red-500/10 text-red-600 border border-red-500/20 text-xs font-medium hover:bg-red-500/20 transition-colors ml-auto">
-        Cancel
-      </button>
-    </div>
-  );
-}
-
-
 function PlanCard({ state }: { state: DashboardState }) {
   if (!state.plan || state.activePhaseIndex < 0) return null;
   const { summary, chapters, improve_webapp, improve_focus } = state.plan;

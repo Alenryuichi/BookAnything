@@ -27,6 +27,7 @@ export interface LogEntry {
 export interface Job {
   id: string;
   bookId?: string;
+  jobType?: string;
   state: JobState;
   startedAt: number;
   finishedAt?: number;
@@ -52,7 +53,7 @@ class JobManagerSingleton {
     command: string,
     args: string[],
     cwd: string,
-    opts?: { onComplete?: () => Promise<void>; bookId?: string },
+    opts?: { onComplete?: () => Promise<void>; bookId?: string; jobType?: string },
   ): Job {
     const activeCount = [...this.jobs.values()].filter(
       (j) => j.state === "queued" || j.state === "running",
@@ -70,6 +71,7 @@ class JobManagerSingleton {
     const job: Job = {
       id,
       bookId: opts?.bookId,
+      jobType: opts?.jobType,
       state: "queued",
       startedAt: Date.now(),
       logs: [],
@@ -95,9 +97,10 @@ class JobManagerSingleton {
     );
   }
 
-  findActiveByBook(bookId: string): Job | null {
+  findActiveByBook(bookId: string, jobType?: string): Job | null {
     for (const job of this.jobs.values()) {
       if (job.bookId === bookId && (job.state === "queued" || job.state === "running")) {
+        if (jobType && job.jobType !== jobType) continue;
         return job;
       }
     }
@@ -118,6 +121,24 @@ class JobManagerSingleton {
     const job = this.jobs.get(jobId);
     if (!job) return false;
     if (job.state !== "running" && job.state !== "queued") return false;
+
+    // Fast-path signals for immediate process group control
+    if (job.process && !job.process.killed && job.process.pid) {
+      const act = (command as any).action;
+      if (act === 'cancel') {
+        try { process.kill(-job.process.pid, 'SIGINT'); } catch (e) { job.process.kill('SIGINT'); }
+        job.logs.push({ ts: new Date().toTimeString().slice(0, 8), level: 'WARN', msg: 'Cancel signal sent...' });
+        for (const cb of job.subscribers) { try { cb(job.logs[job.logs.length - 1]); } catch {} }
+      } else if (act === 'pause') {
+        try { process.kill(-job.process.pid, 'SIGSTOP'); } catch (e) { job.process.kill('SIGSTOP'); }
+        job.logs.push({ ts: new Date().toTimeString().slice(0, 8), level: 'WARN', msg: 'Generation paused via SIGSTOP' });
+        for (const cb of job.subscribers) { try { cb(job.logs[job.logs.length - 1]); } catch {} }
+      } else if (act === 'resume') {
+        try { process.kill(-job.process.pid, 'SIGCONT'); } catch (e) { job.process.kill('SIGCONT'); }
+        job.logs.push({ ts: new Date().toTimeString().slice(0, 8), level: 'OK', msg: 'Generation resumed via SIGCONT' });
+        for (const cb of job.subscribers) { try { cb(job.logs[job.logs.length - 1]); } catch {} }
+      }
+    }
 
     try {
       let existing: object[] = [];
@@ -175,6 +196,7 @@ class JobManagerSingleton {
     const dotEnv = this._loadDotEnv(cwd);
     const child = spawn(command, args, {
       cwd,
+      detached: true,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
@@ -344,8 +366,12 @@ class JobManagerSingleton {
 
   shutdown() {
     for (const [, job] of this.jobs) {
-      if (job.process && !job.process.killed) {
-        job.process.kill("SIGTERM");
+      if (job.process && !job.process.killed && job.process.pid) {
+        try {
+          process.kill(-job.process.pid, 'SIGTERM');
+        } catch {
+          job.process.kill("SIGTERM");
+        }
       }
       if (job.evictionTimer) clearTimeout(job.evictionTimer);
       this._stopTail(job.id);

@@ -8,15 +8,26 @@ export async function GET(
   { params }: { params: Promise<{ bookId: string }> },
 ) {
   const { bookId } = await params;
-  const job = jobManager.findActiveByBook(bookId);
 
-  if (!job) {
-    return NextResponse.json({ error: "No active job" }, { status: 404 });
+  const analyzeJob = jobManager.findActiveByBook(bookId, "analyze");
+  if (analyzeJob) {
+    return NextResponse.json({
+      jobId: analyzeJob.id,
+      state: analyzeJob.state,
+      progress: analyzeJob.progress,
+      jobType: "analyze",
+    });
   }
 
-  return NextResponse.json({
-    jobId: job.id,
-    state: job.state,
-    progress: job.progress,
-  });
+  const generateJob = jobManager.findActiveByBook(bookId, "generate");
+  if (generateJob) {
+    return NextResponse.json({
+      jobId: generateJob.id,
+      state: generateJob.state,
+      progress: generateJob.progress,
+      jobType: "generate",
+    });
+  }
+
+  return NextResponse.json({ error: "No active job" }, { status: 404 });
 }
