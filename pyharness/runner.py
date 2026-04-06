@@ -14,6 +14,7 @@ from pyharness.config import ProjectConfig
 from pyharness.errors import ErrorLedger
 from pyharness.eval import eval_content, eval_visual, eval_interaction, merge_scores
 from pyharness.log import log, log_event
+from pyharness.repo import resolve_repo_path, RepoNotFoundError
 from pyharness.state import StateManager
 
 
@@ -29,6 +30,7 @@ class HarnessRunner:
         log_sink: Optional[Path] = None,
         quick_mode: bool = False,
         control_file: Optional[Path] = None,
+        reanalyze: bool = False,
     ) -> None:
         self.config = config
         self.max_hours = max_hours
@@ -39,6 +41,7 @@ class HarnessRunner:
         self.log_sink = log_sink
         self.quick_mode = quick_mode
         self.control_file = control_file
+        self.reanalyze = reanalyze
 
         self._paused = False
         self._cancelled = False
@@ -46,6 +49,15 @@ class HarnessRunner:
         self._rewrite_queue: list[str] = []
 
         self.harness_dir = Path.cwd()
+        self.resolved_repo_path: Path | None = None
+        try:
+            self.resolved_repo_path = resolve_repo_path(
+                config.repo_path,
+                remote_url=config.remote_url,
+                base_dir=self.harness_dir,
+            )
+        except RepoNotFoundError:
+            pass  # deferred — phases check at use time
         self.knowledge_dir = self.harness_dir / "knowledge" / config.name
         self.chapters_dir = self.knowledge_dir / "chapters"
         self.log_dir = self.harness_dir / "output" / "logs"
@@ -107,6 +119,18 @@ class HarnessRunner:
 
         self.start_time = time.time()
         last_eval_feedback = ""
+
+
+        # Knowledge graph analysis (runs once)
+        kg_path = self.knowledge_dir / "knowledge-graph.json"
+        if not kg_path.exists() or self.reanalyze:
+            try:
+                from pyharness.phases.analyze import step_analyze
+                log("HEAD", "Running code analysis...")
+                log_event("phase_change", {"iteration": 0, "phase": "analyze", "phase_index": 0, "phase_total": 8})
+                await step_analyze(self, force=self.reanalyze)
+            except Exception as e:
+                log("WARN", f"Code analysis failed (non-fatal): {e}")
 
         if self.quick_mode:
             log("INFO", "Quick mode: skipping phases 3, 4, 6")
@@ -312,8 +336,12 @@ class HarnessRunner:
 
         self.lock_file.write_text(str(os.getpid()))
         atexit.register(self._release_lock)
-        signal.signal(signal.SIGTERM, lambda *_: self._release_lock())
-        signal.signal(signal.SIGINT, lambda *_: self._release_lock())
+        def _handle_sig(signum, frame):
+            self._release_lock()
+            import os
+            os._exit(128 + signum)
+        signal.signal(signal.SIGTERM, _handle_sig)
+        signal.signal(signal.SIGINT, _handle_sig)
 
     def _release_lock(self) -> None:
         try:

@@ -11,6 +11,45 @@ from typing import TYPE_CHECKING, Any, Optional
 from pyharness.log import log, log_event
 from pyharness.schemas import PlanOutput, ChapterJSON
 
+def _load_kg_context_for_chapter(runner: "HarnessRunner", chapter_id: str) -> str:
+    """Load knowledge graph context relevant to this chapter from chapter-outline.json."""
+    try:
+        outline_path = runner.knowledge_dir / "chapter-outline.json"
+        if not outline_path.exists():
+            return ""
+        import json as _json
+        outline = _json.loads(outline_path.read_text())
+        for part in outline.get("parts", []):
+            for ch in part.get("chapters", []):
+                if ch.get("id") == chapter_id:
+                    coverage = ch.get("kg_coverage", [])
+                    if not coverage:
+                        return ""
+                    kg_path = runner.knowledge_dir / "knowledge-graph.json"
+                    if not kg_path.exists():
+                        return f"\n## 该章覆盖的知识图谱概念\n{', '.join(coverage)}"
+                    kg = _json.loads(kg_path.read_text())
+                    node_map = {n["id"]: n for n in kg.get("nodes", [])}
+                    lines = []
+                    for nid in coverage:
+                        node = node_map.get(nid)
+                        if node:
+                            lines.append(f"- [{node.get('type','?')}] {node.get('name','?')}: {node.get('summary','')[:120]}")
+                        else:
+                            lines.append(f"- {nid}")
+                    edge_lines = []
+                    cov_set = set(coverage)
+                    for edge in kg.get("edges", []):
+                        if edge.get("source") in cov_set or edge.get("target") in cov_set:
+                            edge_lines.append(f"  {edge['source']} --{edge.get('type','?')}--> {edge['target']}")
+                    ctx = "\n## 该章覆盖的知识图谱概念\n" + "\n".join(lines)
+                    if edge_lines:
+                        ctx += "\n\n## 相关依赖关系\n" + "\n".join(edge_lines[:20])
+                    return ctx
+    except Exception:
+        pass
+    return ""
+
 if TYPE_CHECKING:
     from pyharness.runner import HarnessRunner
 
@@ -93,10 +132,19 @@ async def step_write_chapters(
 def _extract_chapter_json(text: str) -> str:
     """Strip markdown fences and find the JSON object in Claude's response."""
     t = text.strip()
-    if t.startswith("```"):
-        t = t.split("\n", 1)[1] if "\n" in t else t[3:]
-        if t.endswith("```"):
-            t = t[:-3].strip()
+    
+    # Try to find markdown json block anywhere
+    import re
+    match = re.search(r"```(?:json)?\s*(.*?)\s*```", t, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+        
+    # Fallback to finding the first { and last }
+    start = t.find("{")
+    end = t.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return t[start:end+1].strip()
+        
     return t
 
 
@@ -171,6 +219,7 @@ async def _write_single_chapter(
     for attempt in range(1, MAX_ATTEMPTS + 1):
         raw_output = ""
         try:
+            kg_context = _load_kg_context_for_chapter(runner, chapter_id)
             base_prompt = f"""你是一位顶级技术科普作家。请为《{runner.config.book_title}》撰写一个章节。
 
 ## 项目信息
@@ -187,7 +236,7 @@ async def _write_single_chapter(
 
 ## 大纲
 {ch_config.outline}
-
+{kg_context}
 ## 写作要求
 1. 70% 文字叙述 + 30% 代码/图表
 2. 每章 3000-5000 字

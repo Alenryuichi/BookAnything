@@ -6,6 +6,19 @@ requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0,<3.0",
     "pyyaml>=6.0",
+    "networkx>=3.0",
+    "pathspec>=0.11",
+]
+
+[project.optional-dependencies.static-analysis]
+tree-sitter = [
+    "tree-sitter>=0.23",
+    "tree-sitter-python>=0.23",
+    "tree-sitter-javascript>=0.23",
+    "tree-sitter-typescript>=0.23",
+    "tree-sitter-go>=0.23",
+    "tree-sitter-rust>=0.23",
+    "tree-sitter-java>=0.23",
 ]
 
 [project.optional-dependencies]

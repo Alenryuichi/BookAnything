@@ -44,6 +44,22 @@ async def step_plan(
             lines.append("You MUST include these failed chapters in chapters_to_write.")
             error_section = "\n".join(lines)
 
+    # Load chapter-outline.json for coverage info
+    outline_section = ""
+    try:
+        from pyharness.phases.graph_plan import load_chapter_outline
+        outline = load_chapter_outline(runner.knowledge_dir)
+        if outline and outline.uncovered_nodes:
+            outline_section = (
+                f"## 知识图谱覆盖率\n"
+                f"未覆盖的语义节点 ({len(outline.uncovered_nodes)} 个): "
+                + ", ".join(outline.uncovered_nodes[:20])
+                + ("..." if len(outline.uncovered_nodes) > 20 else "")
+                + "\n请在规划中优先考虑覆盖这些概念。"
+            )
+    except Exception:
+        pass
+
     prompt = f"""你是《{runner.config.book_title}》的编辑。制定下一轮写作计划。
 
 ## 当前状态
@@ -57,6 +73,8 @@ async def step_plan(
 
 ## 书的章节目录
 {chapters_section}
+
+{outline_section}
 
 ## 规则
 1. 每轮选 2-3 个未写的章节并行撰写

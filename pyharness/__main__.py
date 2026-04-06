@@ -30,6 +30,7 @@ def main() -> None:
     run_parser.add_argument("--resume", action="store_true", help="Resume from previous state")
     run_parser.add_argument("--log-sink", type=Path, default=None, help="Path to JSON-lines log sink file for SSE streaming")
     run_parser.add_argument("--quick", action="store_true", default=False, help="Quick mode: skip review/improve/visual-test phases, 1 iteration")
+    run_parser.add_argument("--reanalyze", action="store_true", default=False, help="Force re-analyze knowledge graph")
     run_parser.add_argument("--control-file", type=Path, default=None, help="Path to command file for interactive control")
 
     # ── init ──
@@ -40,6 +41,7 @@ def main() -> None:
         help="Path to the target repository",
     )
     init_parser.add_argument("--log-sink", type=Path, default=None, help="Path to JSON-lines log sink file for SSE streaming")
+    init_parser.add_argument("--remote-url", type=str, default=None, help="Remote git URL for auto re-clone support")
 
     # ── write ──
     write_parser = sub.add_parser("write", help="Write a single chapter directly")
@@ -53,6 +55,17 @@ def main() -> None:
         required=True,
         help="Chapter ID to write (e.g. ch01-overview)",
     )
+
+
+    # ── analyze ──
+    analyze_parser = sub.add_parser("analyze", help="Analyze a repository and generate a knowledge graph")
+    analyze_parser.add_argument(
+        "--project",
+        required=True,
+        help="Project config file (e.g. projects/claude-code.yaml)",
+    )
+    analyze_parser.add_argument("--force", action="store_true", help="Re-analyze even if knowledge-graph.json exists")
+    analyze_parser.add_argument("--log-sink", type=Path, default=None, help="Path to JSON-lines log sink file")
 
     args = parser.parse_args()
 
@@ -83,6 +96,7 @@ def main() -> None:
             log_sink=args.log_sink,
             quick_mode=args.quick,
             control_file=args.control_file,
+            reanalyze=args.reanalyze,
         )
         asyncio.run(runner.run())
 
@@ -98,7 +112,7 @@ def main() -> None:
             from pyharness.log import init_sink
             init_sink(args.log_sink)
 
-        asyncio.run(init_project(repo))
+        asyncio.run(init_project(repo, remote_url=args.remote_url))
 
     elif args.command == "write":
         from pyharness.config import load_project_config
@@ -114,6 +128,26 @@ def main() -> None:
         runner = HarnessRunner(config=config)
         runner.chapters_dir.mkdir(parents=True, exist_ok=True)
         asyncio.run(step_write_chapters(runner, 0, None, single_chapter_id=args.chapter))
+
+
+    elif args.command == "analyze":
+        from pyharness.config import load_project_config
+        from pyharness.runner import HarnessRunner
+        from pyharness.phases.analyze import step_analyze
+
+        project_path = Path(args.project)
+        if not project_path.exists():
+            print(f"ERROR: Project file not found: {project_path}", file=sys.stderr)
+            sys.exit(1)
+
+        if args.log_sink:
+            from pyharness.log import init_sink
+            init_sink(args.log_sink)
+
+        config = load_project_config(project_path)
+        runner = HarnessRunner(config=config)
+        runner.knowledge_dir.mkdir(parents=True, exist_ok=True)
+        asyncio.run(step_analyze(runner, force=args.force))
 
     else:
         parser.print_help()

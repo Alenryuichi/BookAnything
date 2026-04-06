@@ -1,7 +1,10 @@
-"""Project initialization: scan repo → Claude chapter planning → generate YAML.
+"""Project initialization: seven-phase pipeline.
 
-Replaces the former `new-project.sh` bash script with a pure-Python
-implementation that reuses ClaudeClient and ProjectConfig.
+scan → static_graph → skeleton_yaml → analyze → validate → graph_plan → final_yaml + outline
+
+Replaces the former three-phase pipeline (scan → plan → yaml) with a
+graph-driven approach where chapter planning is based on semantic knowledge
+graph analysis rather than raw directory structure.
 """
 
 from __future__ import annotations
@@ -58,25 +61,18 @@ class ScanResult:
 # ── Phase 1: Repo scanning ────────────────────────────────────
 
 def _is_excluded(path: Path, base: Path | None = None) -> bool:
-    """Check whether *path* falls under an excluded directory.
-
-    When *base* is given, only path segments relative to *base* are checked,
-    avoiding false positives from parent directories that happen to share a
-    name with an excluded dir (e.g. ``/var/dist/…``).
-    """
     parts = path.relative_to(base).parts if base else path.parts
     return any(part in EXCLUDE_DIRS for part in parts)
 
 
 def infer_project_name(repo_path: Path) -> str:
-    """Infer project name from manifest files, falling back to dirname."""
     pkg = repo_path / "package.json"
     if pkg.exists():
         try:
             data = json.loads(pkg.read_text(encoding="utf-8"))
             name = data.get("name", "")
             if name:
-                return name.split("/")[-1]  # strip @scope/
+                return name.split("/")[-1]
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -125,7 +121,6 @@ def detect_language(scan_path: Path) -> str:
 
 
 def collect_stats(scan_path: Path) -> tuple[int, int]:
-    """Return (file_count, line_count) for source files."""
     files = 0
     lines = 0
     for path in scan_path.rglob("*"):
@@ -141,7 +136,6 @@ def collect_stats(scan_path: Path) -> tuple[int, int]:
 
 
 def collect_dir_tree(scan_path: Path, max_depth: int = 2, limit: int = 80) -> list[str]:
-    """Collect directories up to *max_depth* levels, sorted, capped at *limit*."""
     result: list[str] = []
     base_depth = len(scan_path.parts)
     for path in sorted(scan_path.rglob("*")):
@@ -163,7 +157,6 @@ def collect_dir_tree(scan_path: Path, max_depth: int = 2, limit: int = 80) -> li
 
 
 def _collect_dir_stats(scan_path: Path) -> list[tuple[str, int]]:
-    """Per top-level subdirectory file counts."""
     stats: list[tuple[str, int]] = []
     try:
         children = sorted(
@@ -201,7 +194,7 @@ def scan_repo(repo_path: Path) -> ScanResult:
     )
 
 
-# ── Phase 2: Chapter planning via Claude ──────────────────────
+# ── Legacy chapter planning (fallback) ────────────────────────
 
 def build_planning_prompt(scan: ScanResult) -> str:
     dir_stats_text = "\n".join(
@@ -283,28 +276,19 @@ def build_planning_prompt(scan: ScanResult) -> str:
 
 
 def extract_json_from_response(text: str) -> dict[str, Any] | None:
-    """Extract a JSON object from Claude's response, handling common noise."""
     raw = text.strip()
-
-    # Strip </think> prefix
     idx = raw.find("</think>")
     if idx >= 0:
         raw = raw[idx + 8:]
-
-    # Strip markdown fences
     raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
         if raw.endswith("```"):
             raw = raw[:-3].strip()
-
-    # Try direct parse
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
-
-    # Find outermost { ... }
     start = raw.find("{")
     end = raw.rfind("}")
     if start >= 0 and end > start:
@@ -313,12 +297,10 @@ def extract_json_from_response(text: str) -> dict[str, Any] | None:
             return json.loads(candidate)
         except json.JSONDecodeError:
             pass
-
     return None
 
 
 def _generate_fallback_skeleton(scan: ScanResult) -> dict[str, Any]:
-    """Generate a minimal chapter plan from directory structure."""
     scan_path = (
         scan.repo_path if scan.source_dir == "." else scan.repo_path / scan.source_dir
     )
@@ -337,7 +319,6 @@ def _generate_fallback_skeleton(scan: ScanResult) -> dict[str, Any]:
             ),
         }
     ]
-
     try:
         dirs = sorted(
             p
@@ -346,7 +327,6 @@ def _generate_fallback_skeleton(scan: ScanResult) -> dict[str, Any]:
         )
     except OSError:
         dirs = []
-
     for i, d in enumerate(dirs[:12], start=2):
         file_count = sum(1 for f in d.rglob("*") if f.is_file())
         chapters.append(
@@ -359,7 +339,6 @@ def _generate_fallback_skeleton(scan: ScanResult) -> dict[str, Any]:
                 "outline": f"- TODO: 填写大纲\n- 该目录包含 {file_count} 个文件",
             }
         )
-
     return {
         "project_name": scan.project_name,
         "description": "TODO: 填写项目简介",
@@ -368,10 +347,9 @@ def _generate_fallback_skeleton(scan: ScanResult) -> dict[str, Any]:
 
 
 async def plan_chapters(repo_path: Path, scan: ScanResult) -> dict[str, Any]:
-    """Call Claude to produce a chapter plan; fall back to skeleton on failure."""
+    """Legacy: Call Claude to produce a chapter plan; fall back to skeleton on failure."""
     prompt = build_planning_prompt(scan)
     print("  调用 Claude 分析中（可能需要 2-5 分钟）...")
-
     try:
         timeout = int(os.environ.get("CLAUDE_TIMEOUT", "600"))
         client = ClaudeClient(cwd=repo_path, timeout=timeout)
@@ -380,41 +358,45 @@ async def plan_chapters(repo_path: Path, scan: ScanResult) -> dict[str, Any]:
         print(f"  Claude 调用失败: {exc}")
         print("  回退到基础模式（按目录生成骨架）...")
         return _generate_fallback_skeleton(scan)
-
     if result is None:
         print("  Claude 返回为空，回退到基础模式...")
         return _generate_fallback_skeleton(scan)
-
     parsed = extract_json_from_response(str(result))
     if parsed and "parts" in parsed:
         return parsed
-
     print("  Claude 未能生成有效的章节规划，回退到基础模式...")
     return _generate_fallback_skeleton(scan)
 
 
-# ── Phase 3: YAML generation ──────────────────────────────────
+# ── YAML generation ──────────────────────────────────────────
 
 def _yaml_str(s: str) -> str:
-    """Escape a string for safe double-quoted YAML embedding."""
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def _safe_name(name: str) -> str:
-    """Lowercase, replace spaces with hyphens, strip non-alphanumeric."""
     return re.sub(r"[^a-z0-9-]", "", name.lower().replace(" ", "-"))
 
 
-def generate_yaml(scan: ScanResult, plan: dict[str, Any], output_dir: Path) -> Path:
-    """Build the YAML string with Part comments and write to output_dir."""
+def generate_yaml(scan: ScanResult, plan: dict[str, Any], output_dir: Path, remote_url: str | None = None) -> Path:
     display_name = plan.get("project_name") or scan.project_name
     description = plan.get("description", "TODO: 填写项目简介")
     safe = _safe_name(scan.project_name)
     output_path = output_dir / f"{safe}.yaml"
 
+    harness_root = output_dir.parent.resolve()
+    repo_abs = scan.repo_path.resolve()
+    try:
+        rel = repo_abs.relative_to(harness_root)
+        repo_path_str = str(rel)
+    except ValueError:
+        repo_path_str = str(repo_abs)
+
     lines: list[str] = []
     lines.append(f"name: {_yaml_str(display_name)}")
-    lines.append(f"repo_path: {_yaml_str(str(scan.repo_path))}")
+    lines.append(f"repo_path: {_yaml_str(repo_path_str)}")
+    if remote_url:
+        lines.append(f"remote_url: {_yaml_str(remote_url)}")
     lines.append(f"target_dir: {_yaml_str(scan.source_dir)}")
     lines.append(f"language: {_yaml_str(scan.language)}")
     lines.append(f"description: {_yaml_str(description)}")
@@ -460,37 +442,185 @@ def generate_yaml(scan: ScanResult, plan: dict[str, Any], output_dir: Path) -> P
     return output_path
 
 
-# ── Top-level entry point ─────────────────────────────────────
+def generate_skeleton_yaml(scan: ScanResult, output_dir: Path, remote_url: str | None = None) -> Path:
+    """Generate a YAML skeleton without chapters (for analyze phase to use)."""
+    safe = _safe_name(scan.project_name)
+    output_path = output_dir / f"{safe}.yaml"
 
-async def init_project(repo_path: Path) -> Path:
-    """Full init pipeline: scan → plan → generate YAML."""
+    harness_root = output_dir.parent.resolve()
+    repo_abs = scan.repo_path.resolve()
+    try:
+        rel = repo_abs.relative_to(harness_root)
+        repo_path_str = str(rel)
+    except ValueError:
+        repo_path_str = str(repo_abs)
+
+    lines: list[str] = []
+    lines.append(f"name: {_yaml_str(scan.project_name)}")
+    lines.append(f"repo_path: {_yaml_str(repo_path_str)}")
+    if remote_url:
+        lines.append(f"remote_url: {_yaml_str(remote_url)}")
+    lines.append(f"target_dir: {_yaml_str(scan.source_dir)}")
+    lines.append(f"language: {_yaml_str(scan.language)}")
+    lines.append(f'description: "TODO"')
+    lines.append("")
+    lines.append("book:")
+    lines.append(f"  title: {_yaml_str('深入理解 ' + scan.project_name)}")
+    lines.append(f"  subtitle: {_yaml_str('一本由浅入深的交互式技术书')}")
+    lines.append("  stats:")
+    lines.append(f"    files: {scan.file_count}")
+    lines.append(f"    lines: {scan.line_count}")
+    lines.append("")
+    lines.append("chapters: []")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return output_path
+
+
+def update_yaml_chapters(yaml_path: Path, plan: dict[str, Any], scan: ScanResult) -> Path:
+    """Regenerate the full YAML with chapters from graph-plan output."""
+    return generate_yaml(scan, plan, yaml_path.parent)
+
+
+# ── Top-level entry point: seven-phase pipeline ──────────────
+
+async def init_project(repo_path: Path, remote_url: str | None = None) -> Path:
+    """Full init pipeline: scan → static_graph → skeleton → analyze → validate → graph_plan → final yaml."""
     from pyharness.log import log as hlog
 
     repo_path = repo_path.resolve()
 
-    hlog("HEAD", "Phase 1: 扫描仓库", progress=5, phase="scan")
+    # Phase 1: Scan
+    hlog("HEAD", "Phase 1/7: 扫描仓库", progress=5, phase="scan")
     hlog("INFO", f"路径: {repo_path}", progress=5, phase="scan")
 
     scan = scan_repo(repo_path)
-    hlog("INFO", f"项目名: {scan.project_name}", progress=15, phase="scan")
-    hlog("INFO", f"源码目录: {scan.source_dir}", progress=20, phase="scan")
-    hlog("INFO", f"语言: {scan.language}", progress=25, phase="scan")
-    hlog("INFO", f"文件: {scan.file_count}, 代码: ~{scan.line_count} 行", progress=35, phase="scan")
+    hlog("INFO", f"项目名: {scan.project_name}", progress=8, phase="scan")
+    hlog("INFO", f"源码目录: {scan.source_dir}", progress=8, phase="scan")
+    hlog("INFO", f"语言: {scan.language}", progress=9, phase="scan")
+    hlog("INFO", f"文件: {scan.file_count}, 代码: ~{scan.line_count} 行", progress=10, phase="scan")
     if scan.dir_stats:
-        hlog("INFO", "顶层目录:", progress=38, phase="scan")
+        hlog("INFO", "顶层目录:", progress=10, phase="scan")
         for name, count in scan.dir_stats:
             hlog("INFO", f"  {name}/ ({count} files)")
-    hlog("OK", "仓库扫描完成", progress=40, phase="scan")
+    hlog("OK", "仓库扫描完成", progress=10, phase="scan")
 
-    hlog("HEAD", "Phase 2: Claude 分析源码，规划章节", progress=42, phase="plan")
+    # Phase 2: Static graph (tree-sitter)
+    hlog("HEAD", "Phase 2/7: 构建静态结构图 (tree-sitter)", progress=11, phase="static-graph")
+    static_graph = None
+    try:
+        from pyharness.static_graph import build_static_graph
+        from pyharness.phases.analyze import scan_file_tree
 
-    plan = await plan_chapters(repo_path, scan)
-    hlog("OK", "章节规划完成", progress=70, phase="plan")
+        files = scan_file_tree(repo_path)
+        output_dir = Path(__file__).resolve().parent.parent / "projects"
+        knowledge_base = Path(__file__).resolve().parent.parent / "knowledge" / scan.project_name
+        cache_path = knowledge_base / "static-graph.json"
 
-    hlog("HEAD", "Phase 3: 生成 project.yaml", progress=72, phase="yaml")
+        static_graph = build_static_graph(files, repo_path, cache_path=cache_path)
+        hlog("OK", f"静态图: {len(static_graph.nodes)} 节点, {len(static_graph.edges)} 边", progress=15, phase="static-graph")
+    except Exception as exc:
+        hlog("WARN", f"静态图构建失败 (non-fatal): {exc}", progress=15, phase="static-graph")
 
+    # Phase 3: Skeleton YAML
+    hlog("HEAD", "Phase 3/7: 生成骨架 YAML", progress=16, phase="yaml")
     output_dir = Path(__file__).resolve().parent.parent / "projects"
-    output_path = generate_yaml(scan, plan, output_dir)
+    skeleton_path = generate_skeleton_yaml(scan, output_dir, remote_url=remote_url)
+    hlog("OK", f"骨架 YAML: {skeleton_path}", progress=18, phase="yaml")
+
+    # Phase 4: Analyze (LLM semantic enrichment)
+    hlog("HEAD", "Phase 4/7: 深度语义分析 (知识图谱)", progress=19, phase="analyze")
+    knowledge_dir = Path(__file__).resolve().parent.parent / "knowledge" / scan.project_name
+    kg_path = knowledge_dir / "knowledge-graph.json"
+    analyze_ok = False
+
+    if kg_path.exists():
+        hlog("INFO", "知识图谱已存在，跳过分析", progress=65, phase="analyze")
+        analyze_ok = True
+    else:
+        try:
+            config = load_project_config(skeleton_path)
+            from pyharness.runner import HarnessRunner
+            runner = HarnessRunner(
+                config=config,
+                max_parallel=3,
+            )
+            runner.knowledge_dir = knowledge_dir
+            runner.chapters_dir = knowledge_dir / "chapters"
+            runner.chapters_dir.mkdir(parents=True, exist_ok=True)
+            runner.harness_dir = Path(__file__).resolve().parent.parent
+            runner.resolved_repo_path = repo_path
+
+            from pyharness.phases.analyze import step_analyze
+            await step_analyze(runner, force=False, static_graph=static_graph)
+            analyze_ok = kg_path.exists()
+            if analyze_ok:
+                hlog("OK", "语义分析完成", progress=65, phase="analyze")
+            else:
+                hlog("WARN", "分析完成但未生成知识图谱", progress=65, phase="analyze")
+        except Exception as exc:
+            hlog("WARN", f"语义分析失败 (non-fatal): {exc}", progress=65, phase="analyze")
+
+    # Phase 5: Validate graph
+    if analyze_ok and kg_path.exists():
+        hlog("HEAD", "Phase 5/7: 图谱质量校验", progress=66, phase="validate")
+        try:
+            from pyharness.graph_validate import validate_graph, log_validation_results
+            from pyharness.schemas import KnowledgeGraph
+            kg_data = json.loads(kg_path.read_text())
+            kg = KnowledgeGraph.model_validate(kg_data)
+            warnings = validate_graph(kg)
+            log_validation_results(kg, warnings)
+            hlog("OK", f"图谱校验完成: {len(warnings)} 个问题", progress=68, phase="validate")
+        except Exception as exc:
+            hlog("WARN", f"图谱校验失败 (non-fatal): {exc}", progress=68, phase="validate")
+    else:
+        hlog("INFO", "Phase 5/7: 跳过图谱校验 (无知识图谱)", progress=68, phase="validate")
+
+    # Phase 6: Graph-driven chapter planning
+    hlog("HEAD", "Phase 6/7: 图谱驱动章节规划", progress=69, phase="graph-plan")
+    plan = None
+    algo_plan = None
+    summary = None
+
+    if analyze_ok and kg_path.exists():
+        try:
+            from pyharness.phases.graph_plan import (
+                plan_from_graph,
+                extract_graph_summary,
+                compute_algorithmic_plan,
+                write_chapter_outline,
+            )
+            summary = extract_graph_summary(kg_path)
+            algo_plan = compute_algorithmic_plan(summary)
+            plan = await plan_from_graph(
+                kg_path, scan, repo_path, scan.project_name,
+                precomputed_summary=summary,
+                precomputed_algo_plan=algo_plan,
+            )
+            hlog("OK", "图谱驱动规划完成", progress=90, phase="graph-plan")
+        except Exception as exc:
+            hlog("WARN", f"图谱规划失败: {exc}", progress=90, phase="graph-plan")
+
+    if plan is None:
+        hlog("INFO", "回退到传统章节规划...", progress=85, phase="graph-plan")
+        plan = await plan_chapters(repo_path, scan)
+        hlog("OK", "传统规划完成", progress=90, phase="graph-plan")
+
+    # Phase 7: Write final YAML + chapter outline
+    hlog("HEAD", "Phase 7/7: 生成最终 YAML + 章节大纲", progress=91, phase="yaml")
+
+    output_path = generate_yaml(scan, plan, output_dir, remote_url=remote_url)
+
+    # Write chapter-outline.json
+    if summary is not None or algo_plan is not None:
+        try:
+            from pyharness.phases.graph_plan import write_chapter_outline
+            outline_path = knowledge_dir / "chapter-outline.json"
+            write_chapter_outline(plan, algo_plan, summary, outline_path)
+        except Exception as exc:
+            hlog("WARN", f"章节大纲写入失败: {exc}")
 
     try:
         config = load_project_config(output_path)
@@ -499,7 +629,7 @@ async def init_project(repo_path: Path) -> Path:
         hlog("WARN", f"生成的 YAML 无法加载: {exc}")
         ch_count = "?"
 
-    hlog("OK", f"YAML 已写入: {output_path}", progress=90, phase="yaml")
+    hlog("OK", f"YAML 已写入: {output_path}", progress=95, phase="yaml")
 
     part_count = len(plan.get("parts", []))
     display_name = plan.get("project_name", scan.project_name)
@@ -508,6 +638,8 @@ async def init_project(repo_path: Path) -> Path:
     hlog("OK", f"项目: {display_name} ({scan.language})")
     hlog("INFO", f"统计: {scan.file_count} 文件, ~{scan.line_count} 行代码")
     hlog("INFO", f"结构: {part_count} 个 Part, {ch_count} 个章节")
+    if analyze_ok:
+        hlog("INFO", "知识图谱: ✓ 已生成")
     hlog("INFO", f"下一步: python3 -m pyharness run --project {output_path}")
 
     return output_path
