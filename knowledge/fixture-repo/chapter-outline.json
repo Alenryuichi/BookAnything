@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-04-06T10:43:24.436823+00:00",
+  "algorithm": {
+    "community_method": "louvain",
+    "num_communities": 1,
+    "topo_sort_valid": true
+  },
+  "parts": [
+    {
+      "part_num": 1,
+      "part_title": "Part 1",
+      "community_id": "",
+      "kg_node_ids": [],
+      "chapters": [
+        {
+          "id": "ch01-introduction",
+          "title": "第1章：fixture-repo 是什么",
+          "subtitle": "项目全景概览",
+          "kg_coverage": [],
+          "prerequisites": [],
+          "topo_rank": 0,
+          "sources": "src",
+          "outline": "- 项目定位与解决的问题\n- 技术栈概览\n- 架构总览\n- 本书路线图"
+        }
+      ]
+    }
+  ],
+  "uncovered_nodes": []
+}

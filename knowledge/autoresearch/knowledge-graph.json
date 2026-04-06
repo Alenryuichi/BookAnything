@@ -1,0 +1,795 @@
+{
+  "version": "1.0",
+  "repo": "/Users/kylinmiao/.cursor/worktrees/harness/skm/workspaces/autoresearch",
+  "generated_at": "2026-04-06T07:50:36.477721+00:00",
+  "stats": {
+    "total_files": 5,
+    "total_functions": 42,
+    "total_classes": 7,
+    "total_edges": 1
+  },
+  "layers": [
+    {
+      "id": "api",
+      "name": "API Layer",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "service",
+      "name": "Service Layer",
+      "color": "#8b5cf6"
+    },
+    {
+      "id": "data",
+      "name": "Data Layer",
+      "color": "#10b981"
+    },
+    {
+      "id": "ui",
+      "name": "UI Layer",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "infra",
+      "name": "Infrastructure",
+      "color": "#6b7280"
+    },
+    {
+      "id": "util",
+      "name": "Utilities",
+      "color": "#ec4899"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "README.md",
+      "type": "file",
+      "name": "README.md",
+      "layer": "util",
+      "summary": "Project documentation explaining the autonomous AI research experiment concept, quick start guide, and design choices for the autoresearch framework",
+      "language": "markdown",
+      "line_count": 92,
+      "imports": [],
+      "children": []
+    },
+    {
+      "id": "prepare.py",
+      "type": "file",
+      "name": "prepare.py",
+      "layer": "util",
+      "summary": "One-time data preparation script that downloads training data shards, trains a BPE tokenizer, and provides runtime utilities for data loading and model evaluation",
+      "language": "python",
+      "line_count": 389,
+      "imports": [
+        {
+          "from": "os",
+          "names": []
+        },
+        {
+          "from": "sys",
+          "names": []
+        },
+        {
+          "from": "time",
+          "names": []
+        },
+        {
+          "from": "math",
+          "names": []
+        },
+        {
+          "from": "argparse",
+          "names": []
+        },
+        {
+          "from": "pickle",
+          "names": []
+        },
+        {
+          "from": "multiprocessing",
+          "names": [
+            "Pool"
+          ]
+        },
+        {
+          "from": "requests",
+          "names": []
+        },
+        {
+          "from": "pyarrow.parquet",
+          "names": [
+            "pq"
+          ]
+        },
+        {
+          "from": "rustbpe",
+          "names": [
+            "Tokenizer"
+          ]
+        },
+        {
+          "from": "tiktoken",
+          "names": []
+        },
+        {
+          "from": "torch",
+          "names": []
+        }
+      ],
+      "children": [
+        {
+          "id": "prepare.py::download_single_shard",
+          "type": "function",
+          "name": "download_single_shard",
+          "summary": "Downloads one parquet shard from HuggingFace with retry logic and temporary file handling",
+          "signature": "def download_single_shard(index)",
+          "line_start": 45,
+          "line_end": 73,
+          "children": []
+        },
+        {
+          "id": "prepare.py::download_data",
+          "type": "function",
+          "name": "download_data",
+          "summary": "Downloads training shards and the pinned validation shard in parallel using multiprocessing",
+          "signature": "def download_data(num_shards, download_workers=8)",
+          "line_start": 76,
+          "line_end": 101,
+          "children": []
+        },
+        {
+          "id": "prepare.py::list_parquet_files",
+          "type": "function",
+          "name": "list_parquet_files",
+          "summary": "Returns a sorted list of parquet file paths in the data directory",
+          "signature": "def list_parquet_files()",
+          "line_start": 106,
+          "line_end": 109,
+          "children": []
+        },
+        {
+          "id": "prepare.py::text_iterator",
+          "type": "function",
+          "name": "text_iterator",
+          "summary": "Yields documents from training parquet files with optional char and document limits",
+          "signature": "def text_iterator(max_chars=1_000_000_000, doc_cap=10_000)",
+          "line_start": 112,
+          "line_end": 127,
+          "children": []
+        },
+        {
+          "id": "prepare.py::train_tokenizer",
+          "type": "function",
+          "name": "train_tokenizer",
+          "summary": "Trains a BPE tokenizer using rustbpe and saves it as a tiktoken pickle with token_bytes lookup for BPB evaluation",
+          "signature": "def train_tokenizer()",
+          "line_start": 130,
+          "line_end": 185,
+          "children": []
+        },
+        {
+          "id": "prepare.py::Tokenizer",
+          "type": "class",
+          "name": "Tokenizer",
+          "summary": "Minimal tokenizer wrapper around tiktoken encoding with BOS token support",
+          "signature": "class Tokenizer",
+          "line_start": 188,
+          "line_end": 202,
+          "children": [
+            {
+              "id": "prepare.py::Tokenizer.__init__",
+              "type": "method",
+              "name": "__init__",
+              "summary": "Initializes the tokenizer wrapper and stores the BOS token ID",
+              "signature": "def __init__(self, enc)",
+              "line_start": 190,
+              "line_end": 191,
+              "children": []
+            },
+            {
+              "id": "prepare.py::Tokenizer.from_directory",
+              "type": "method",
+              "name": "from_directory",
+              "summary": "Class method that loads a trained tokenizer from the tokenizer directory",
+              "signature": "@classmethod\ndef from_directory(cls, tokenizer_dir=TOKENIZER_DIR)",
+              "line_start": 193,
+              "line_end": 197,
+              "children": []
+            },
+            {
+              "id": "prepare.py::Tokenizer.get_vocab_size",
+              "type": "method",
+              "name": "get_vocab_size",
+              "summary": "Returns the vocabulary size of the tokenizer",
+              "signature": "def get_vocab_size(self)",
+              "line_start": 199,
+              "line_end": 200,
+              "children": []
+            },
+            {
+              "id": "prepare.py::Tokenizer.get_bos_token_id",
+              "type": "method",
+              "name": "get_bos_token_id",
+              "summary": "Returns the BOS (beginning of sequence) token ID",
+              "signature": "def get_bos_token_id(self)",
+              "line_start": 202,
+              "line_end": 203,
+              "children": []
+            },
+            {
+              "id": "prepare.py::Tokenizer.encode",
+              "type": "method",
+              "name": "encode",
+              "summary": "Encodes text or batch of texts to token IDs with optional BOS prepending",
+              "signature": "def encode(self, text, prepend=None, num_threads=8)",
+              "line_start": 205,
+              "line_end": 224,
+              "children": []
+            },
+            {
+              "id": "prepare.py::Tokenizer.decode",
+              "type": "method",
+              "name": "decode",
+              "summary": "Decodes token IDs back to text",
+              "signature": "def decode(self, ids)",
+              "line_start": 226,
+              "line_end": 227,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "prepare.py::get_token_bytes",
+          "type": "function",
+          "name": "get_token_bytes",
+          "summary": "Loads and returns the token_bytes tensor used for BPB evaluation",
+          "signature": "def get_token_bytes(device=\"cpu\")",
+          "line_start": 230,
+          "line_end": 233,
+          "children": []
+        },
+        {
+          "id": "prepare.py::_document_batches",
+          "type": "function",
+          "name": "_document_batches",
+          "summary": "Private infinite iterator that yields document batches from parquet files for the data loader",
+          "signature": "def _document_batches(split, tokenizer_batch_size=128)",
+          "line_start": 236,
+          "line_end": 255,
+          "children": []
+        },
+        {
+          "id": "prepare.py::make_dataloader",
+          "type": "function",
+          "name": "make_dataloader",
+          "summary": "Creates a BOS-aligned dataloader with best-fit packing for 100% utilization without padding",
+          "signature": "def make_dataloader(tokenizer, B, T, split, buffer_size=1000)",
+          "line_start": 258,
+          "line_end": 311,
+          "children": []
+        },
+        {
+          "id": "prepare.py::evaluate_bpb",
+          "type": "function",
+          "name": "evaluate_bpb",
+          "summary": "Evaluates model performance using bits per byte (BPB) metric, which is vocab-size-independent and uses fixed evaluation tokens",
+          "signature": "@torch.no_grad()\ndef evaluate_bpb(model, tokenizer, batch_size)",
+          "line_start": 314,
+          "line_end": 341,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "program.md",
+      "type": "file",
+      "name": "program.md",
+      "layer": "util",
+      "summary": "AI agent instructions document that defines the autonomous research workflow, experiment loop, logging format, and constraints for modifying only train.py",
+      "language": "markdown",
+      "line_count": 114,
+      "imports": [],
+      "children": []
+    },
+    {
+      "id": "pyproject.toml",
+      "type": "file",
+      "name": "pyproject.toml",
+      "layer": "infra",
+      "summary": "Project configuration file defining dependencies, Python version requirements, and PyTorch index source for CUDA 12.8",
+      "language": "toml",
+      "line_count": 27,
+      "imports": [],
+      "children": []
+    },
+    {
+      "id": "train.py",
+      "type": "file",
+      "name": "autoresearch/train.py",
+      "layer": "service",
+      "summary": "Main training script for Autoresearch GPT model pretraining with single-GPU optimization and custom MuonAdamW optimizer.",
+      "language": "python",
+      "line_count": 630,
+      "imports": [
+        {
+          "from": "os",
+          "names": [
+            "os"
+          ]
+        },
+        {
+          "from": "gc",
+          "names": [
+            "gc"
+          ]
+        },
+        {
+          "from": "math",
+          "names": [
+            "math"
+          ]
+        },
+        {
+          "from": "time",
+          "names": [
+            "time"
+          ]
+        },
+        {
+          "from": "dataclasses",
+          "names": [
+            "dataclass",
+            "asdict"
+          ]
+        },
+        {
+          "from": "torch",
+          "names": [
+            "torch"
+          ]
+        },
+        {
+          "from": "torch.nn",
+          "names": [
+            "nn"
+          ]
+        },
+        {
+          "from": "torch.nn.functional",
+          "names": [
+            "F"
+          ]
+        },
+        {
+          "from": "kernels",
+          "names": [
+            "get_kernel"
+          ]
+        },
+        {
+          "from": "prepare",
+          "names": [
+            "MAX_SEQ_LEN",
+            "TIME_BUDGET",
+            "Tokenizer",
+            "make_dataloader",
+            "evaluate_bpb"
+          ]
+        }
+      ],
+      "children": [
+        {
+          "id": "train.py::GPTConfig",
+          "type": "class",
+          "name": "GPTConfig",
+          "summary": "Configuration dataclass for GPT model parameters.",
+          "signature": "@dataclass class GPTConfig:",
+          "line_start": 32,
+          "line_end": 40,
+          "children": []
+        },
+        {
+          "id": "train.py::norm",
+          "type": "function",
+          "name": "norm",
+          "summary": "Applies RMS normalization to input tensor.",
+          "signature": "def norm(x):",
+          "line_start": 43,
+          "line_end": 44,
+          "children": []
+        },
+        {
+          "id": "train.py::has_ve",
+          "type": "function",
+          "name": "has_ve",
+          "summary": "Determines if a layer should have value embedding based on alternating pattern.",
+          "signature": "def has_ve(layer_idx, n_layer):",
+          "line_start": 47,
+          "line_end": 49,
+          "children": []
+        },
+        {
+          "id": "train.py::apply_rotary_emb",
+          "type": "function",
+          "name": "apply_rotary_emb",
+          "summary": "Applies rotary positional embeddings to query and key tensors.",
+          "signature": "def apply_rotary_emb(x, cos, sin):",
+          "line_start": 52,
+          "line_end": 58,
+          "children": []
+        },
+        {
+          "id": "train.py::CausalSelfAttention",
+          "type": "class",
+          "name": "CausalSelfAttention",
+          "summary": "Causal self-attention layer with value embedding and flash attention.",
+          "signature": "class CausalSelfAttention(nn.Module):",
+          "line_start": 61,
+          "line_end": 96,
+          "children": [
+            {
+              "id": "train.py::CausalSelfAttention::__init__",
+              "type": "method",
+              "name": "__init__",
+              "summary": "Initializes attention layer with linear projections and value embedding gate.",
+              "signature": "def __init__(self, config, layer_idx):",
+              "line_start": 62,
+              "line_end": 76,
+              "children": []
+            },
+            {
+              "id": "train.py::CausalSelfAttention::forward",
+              "type": "method",
+              "name": "forward",
+              "summary": "Forward pass with value embedding, rotary embeddings, and flash attention.",
+              "signature": "def forward(self, x, ve, cos_sin, window_size):",
+              "line_start": 77,
+              "line_end": 96,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "train.py::MLP",
+          "type": "class",
+          "name": "MLP",
+          "summary": "Feed-forward MLP layer with ReLU squared activation.",
+          "signature": "class MLP(nn.Module):",
+          "line_start": 99,
+          "line_end": 109,
+          "children": [
+            {
+              "id": "train.py::MLP::__init__",
+              "type": "method",
+              "name": "__init__",
+              "summary": "Initializes MLP with linear layers.",
+              "signature": "def __init__(self, config):",
+              "line_start": 100,
+              "line_end": 104,
+              "children": []
+            },
+            {
+              "id": "train.py::MLP::forward",
+              "type": "method",
+              "name": "forward",
+              "summary": "Forward pass with ReLU squared activation.",
+              "signature": "def forward(self, x):",
+              "line_start": 105,
+              "line_end": 109,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "train.py::Block",
+          "type": "class",
+          "name": "Block",
+          "summary": "Transformer block combining attention and MLP with residual connections.",
+          "signature": "class Block(nn.Module):",
+          "line_start": 112,
+          "line_end": 121,
+          "children": [
+            {
+              "id": "train.py::Block::__init__",
+              "type": "method",
+              "name": "__init__",
+              "summary": "Initializes block with attention and MLP components.",
+              "signature": "def __init__(self, config, layer_idx):",
+              "line_start": 113,
+              "line_end": 117,
+              "children": []
+            },
+            {
+              "id": "train.py::Block::forward",
+              "type": "method",
+              "name": "forward",
+              "summary": "Forward pass with residual connections and normalization.",
+              "signature": "def forward(self, x, ve, cos_sin, window_size):",
+              "line_start": 118,
+              "line_end": 121,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "train.py::GPT",
+          "type": "class",
+          "name": "GPT",
+          "summary": "Main GPT model with transformer architecture and custom optimizations.",
+          "signature": "class GPT(nn.Module):",
+          "line_start": 124,
+          "line_end": 291,
+          "children": [
+            {
+              "id": "train.py::GPT::__init__",
+              "type": "method",
+              "name": "__init__",
+              "summary": "Initializes GPT model with embeddings, transformer blocks, and parameters.",
+              "signature": "def __init__(self, config):",
+              "line_start": 125,
+              "line_end": 148,
+              "children": []
+            },
+            {
+              "id": "train.py::GPT::init_weights",
+              "type": "method",
+              "name": "init_weights",
+              "summary": "Initializes model weights with specific scaling and distributions.",
+              "signature": "@torch.no_grad() def init_weights(self):",
+              "line_start": 149,
+              "line_end": 181,
+              "children": []
+            },
+            {
+              "id": "train.py::GPT::_precompute_rotary_embeddings",
+              "type": "method",
+              "name": "_precompute_rotary_embeddings",
+              "summary": "Precomputes rotary positional embeddings for attention layers.",
+              "signature": "def _precompute_rotary_embeddings(self, seq_len, head_dim, base=10000, device=None):",
+              "line_start": 183,
+              "line_end": 193,
+              "children": []
+            },
+            {
+              "id": "train.py::GPT::_compute_window_sizes",
+              "type": "method",
+              "name": "_compute_window_sizes",
+              "summary": "Computes sliding window sizes for attention based on pattern.",
+              "signature": "def _compute_window_sizes(self, config):",
+              "line_start": 195,
+              "line_end": 206,
+              "children": []
+            },
+            {
+              "id": "train.py::GPT::estimate_flops",
+              "type": "method",
+              "name": "estimate_flops",
+              "summary": "Estimates FLOPs per token for forward and backward passes.",
+              "signature": "def estimate_flops(self):",
+              "line_start": 208,
+              "line_end": 222,
+              "children": []
+            },
+            {
+              "id": "train.py::GPT::num_scaling_params",
+              "type": "method",
+              "name": "num_scaling_params",
+              "summary": "Counts parameters by category for scaling analysis.",
+              "signature": "def num_scaling_params(self):",
+              "line_start": 224,
+              "line_end": 234,
+              "children": []
+            },
+            {
+              "id": "train.py::GPT::setup_optimizer",
+              "type": "method",
+              "name": "setup_optimizer",
+              "summary": "Sets up MuonAdamW optimizer with parameter groups and learning rates.",
+              "signature": "def setup_optimizer(self, unembedding_lr=0.004, embedding_lr=0.2, matrix_lr=0.02, weight_decay=0.0, adam_betas=(0.8, 0.95), scalar_lr=0.5):",
+              "line_start": 236,
+              "line_end": 266,
+              "children": []
+            },
+            {
+              "id": "train.py::GPT::forward",
+              "type": "method",
+              "name": "forward",
+              "summary": "Forward pass through transformer with value embeddings and softcap.",
+              "signature": "def forward(self, idx, targets=None, reduction='mean'):",
+              "line_start": 268,
+              "line_end": 291,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "train.py::adamw_step_fused",
+          "type": "function",
+          "name": "adamw_step_fused",
+          "summary": "Fused AdamW optimization step with torch.compile for performance.",
+          "signature": "@torch.compile(dynamic=False, fullgraph=True) def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):",
+          "line_start": 305,
+          "line_end": 315,
+          "children": []
+        },
+        {
+          "id": "train.py::muon_step_fused",
+          "type": "function",
+          "name": "muon_step_fused",
+          "summary": "Fused Muon optimization step with polar express orthogonalization.",
+          "signature": "@torch.compile(dynamic=False, fullgraph=True) def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer, momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):",
+          "line_start": 316,
+          "line_end": 354,
+          "children": []
+        },
+        {
+          "id": "train.py::MuonAdamW",
+          "type": "class",
+          "name": "MuonAdamW",
+          "summary": "Combined optimizer using Muon for matrices and AdamW for other parameters.",
+          "signature": "class MuonAdamW(torch.optim.Optimizer):",
+          "line_start": 356,
+          "line_end": 426,
+          "children": [
+            {
+              "id": "train.py::MuonAdamW::__init__",
+              "type": "method",
+              "name": "__init__",
+              "summary": "Initializes optimizer with parameter groups and CPU tensors.",
+              "signature": "def __init__(self, param_groups):",
+              "line_start": 359,
+              "line_end": 371,
+              "children": []
+            },
+            {
+              "id": "train.py::MuonAdamW::_step_adamw",
+              "type": "method",
+              "name": "_step_adamw",
+              "summary": "Performs AdamW optimization step for non-matrix parameters.",
+              "signature": "def _step_adamw(self, group):",
+              "line_start": 373,
+              "line_end": 392,
+              "children": []
+            },
+            {
+              "id": "train.py::MuonAdamW::_step_muon",
+              "type": "method",
+              "name": "_step_muon",
+              "summary": "Performs Muon optimization step for matrix parameters.",
+              "signature": "def _step_muon(self, group):",
+              "line_start": 394,
+              "line_end": 418,
+              "children": []
+            },
+            {
+              "id": "train.py::MuonAdamW::step",
+              "type": "method",
+              "name": "step",
+              "summary": "Main optimization step that dispatches to appropriate method.",
+              "signature": "@torch.no_grad() def step(self):",
+              "line_start": 420,
+              "line_end": 426,
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": "train.py::build_model_config",
+          "type": "function",
+          "name": "build_model_config",
+          "summary": "Builds GPT configuration based on depth and aspect ratio.",
+          "signature": "def build_model_config(depth):",
+          "line_start": 469,
+          "line_end": 477,
+          "children": []
+        },
+        {
+          "id": "train.py::get_lr_multiplier",
+          "type": "function",
+          "name": "get_lr_multiplier",
+          "summary": "Computes learning rate multiplier based on training progress.",
+          "signature": "def get_lr_multiplier(progress):",
+          "line_start": 518,
+          "line_end": 525,
+          "children": []
+        },
+        {
+          "id": "train.py::get_muon_momentum",
+          "type": "function",
+          "name": "get_muon_momentum",
+          "summary": "Computes Muon momentum based on training step.",
+          "signature": "def get_muon_momentum(step):",
+          "line_start": 527,
+          "line_end": 529,
+          "children": []
+        },
+        {
+          "id": "train.py::get_weight_decay",
+          "type": "function",
+          "name": "get_weight_decay",
+          "summary": "Computes weight decay based on training progress.",
+          "signature": "def get_weight_decay(progress):",
+          "line_start": 531,
+          "line_end": 532,
+          "children": []
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "train.py",
+      "target": "prepare.py",
+      "type": "import",
+      "label": "imports MAX_SEQ_LEN, TIME_BUDGET, Tokenizer +2"
+    }
+  ],
+  "tours": [
+    {
+      "id": "understanding-project",
+      "name": "Understanding the Project",
+      "description": "Learn what this autonomous AI research experiment is about and how it works",
+      "steps": [
+        {
+          "node_id": "README.md",
+          "narrative": "Start here to understand the project's purpose: an autonomous AI agent that performs pretraining experiments. The README explains the core concept, quick start guide, and design philosophy."
+        },
+        {
+          "node_id": "program.md",
+          "narrative": "This document defines the AI agent's behavior—its research loop, logging format, and constraints. It's the 'brain' that decides what experiments to run and how to measure results."
+        },
+        {
+          "node_id": "pyproject.toml",
+          "narrative": "The project configuration file shows dependencies and Python version requirements. Note the PyTorch CUDA 12.8 index—this project is optimized for GPU training."
+        },
+        {
+          "node_id": "train.py",
+          "narrative": "The core training script that the agent iteratively modifies. Contains the Autoresearch GPT model, custom MuonAdamW optimizer, and single-GPU pretraining logic."
+        }
+      ]
+    },
+    {
+      "id": "training-pipeline",
+      "name": "Training Pipeline Flow",
+      "description": "Follow the data flow from preparation through model training",
+      "steps": [
+        {
+          "node_id": "pyproject.toml",
+          "narrative": "First, ensure dependencies are installed. This configuration sets up the environment with PyTorch and CUDA support needed for heavy computation."
+        },
+        {
+          "node_id": "prepare.py",
+          "narrative": "Run this one-time script to download data shards and train a BPE tokenizer. It also provides utilities for data loading that the training script will import."
+        },
+        {
+          "node_id": "train.py",
+          "narrative": "The training script imports utilities from prepare.py and runs the actual pretraining. This is where the model learns from the prepared data."
+        }
+      ]
+    },
+    {
+      "id": "quick-start",
+      "name": "Quick Start Guide",
+      "description": "Get up and running with the minimal steps needed to begin",
+      "steps": [
+        {
+          "node_id": "README.md",
+          "narrative": "Read the documentation to verify your environment meets requirements and understand what you're about to run. Contains the essential setup commands."
+        },
+        {
+          "node_id": "pyproject.toml",
+          "narrative": "Install dependencies using this configuration. This ensures you have the correct versions of all packages, especially the CUDA-optimized PyTorch."
+        },
+        {
+          "node_id": "prepare.py",
+          "narrative": "Execute this script once to prepare your data. It downloads training shards and builds the tokenizer—both prerequisites before any training can begin."
+        },
+        {
+          "node_id": "train.py",
+          "narrative": "Now you're ready to train. This script runs the pretraining loop; for the autonomous mode, the AI agent will iteratively modify and re-run this file."
+        }
+      ]
+    }
+  ],
+  "chapter_links": {}
+}
