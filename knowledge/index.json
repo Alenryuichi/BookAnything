@@ -16,6 +16,21 @@
       }
     },
     {
+      "id": "bb-browser",
+      "name": "bb-browser",
+      "dirName": "bb-browser",
+      "description": "让AI代理直接使用你的真实浏览器作为API，无需密钥、无需爬虫、无需反机器人绕过",
+      "language": "TypeScript",
+      "chapterCount": 13,
+      "writtenCount": 0,
+      "lastUpdated": "",
+      "score": 40,
+      "stats": {
+        "files": 72,
+        "lines": 13762
+      }
+    },
+    {
       "id": "claude-code",
       "name": "深入理解 Claude Code",
       "dirName": "深入理解 Claude Code",
@@ -97,8 +112,8 @@
       "description": "TODO: 填写项目简介",
       "language": "TypeScript",
       "chapterCount": 2,
-      "writtenCount": 0,
-      "lastUpdated": "",
+      "writtenCount": 2,
+      "lastUpdated": "2026-04-06T13:18:21Z",
       "score": 40,
       "stats": {
         "files": 10,
