@@ -15,6 +15,8 @@ import type {
   BookIndex,
 } from "./types";
 
+import { loadChapterOutline } from "./chapter-outline.mjs";
+
 const KNOWLEDGE_ROOT = path.join(process.cwd(), "..", "knowledge");
 const PROJECTS_DIR = path.join(process.cwd(), "..", "projects");
 
@@ -200,8 +202,8 @@ export function findProjectYaml(bookId: string): string | null {
     for (const f of yamlFiles) {
       try {
         const content = fs.readFileSync(path.join(PROJECTS_DIR, f), "utf-8");
-        const titleMatch = content.match(/^\s+title:\s*"?(.+?)"?\s*$/m);
-        if (titleMatch && titleMatch[1] === entry.name) {
+        const nameMatch = content.match(/^name:\s*"?([^"]+?)"?\s*$/m);
+        if (nameMatch && nameMatch[1] === entry.name) {
           return path.join(PROJECTS_DIR, f);
         }
       } catch {
@@ -339,11 +341,13 @@ export function loadRelationships(bookId: string): Relationships {
 }
 
 export function loadKnowledge(bookId: string): KnowledgeBase {
+  const bookDir = resolveBookDir(bookId);
   return {
     chapters: loadChapters(bookId),
     modules: loadModules(bookId),
     architecture: loadArchitecture(bookId),
     relationships: loadRelationships(bookId),
+    outline: loadChapterOutline(bookDir),
   };
 }
 

@@ -19,5 +19,8 @@ export type {
   Relationships,
   GraphNode,
   GraphEdge,
+  ChapterOutline,
+  ChapterOutlinePart,
+  ChapterOutlineChapter,
   KnowledgeBase,
 } from "./schema";

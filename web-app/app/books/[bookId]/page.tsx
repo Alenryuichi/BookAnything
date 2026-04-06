@@ -3,6 +3,7 @@ import { loadKnowledge, loadParts, loadBookTitle, loadBookStats } from "@/lib/lo
 import Link from "next/link";
 import { GraphTriggerButton } from "@/components/GraphTriggerButton";
 import { StartGenerationButton } from "@/components/StartGenerationButton";
+import { CoverageDashboard } from "@/components/CoverageDashboard";
 
 export default async function BookPage({ params }: { params: Promise<{ bookId: string }> }) {
   const { bookId } = await params;
@@ -71,6 +72,8 @@ export default async function BookPage({ params }: { params: Promise<{ bookId: s
         </div>
       </div>
 
+      {knowledge.outline && <CoverageDashboard outline={knowledge.outline} />}
+
       <div className="mt-12 space-y-12">
         {parts.map((part) => (
           <div key={part.name}>
@@ -82,6 +85,14 @@ export default async function BookPage({ params }: { params: Promise<{ bookId: s
                 const ch = chapters[id];
                 const isWritten = !!ch;
                 const num = chapterNumMap[id] || 0;
+                let outlineChapter = null;
+                if (knowledge.outline) {
+                  for (const p of knowledge.outline.parts) {
+                    const c = p.chapters.find(c => c.id === id);
+                    if (c) { outlineChapter = c; break; }
+                  }
+                }
+                const coverageCount = outlineChapter?.kg_coverage?.length || 0;
                 
                 return (
                   <Link 
@@ -110,8 +121,20 @@ export default async function BookPage({ params }: { params: Promise<{ bookId: s
                           </div>
                         )}
                         {isWritten && ch?.word_count > 0 && (
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground font-medium mt-2">
+                            <span>{ch.word_count} 字 · {Math.ceil(ch.word_count / 500)} 分钟</span>
+                            {coverageCount > 0 && (
+                              <span className="px-1.5 py-0.5 rounded-sm bg-muted text-[10px]">
+                                {coverageCount} concepts covered
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {!isWritten && coverageCount > 0 && (
                           <div className="text-xs text-muted-foreground font-medium mt-2">
-                            {ch.word_count} 字 · {Math.ceil(ch.word_count / 500)} 分钟
+                            <span className="px-1.5 py-0.5 rounded-sm bg-muted text-[10px]">
+                              Plans to cover {coverageCount} concepts
+                            </span>
                           </div>
                         )}
                       </div>
@@ -132,9 +155,15 @@ export default async function BookPage({ params }: { params: Promise<{ bookId: s
 
       <div className="flex gap-4 mt-12 justify-center items-center">
         <StartGenerationButton bookId={bookId} className="px-5 py-2.5 rounded-lg bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50" />
-        <GraphTriggerButton className="px-5 py-2.5 rounded-lg border border-border bg-card text-sm font-medium hover:border-foreground transition-colors">
+<GraphTriggerButton className="px-5 py-2.5 rounded-lg border border-border bg-card text-sm font-medium hover:border-foreground transition-colors">
           🔗 架构依赖图
         </GraphTriggerButton>
+        <Link
+          href={`/books/${bookId}/explore`}
+          className="px-5 py-2.5 rounded-lg border border-border bg-card text-sm font-medium hover:border-foreground transition-colors"
+        >
+          🧠 知识图谱
+        </Link>
       </div>
     </div>
   );
