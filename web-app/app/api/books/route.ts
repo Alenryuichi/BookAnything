@@ -88,9 +88,10 @@ fi`);
 
     // TODO: When a "generate" endpoint spawns `pyharness run`, pass --quick:
     //   if (quickMode) scriptParts.push('python3 -m pyharness run ... --quick');
-    scriptParts.push(
-      `python3 -m pyharness init "${targetRepoPath}" --log-sink "$SINK_PATH"`,
-    );
+    const initCmd = isRemote
+      ? `python3 -m pyharness init "${targetRepoPath}" --remote-url "${repo_path}" --log-sink "$SINK_PATH"`
+      : `python3 -m pyharness init "${targetRepoPath}" --log-sink "$SINK_PATH"`;
+    scriptParts.push(initCmd);
 
     // NOTE: For future `pyharness run` commands, pass --control-file "$CONTROL_PATH"
     // alongside --log-sink "$SINK_PATH". The init command does not use control files.
@@ -99,7 +100,7 @@ fi`);
       "bash",
       ["-c", scriptParts.join("\n")],
       harnessRoot,
-      { onComplete, bookId: repoName },
+      { onComplete, bookId: repoName, jobType: "init" },
     );
 
     return NextResponse.json({ jobId: job.id }, { status: 202 });

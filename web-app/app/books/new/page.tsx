@@ -52,8 +52,13 @@ export default function NewBookPage() {
   const handleJobDone = useCallback(async () => {
     await fetch("/api/books?refresh=true");
     router.refresh();
-    router.push("/books");
-  }, [router]);
+    const bookName = repoPath.trim().replace(/\.git$/, "").split("/").filter(Boolean).pop() || "";
+    if (bookName) {
+      router.push(`/books/${bookName}`);
+    } else {
+      router.push("/books");
+    }
+  }, [router, repoPath]);
 
   const handleJobError = useCallback((msg: string) => {
     setError(msg);
