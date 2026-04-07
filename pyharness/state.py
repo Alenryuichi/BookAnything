@@ -1,7 +1,8 @@
-"""State management with atomic writes."""
+"""State management with atomic writes and async serialization."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import tempfile
@@ -12,8 +13,16 @@ from pyharness.schemas import HarnessState, MergedEval, ScoreRecord, ScoresBreak
 
 
 class StateManager:
+    """Thread-safe state manager using asyncio.Lock for concurrent access.
+
+    All mutating methods (update_after_eval, update_phase) acquire the lock
+    to prevent interleaved read-modify-write cycles when multiple coroutines
+    (e.g. parallel chapter writers) update state concurrently.
+    """
+
     def __init__(self, path: Path) -> None:
         self.path = path
+        self._lock = asyncio.Lock()
 
     def init(self) -> HarnessState:
         state = HarnessState()
@@ -28,6 +37,7 @@ class StateManager:
 
     def _write(self, state: HarnessState) -> None:
         data = state.model_dump(mode="json")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=self.path.parent, suffix=".tmp")
         try:
             with os.fdopen(fd, "w") as f:
@@ -40,6 +50,11 @@ class StateManager:
             except OSError:
                 pass
             raise
+
+    async def async_update_after_eval(self, iteration: int, merged: MergedEval) -> None:
+        """Lock-protected version for use from async contexts."""
+        async with self._lock:
+            self.update_after_eval(iteration, merged)
 
     def update_after_eval(self, iteration: int, merged: MergedEval) -> None:
         state = self.load()
@@ -56,6 +71,11 @@ class StateManager:
             time=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         ))
         self._write(state)
+
+    async def async_update_phase(self, iteration: int, phase: str) -> None:
+        """Lock-protected version for use from async contexts."""
+        async with self._lock:
+            self.update_phase(iteration, phase)
 
     def update_phase(self, iteration: int, phase: str) -> None:
         state = self.load()

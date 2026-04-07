@@ -21,19 +21,19 @@
 - [x] 3.3 Port `eval_interaction()` to `pyharness/eval.py` — search, navigation, code_highlight, page_routing
 - [x] 3.4 Port `merge_scores()` to `pyharness/eval.py` — combine dimension scores + format_feedback()
 - [x] 3.5 Implement issues/suggestions generation with same threshold conditions as bash
-- [ ] 3.6 Write comparison tests: run bash and Python eval on fixture data, assert identical scores
+- [x] 3.6 Write comparison tests: run bash and Python eval on fixture data, assert identical scores
 
 ## 4. State Management
 
 - [x] 4.1 Implement `StateManager` in `pyharness/state.py` with `load()`, `init()`, and `update_after_eval()` using atomic `tempfile` + `os.replace()`
-- [ ] 4.2 Implement `asyncio.Lock`-based serialization for concurrent state updates
+- [x] 4.2 Implement `asyncio.Lock`-based serialization for concurrent state updates
 - [x] 4.3 Verified: loaded bash-generated `state.json` successfully (21 iterations of history)
 
 ## 5. Claude Agent SDK Client Wrapper
 
 - [x] 5.1 Implement `ClaudeClient` in `pyharness/claude_client.py` wrapping `claude -p` CLI with configurable timeout and tool permissions
 - [x] 5.2 Add structured output support: accept Pydantic `response_model` parameter, return validated instances
-- [ ] 5.3 Add retry logic with exponential backoff for transient errors
+- [x] 5.3 Add retry logic with exponential backoff for transient errors
 - [x] 5.4 Add timeout enforcement using `asyncio.wait_for()` with configurable per-call timeout
 - [x] 5.5 `.claude/` context loading works automatically via `claude -p` (CLI loads project context from cwd)
 
@@ -42,7 +42,7 @@
 - [x] 6.1 Implement `step_plan()` in `pyharness/phases/plan.py` — build prompt from state, project config, existing chapters, and last eval feedback
 - [x] 6.2 Use `ClaudeClient` with `PlanOutput` response model for structured planning output
 - [x] 6.3 Implement fallback logic: if `chapters_to_write` is empty, compute unwritten chapters from project config
-- [ ] 6.4 Write test: compare plan prompt content with bash heredoc output for same inputs
+- [x] 6.4 Write test: compare plan prompt content with bash heredoc output for same inputs
 
 ## 7. Write Phase (Phase 3 Migration)
 
@@ -50,7 +50,7 @@
 - [x] 7.2 Implement single chapter writer using `ClaudeClient` with appropriate tool permissions (Read, Glob, Grep)
 - [x] 7.3 Implement per-chapter error isolation with `return_exceptions=True`
 - [x] 7.4 Implement chapter prompt builder: inject project context, chapter metadata, writing style rules
-- [ ] 7.5 Write test: verify concurrency limit is respected, verify error isolation
+- [x] 7.5 Write test: verify concurrency limit is respected, verify error isolation
 
 ## 8. Remaining Phases (Phase 4 Migration)
 
@@ -75,6 +75,6 @@
 
 ## 11. Integration Testing
 
-- [ ] 11.1 Write end-to-end test: run Python harness for 1 iteration on test fixtures, verify `state.json` is updated correctly
-- [ ] 11.2 Write comparison test: run both bash and Python harness on same initial state, compare resulting `state.json` and eval scores
-- [ ] 11.3 Verify interoperability: start with bash for iteration 1, switch to Python for iteration 2, confirm state continuity
+- [x] 11.1 Write end-to-end test: run Python harness for 1 iteration on test fixtures, verify `state.json` is updated correctly
+- [x] 11.2 Write comparison test: run both bash and Python harness on same initial state, compare resulting `state.json` and eval scores
+- [x] 11.3 Verify interoperability: start with bash for iteration 1, switch to Python for iteration 2, confirm state continuity
