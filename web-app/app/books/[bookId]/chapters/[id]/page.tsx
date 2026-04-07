@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { loadKnowledge, loadChapterIds } from "@/lib/load-knowledge";
 import { CodeBlock } from "@/components/CodeBlock";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
@@ -6,6 +7,7 @@ import { DataTable } from "@/components/DataTable";
 import { ReadingProgress } from "@/components/ReadingProgress";
 import { TableOfContents } from "@/components/TableOfContents";
 import Link from "next/link";
+import { ChapterActions } from "@/components/ChapterActions";
 
 function slugify(text: string): string {
   return text
@@ -49,11 +51,14 @@ export default async function ChapterPage({ params }: { params: Promise<{ bookId
     return (
       <div className="max-w-3xl mx-auto">
         <Link href={`/books/${bookId}`} className="text-sm text-muted-foreground hover:text-foreground transition-colors">← 返回目录</Link>
-        <div className="mt-8 p-16 text-center border border-border rounded-xl bg-card">
+        <div className="mt-8 mb-4">
+          <ChapterActions bookId={bookId} chapterId={id} />
+        </div>
+        <div className="p-16 text-center border border-border rounded-xl bg-card">
           <h2 className="text-2xl font-bold mb-4 tracking-tight">第 {currentIndex + 1} 章</h2>
           <p className="text-muted-foreground leading-relaxed">
             本章内容正在撰写中...<br />
-            Harness 运行后将自动生成。
+            点击上方 Rewrite 按钮可单独生成本章，或等待 Harness 自动运行。
           </p>
         </div>
       </div>
@@ -84,6 +89,8 @@ export default async function ChapterPage({ params }: { params: Promise<{ bookId
           </div>
         )}
       </header>
+
+      <ChapterActions bookId={bookId} chapterId={id} />
 
       {ch.chapter_summary && (
         <blockquote className="my-8 pl-5 py-2 border-l-4 border-foreground text-muted-foreground text-lg italic tracking-tight">

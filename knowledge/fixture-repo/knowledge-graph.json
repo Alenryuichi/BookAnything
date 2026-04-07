@@ -1,0 +1,331 @@
+{
+  "version": "1.0",
+  "repo": "/Users/kylinmiao/.cursor/worktrees/harness/skm/tests/e2e/fixture-repo",
+  "generated_at": "2026-04-06T06:20:37.863411+00:00",
+  "stats": {
+    "total_files": 10,
+    "total_functions": 8,
+    "total_classes": 0,
+    "total_edges": 3
+  },
+  "layers": [
+    {
+      "id": "api",
+      "name": "API Layer",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "service",
+      "name": "Service Layer",
+      "color": "#8b5cf6"
+    },
+    {
+      "id": "data",
+      "name": "Data Layer",
+      "color": "#10b981"
+    },
+    {
+      "id": "ui",
+      "name": "UI Layer",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "infra",
+      "name": "Infrastructure",
+      "color": "#6b7280"
+    },
+    {
+      "id": "util",
+      "name": "Utilities",
+      "color": "#ec4899"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "README.md",
+      "type": "file",
+      "name": "README.md",
+      "layer": "infra",
+      "summary": "Module README.md",
+      "language": "markdown",
+      "line_count": 31,
+      "imports": [],
+      "children": []
+    },
+    {
+      "id": "pyproject.toml",
+      "type": "file",
+      "name": "pyproject.toml",
+      "layer": "infra",
+      "summary": "Module pyproject.toml",
+      "language": "toml",
+      "line_count": 8,
+      "imports": [],
+      "children": []
+    },
+    {
+      "id": "src/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "layer": "infra",
+      "summary": "Module src/__init__.py",
+      "language": "python",
+      "line_count": 13,
+      "imports": [],
+      "children": [
+        {
+          "id": "src/__init__.py::main",
+          "type": "function",
+          "name": "main",
+          "summary": "Entry point",
+          "signature": "def main()",
+          "line_start": 1,
+          "line_end": 13,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "src/cli.py",
+      "type": "file",
+      "name": "cli.py",
+      "layer": "infra",
+      "summary": "Module src/cli.py",
+      "language": "python",
+      "line_count": 50,
+      "imports": [
+        {
+          "from": "src/core.py",
+          "names": [
+            "Parser"
+          ]
+        }
+      ],
+      "children": [
+        {
+          "id": "src/cli.py::main",
+          "type": "function",
+          "name": "main",
+          "summary": "Entry point",
+          "signature": "def main()",
+          "line_start": 1,
+          "line_end": 50,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "src/core.py",
+      "type": "file",
+      "name": "core.py",
+      "layer": "service",
+      "summary": "Module src/core.py",
+      "language": "python",
+      "line_count": 74,
+      "imports": [],
+      "children": [
+        {
+          "id": "src/core.py::main",
+          "type": "function",
+          "name": "main",
+          "summary": "Entry point",
+          "signature": "def main()",
+          "line_start": 1,
+          "line_end": 74,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "src/formatter.py",
+      "type": "file",
+      "name": "formatter.py",
+      "layer": "infra",
+      "summary": "Module src/formatter.py",
+      "language": "python",
+      "line_count": 38,
+      "imports": [],
+      "children": [
+        {
+          "id": "src/formatter.py::main",
+          "type": "function",
+          "name": "main",
+          "summary": "Entry point",
+          "signature": "def main()",
+          "line_start": 1,
+          "line_end": 38,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "src/tokenizer.py",
+      "type": "file",
+      "name": "tokenizer.py",
+      "layer": "infra",
+      "summary": "Module src/tokenizer.py",
+      "language": "python",
+      "line_count": 43,
+      "imports": [],
+      "children": [
+        {
+          "id": "src/tokenizer.py::main",
+          "type": "function",
+          "name": "main",
+          "summary": "Entry point",
+          "signature": "def main()",
+          "line_start": 1,
+          "line_end": 43,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "src/transforms.py",
+      "type": "file",
+      "name": "transforms.py",
+      "layer": "infra",
+      "summary": "Module src/transforms.py",
+      "language": "python",
+      "line_count": 45,
+      "imports": [],
+      "children": [
+        {
+          "id": "src/transforms.py::main",
+          "type": "function",
+          "name": "main",
+          "summary": "Entry point",
+          "signature": "def main()",
+          "line_start": 1,
+          "line_end": 45,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "tests/test_core.py",
+      "type": "file",
+      "name": "test_core.py",
+      "layer": "service",
+      "summary": "Module tests/test_core.py",
+      "language": "python",
+      "line_count": 20,
+      "imports": [
+        {
+          "from": "src/core.py",
+          "names": [
+            "Parser"
+          ]
+        }
+      ],
+      "children": [
+        {
+          "id": "tests/test_core.py::main",
+          "type": "function",
+          "name": "main",
+          "summary": "Entry point",
+          "signature": "def main()",
+          "line_start": 1,
+          "line_end": 20,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "tests/test_transforms.py",
+      "type": "file",
+      "name": "test_transforms.py",
+      "layer": "util",
+      "summary": "Module tests/test_transforms.py",
+      "language": "python",
+      "line_count": 28,
+      "imports": [
+        {
+          "from": "src/core.py",
+          "names": [
+            "Parser"
+          ]
+        }
+      ],
+      "children": [
+        {
+          "id": "tests/test_transforms.py::main",
+          "type": "function",
+          "name": "main",
+          "summary": "Entry point",
+          "signature": "def main()",
+          "line_start": 1,
+          "line_end": 28,
+          "children": []
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "src/cli.py",
+      "target": "src/core.py",
+      "type": "import",
+      "label": "imports Parser"
+    },
+    {
+      "source": "tests/test_core.py",
+      "target": "src/core.py",
+      "type": "import",
+      "label": "imports Parser"
+    },
+    {
+      "source": "tests/test_transforms.py",
+      "target": "src/core.py",
+      "type": "import",
+      "label": "imports Parser"
+    }
+  ],
+  "tours": [
+    {
+      "id": "overview",
+      "name": "Architecture Overview",
+      "description": "Walk through the project structure",
+      "steps": [
+        {
+          "node_id": "README.md",
+          "narrative": "Explore README.md"
+        },
+        {
+          "node_id": "pyproject.toml",
+          "narrative": "Explore pyproject.toml"
+        },
+        {
+          "node_id": "src/__init__.py",
+          "narrative": "Explore src/__init__.py"
+        },
+        {
+          "node_id": "src/cli.py",
+          "narrative": "Explore src/cli.py"
+        },
+        {
+          "node_id": "src/core.py",
+          "narrative": "Explore src/core.py"
+        }
+      ]
+    }
+  ],
+  "chapter_links": {
+    "src/cli.py": [
+      "ch04-cli-and-output",
+      "ch01-overview"
+    ],
+    "src/transforms.py": [
+      "ch01-overview"
+    ],
+    "src/formatter.py": [
+      "ch01-overview"
+    ],
+    "src/core.py": [
+      "ch01-overview"
+    ],
+    "src/tokenizer.py": [
+      "ch01-overview"
+    ]
+  }
+}

@@ -27,6 +27,7 @@ class BookConfig(BaseModel):
 class ProjectConfig(BaseModel):
     name: str
     repo_path: str
+    remote_url: Optional[str] = None
     target_dir: str = "src"
     language: str = "TypeScript"
     description: str = ""

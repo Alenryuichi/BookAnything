@@ -1,0 +1,16 @@
+## 1. Python CLI Enhancements
+
+- [x] 1.1 Modify `pyharness/phases/write.py` to support writing a single chapter via a new `--chapter` filter argument.
+- [x] 1.2 Update the CLI entry point (`pyharness/__main__.py`) to expose the single chapter writing capability.
+
+## 2. Next.js API Routes
+
+- [x] 2.1 Implement `POST /api/books` in `web-app/app/api/books/route.ts` to accept `repo_path` and spawn `python3 -m pyharness init`.
+- [x] 2.2 Implement `PUT /api/books/[bookId]/chapters/[chapterId]/route.ts` to invoke single-chapter rewrite via `subprocess`.
+- [x] 2.3 Implement `DELETE /api/books/[bookId]/chapters/[chapterId]/route.ts` to delete chapter JSON and trigger `rebuild-index.sh`.
+
+## 3. Next.js UI Components
+
+- [x] 3.1 Create `/books/new` wizard page in `web-app/app/books/new/page.tsx` with a form for repository input and a submission loading state.
+- [x] 3.2 Update chapter reading UI (`web-app/app/books/[bookId]/chapters/[id]/page.tsx`) to add a "Rewrite" action button with loading indication.
+- [x] 3.3 Update chapter reading UI to add a "Delete" action button with confirmation dialog and redirection.

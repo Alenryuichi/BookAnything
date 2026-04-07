@@ -23,12 +23,59 @@
 
 | 能力 | 实现方式 | 成熟度 |
 |------|---------|--------|
-| 项目扫描 & 章节规划 | `new-project.sh` → Claude 分析源码 → 生成 `projects/*.yaml` | ★★★☆☆ |
-| 迭代写书循环 | `run.sh`：Plan → Write(并行) → Improve → Review → Build → Test → Eval | ★★★★☆ |
-| 章节 JSON 生成 | Claude subagent，遵循 `chapter-json-contract.md` | ★★★★☆ |
-| 多维评估 | 内容(40) + 视觉(35) + 交互(25) = 100 分 | ★★★☆☆ |
-| Web 阅读器 | Next.js 静态站，支持目录/搜索/Mermaid/代码高亮/暗色模式 | ★★★★☆ |
+| 项目扫描 & 章节规划 | `pyharness init` 7 步流水线（见下文） | ★★★★☆ |
+| 迭代写书循环 | `pyharness run`：Plan → Write(并行) → Improve → Review → Build → Test → Eval | ★★★★☆ |
+| 章节 JSON 生成 | Claude subagent + KG 语义上下文，遵循 `chapter-json-contract.md` | ★★★★☆ |
+| 多维评估 | **确定性算法**打分：内容(40) + 视觉(35) + 交互(25) = 100 分 | ★★★★☆ |
+| 语义知识图谱 | tree-sitter 静态图 + Claude 语义分析 → `knowledge-graph.json` | ★★★☆☆ |
+| 图谱驱动规划 | Louvain 社区检测 + 拓扑排序 + Claude 创意规划 → `chapter-outline.json` | ★★★☆☆ |
+| 覆盖率可视化 | Overview 覆盖率仪表盘 + 知识图谱 Coverage Filter (All/Covered/Missing) | ★★★☆☆ |
+| Web 阅读器 | Next.js 动态站，支持多书/搜索/Mermaid/代码高亮/暗色模式/SSE 进度 | ★★★★☆ |
 | Git 检查点 | 每轮迭代自动 commit knowledge/ | ★★★☆☆ |
+
+### Init Pipeline（7 步初始化流水线）
+
+`pyharness init <repo>` 执行以下 7 步，将任意代码仓库转化为书籍大纲：
+
+```
+Phase 1: Scan          扫描仓库 → 检测语言、源码目录、文件/行数统计
+    │
+Phase 2: Static Graph  tree-sitter AST 解析 → 提取 import/调用/继承关系
+    │                   （无 LLM token 消耗，失败静默降级为空图）
+Phase 3: Skeleton YAML  生成空壳书籍配置文件（无章节）
+    │
+Phase 4: Analyze       Claude 深度语义分析 → 知识图谱 knowledge-graph.json
+    │                   （使用 Static Graph 压缩 prompt，减少 token）
+Phase 5: Validate      确定性图谱质检 → 孤儿节点/悬空边/疑似重复/层级错误/连通性
+    │
+Phase 6: Graph-Plan    Louvain 社区检测（聚类为 Part）+ 拓扑排序（章节顺序）
+    │                   + Claude 创意命名 → 章节大纲
+Phase 7: Final YAML    生成最终 projects/*.yaml + knowledge/*/chapter-outline.json
+```
+
+**降级策略：** Phase 2/4/5/6 任一步骤失败均不阻塞流水线；Phase 6 失败回退到传统 Claude 直接规划。
+
+### Run Pipeline（迭代写书循环）
+
+`pyharness run` 执行多轮迭代（默认最多 3 轮），每轮循环：
+
+```
+Phase 1: Plan       Claude 根据上一轮评估反馈选择 2-3 个章节（新写或重写）
+    │
+Phase 2: Write      并行调用 Claude 撰写章节（注入 KG 语义上下文）
+    │
+Phase 3: Improve    [可选] webapp-review agent 修复 UI bug
+    │
+Phase 4: Review     [可选] code-review agent 检查代码质量
+    │
+Phase 5: Build      next build 编译前端
+    │
+Phase 6: Visual     [可选] Playwright 截图 + 视觉回归测试
+    │
+Phase 7: Evaluate   **确定性算法**打分（非 LLM）→ 反馈给下一轮 Plan
+```
+
+**停止条件：** 总分 ≥ 85 / 达到最大迭代次数 / 超时 12h / 用户取消
 
 ### 核心局限
 

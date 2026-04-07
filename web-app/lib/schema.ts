@@ -211,11 +211,37 @@ export type Relationships = z.infer<typeof RelationshipsSchema>;
 export type GraphNode = z.infer<typeof GraphNodeSchema>;
 export type GraphEdge = z.infer<typeof GraphEdgeSchema>;
 
+export interface ChapterOutlineChapter {
+  id: string;
+  title: string;
+  subtitle: string;
+  kg_coverage: string[];
+  prerequisites: string[];
+  topo_rank: number;
+}
+
+export interface ChapterOutlinePart {
+  part_num: number;
+  part_title: string;
+  community_id: string;
+  kg_node_ids: string[];
+  chapters: ChapterOutlineChapter[];
+}
+
+export interface ChapterOutline {
+  version: string;
+  generated_at: string;
+  algorithm: Record<string, unknown>;
+  parts: ChapterOutlinePart[];
+  uncovered_nodes: string[];
+}
+
 export interface KnowledgeBase {
   chapters: Record<string, ChapterContent>;
   modules: Record<string, ModuleAnalysis>;
   architecture: Architecture;
   relationships: Relationships;
+  outline: ChapterOutline | null;
 }
 
 // ── Parser utility ──

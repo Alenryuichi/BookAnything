@@ -27,6 +27,39 @@ async def step_plan(
         f"  - id: {ch.id}\n    title: {ch.title}" for ch in runner.config.chapters
     )
 
+    # Build unresolved errors section if error_ledger available
+    error_section = ""
+    if hasattr(runner, "error_ledger") and runner.error_ledger:
+        unresolved = runner.error_ledger.get_all_unresolved()
+        if unresolved:
+            lines = ["## Unresolved Errors from Previous Iterations",
+                     "These chapters FAILED in previous attempts and MUST be retried:"]
+            for err in unresolved:
+                lines.append(
+                    f"- {err['chapter_id']}: FAILED ({err['error_class']}, "
+                    f"{err['attempt']}/{err['max_attempts']} attempts). "
+                    f"Error: {err['error_message'][:100]}"
+                )
+            lines.append("")
+            lines.append("You MUST include these failed chapters in chapters_to_write.")
+            error_section = "\n".join(lines)
+
+    # Load chapter-outline.json for coverage info
+    outline_section = ""
+    try:
+        from pyharness.phases.graph_plan import load_chapter_outline
+        outline = load_chapter_outline(runner.knowledge_dir)
+        if outline and outline.uncovered_nodes:
+            outline_section = (
+                f"## 知识图谱覆盖率\n"
+                f"未覆盖的语义节点 ({len(outline.uncovered_nodes)} 个): "
+                + ", ".join(outline.uncovered_nodes[:20])
+                + ("..." if len(outline.uncovered_nodes) > 20 else "")
+                + "\n请在规划中优先考虑覆盖这些概念。"
+            )
+    except Exception:
+        pass
+
     prompt = f"""你是《{runner.config.book_title}》的编辑。制定下一轮写作计划。
 
 ## 当前状态
@@ -36,13 +69,18 @@ async def step_plan(
 ## 上轮评估反馈
 {last_eval_feedback or '无（第一轮）'}
 
+{error_section}
+
 ## 书的章节目录
 {chapters_section}
+
+{outline_section}
 
 ## 规则
 1. 每轮选 2-3 个未写的章节并行撰写
 2. 按章节顺序优先
 3. 如果章节已存在但质量不够，可以选择重写
+4. 如果有"Unresolved Errors"中的章节，必须优先重试
 
 ## 输出：纯 JSON
 {{"plan_summary": "...", "chapters_to_write": [{{"id": "ch01-xxx", "focus": "..."}}], "needs_webapp_improve": true, "improvement_focus": "coverage"}}"""
@@ -56,6 +94,14 @@ async def step_plan(
         )
         if result and result.chapters_to_write:
             log("OK", f"Plan: {[c.id for c in result.chapters_to_write]}")
+            from pyharness.log import log_event
+            log_event("plan_result", {
+                "iteration": iteration,
+                "summary": result.plan_summary,
+                "chapters": [{"id": c.id, "focus": c.focus} for c in result.chapters_to_write],
+                "improve_webapp": result.needs_webapp_improve,
+                "improve_focus": getattr(result, "improvement_focus", "")
+            })
             return result
     except Exception as e:
         log("WARN", f"Plan failed: {e}")
@@ -65,4 +111,12 @@ async def step_plan(
     from pyharness.schemas import ChapterToWrite
     chapters = [ChapterToWrite(id=cid, focus="") for cid in unwritten[:runner.max_parallel]]
     log("INFO", f"Fallback chapters: {[c.id for c in chapters]}")
+    from pyharness.log import log_event
+    log_event("plan_result", {
+        "iteration": iteration,
+        "summary": "Fallback sequential plan (Claude failed or returned empty).",
+        "chapters": [{"id": c.id, "focus": ""} for c in chapters],
+        "improve_webapp": False,
+        "improve_focus": ""
+    })
     return PlanOutput(plan_summary="fallback", chapters_to_write=chapters)

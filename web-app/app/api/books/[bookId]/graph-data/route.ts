@@ -8,7 +8,8 @@ export async function GET(
   const { bookId } = await params;
   try {
     const knowledge = loadKnowledge(bookId);
-    const { relationships, architecture, modules } = knowledge;
+    const { relationships, architecture, modules, outline } = knowledge;
+    const uncoveredNodes = new Set(outline?.uncovered_nodes || []);
 
     const nodes = Object.entries(modules).map(([id, mod]) => {
       const layer = architecture.layers.find((l) => l.modules.includes(id));
@@ -18,6 +19,7 @@ export async function GET(
         layer: layer?.id || "unknown",
         color: layer?.color || "#666",
         size: mod.file_count || 10,
+        isCovered: outline ? !uncoveredNodes.has(id) : true,
       };
     });
 

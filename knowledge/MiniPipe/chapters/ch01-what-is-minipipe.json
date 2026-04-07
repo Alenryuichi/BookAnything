@@ -1,0 +1,53 @@
+{
+  "chapter_id": "ch01-what-is-minipipe",
+  "title": "第1章：MiniPipe 是什么",
+  "subtitle": "为什么文本处理需要管道",
+  "opening_hook": "想象你走进一家现代化的面包店。面粉从仓库运来，经过和面机、发酵箱、烤箱，最后变成香喷喷的面包。每个环节都有专门的设备，面粉在这些设备间流动，而不是被反复搬运。这就是管道模式的核心直觉——让数据流动，而不是让程序跳跃。\n\n在软件开发中，文本处理往往需要经过多个步骤：分词、转换、格式化。传统的做法是写一个巨大的函数，里面塞满了各种逻辑。但 MiniPipe 选择了另一条路：将每个处理步骤封装成独立的阶段，让文本像流水一样从一个阶段流向下一个阶段。这种设计不仅让代码更清晰，还让组合和扩展变得异常简单。",
+  "sections": [
+    {
+      "heading": "从函数调用到数据流动",
+      "content": "传统的文本处理代码往往长这样：一个函数接收输入，内部调用多个子函数，最后返回结果。这种设计的问题在于，每个处理步骤都紧密耦合在一起。如果你想改变处理顺序，或者跳过某个步骤，就需要修改函数内部逻辑。\n\nMiniPipe 采用了完全不同的思路。它将每个处理步骤抽象为独立的 '阶段'（Stage），文本数据以 '令牌'（Token）的形式在阶段间流动。这种设计让代码具备了模块化的特性——你可以像搭积木一样组合不同的处理阶段。\n\n这种转变的核心在于思维方式的改变：从'如何组织函数调用'变成了'如何设计数据流动'。数据流动的思维方式更符合人类对流水线作业的直觉理解。"
+    },
+    {
+      "heading": "管道模式的核心直觉",
+      "content": "管道模式的核心可以用一个简单的比喻来理解：想象一条装配线上的工人。第一个工人负责拆包原材料，第二个工人负责加工，第三个工人负责包装。每个工人只专注于自己的任务，不需要知道前后环节的具体细节。\n\n在 MiniPipe 中，Token 对象就是流动的'产品'，Stage 就是装配线上的'工人'。Token 从 Pipeline 的起点流入，依次经过各个 Stage 的处理，最终变成我们需要的输出。\n\n这种设计的优势在于解耦。每个 Stage 只需要关心自己的处理逻辑，不需要知道其他 Stage 的存在。这种松耦合的设计让系统具备了很好的可扩展性——添加新的处理阶段就像在装配线上增加一个工人那样简单。",
+      "diagram": {
+        "type": "flowchart",
+        "content": "flowchart LR\n    A[输入文本] --> B[TokenizerStage]\n    B --> C[UpperTransform]\n    C --> D[MarkdownFormatter]\n    D --> E[输出文本]"
+      }
+    },
+    {
+      "heading": "第一个 CLI 示例拆解",
+      "content": "让我们通过 CLI 的实际使用来理解 MiniPipe 的工作方式。当你在终端输入 `python -m minipipe \"hello world\" --upper --format markdown` 时，背后发生了什么？\n\n首先，CLI 解析器会识别出需要执行三个处理阶段：分词、大写转换、Markdown 格式化。然后它会构建一个包含这三个阶段的 Pipeline 对象。\n\n文本 \"hello world\" 首先被 TokenizerStage 分解成两个 Token：['hello', 'world']。接着 UpperTransform 将每个 Token 的文本转换为大写：['HELLO', 'WORLD']。最后 MarkdownFormatter 将这些 Token 重新组合成 Markdown 格式的字符串输出。\n\n整个过程就像一条精心设计的流水线，每个阶段都专注于自己的职责，数据在阶段间顺畅流动。",
+      "code": {
+        "language": "python",
+        "content": "def main(argv: list[str] | None = None) -> None:\n    args = build_parser().parse_args(argv)\n    \n    text = sys.stdin.read() if args.text == \"-\" else args.text\n    \n    stages = [TokenizerStage()]\n    if args.upper:\n        stages.append(UpperTransform())\n    if args.lower:\n        stages.append(LowerTransform())\n    if args.reverse:\n        stages.append(ReverseTransform())\n    stages.append(FORMATTERS[args.format]())\n    \n    pipe = Pipeline(stages)\n    print(pipe.run(text))"
+      }
+    },
+    {
+      "heading": "Pipeline 类的设计哲学",
+      "content": "Pipeline 类是 MiniPipe 的核心，它体现了'组合优于继承'的设计原则。Pipeline 不关心每个 Stage 的具体实现，它只负责按照顺序调用各个 Stage 的 process 方法。\n\n这种设计让 Pipeline 具备了极大的灵活性。你可以轻松地添加、删除或重新排列 Stage，而无需修改 Pipeline 类的代码。这种开闭原则（对扩展开放，对修改关闭）的实现，是优秀软件设计的重要标志。\n\nPipeline 的 run 方法展示了数据流动的完整过程：从原始文本到 Token 列表，经过各个 Stage 的处理，最后通过 Formatter 重新组合成字符串输出。这个过程清晰地展现了管道模式的执行流程。",
+      "code": {
+        "language": "python",
+        "content": "def run(self, text: str) -> str:\n    from .tokenizer import TokenizerStage\n    from .formatter import PlainFormatter\n    \n    tokens = TokenizerStage().process([Token(text=text)])\n    for stage in self._stages:\n        if isinstance(stage, TokenizerStage):\n            continue\n        tokens = stage.process(tokens)\n    formatter = next(\n        (s for s in self._stages if hasattr(s, \"format\")),\n        PlainFormatter(),\n    )\n    return formatter.format(tokens)"
+      }
+    },
+    {
+      "heading": "为什么选择管道模式",
+      "content": "管道模式之所以适合文本处理，是因为文本处理天然就是一系列转换操作的组合。无论是简单的字符串操作，还是复杂的自然语言处理，都可以分解为多个独立的处理步骤。\n\n与传统的面向对象设计相比，管道模式提供了更好的可测试性。每个 Stage 都可以独立测试，不需要构建复杂的依赖环境。这种模块化的测试方式大大降低了测试的复杂度。\n\n管道模式还支持运行时配置。你可以根据不同的需求动态组合不同的 Stage，实现高度可定制的文本处理流程。这种灵活性在需要处理多种文本格式的场景中尤其有价值。\n\n最后，管道模式让代码更容易理解。每个 Stage 的职责单一明确，整个处理流程一目了然。这种清晰的结构降低了代码的维护成本。"
+    }
+  ],
+  "key_takeaways": [
+    "管道模式将复杂的文本处理分解为独立的阶段，让数据在阶段间流动",
+    "每个 Stage 只关注单一职责，实现了高度的模块化和可测试性",
+    "Pipeline 类通过组合 Stage 实现了灵活可扩展的文本处理流程",
+    "管道模式比传统的函数调用更适合处理多步骤的文本转换任务",
+    "这种设计让代码更容易理解、测试和维护"
+  ],
+  "further_thinking": [
+    "如果让你设计一个支持并行处理的管道系统，你会如何修改现有的架构？",
+    "管道模式在处理异常情况时有哪些挑战？如何设计健壮的容错机制？"
+  ],
+  "word_count": 3850,
+  "prerequisites": []
+}

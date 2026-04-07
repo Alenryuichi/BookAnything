@@ -1,18 +1,33 @@
 {
   "books": [
     {
-      "id": "pydantic-ai",
-      "name": "Pydantic AI",
-      "dirName": "Pydantic AI",
-      "description": "基于 Pydantic 的类型安全 GenAI 代理框架，为 Python 开发者提供生产级的 AI 应用开发体验",
+      "id": "autoresearch",
+      "name": "autoresearch",
+      "dirName": "autoresearch",
+      "description": "TODO: 填写项目简介",
       "language": "Python",
-      "chapterCount": 18,
-      "writtenCount": 18,
-      "lastUpdated": "2026-04-05T05:51:26Z",
-      "score": 0,
+      "chapterCount": 1,
+      "writtenCount": 1,
+      "lastUpdated": "2026-04-06T12:44:06Z",
+      "score": 40,
       "stats": {
-        "files": 1703,
-        "lines": 242799
+        "files": 10,
+        "lines": 1019
+      }
+    },
+    {
+      "id": "bb-browser",
+      "name": "bb-browser",
+      "dirName": "bb-browser",
+      "description": "让AI代理直接使用你的真实浏览器作为API，无需密钥、无需爬虫、无需反机器人绕过",
+      "language": "TypeScript",
+      "chapterCount": 13,
+      "writtenCount": 0,
+      "lastUpdated": "",
+      "score": 40,
+      "stats": {
+        "files": 72,
+        "lines": 13762
       }
     },
     {
@@ -23,11 +38,101 @@
       "language": "TypeScript",
       "chapterCount": 14,
       "writtenCount": 14,
-      "lastUpdated": "2026-04-05T05:51:39Z",
-      "score": 0,
+      "lastUpdated": "2026-04-05T06:38:51Z",
+      "score": 40,
       "stats": {
         "files": 1900,
         "lines": 512000
+      }
+    },
+    {
+      "id": "",
+      "name": "项目名称",
+      "dirName": "项目名称",
+      "description": "项目简介",
+      "language": "TypeScript",
+      "chapterCount": 2,
+      "writtenCount": 0,
+      "lastUpdated": "",
+      "score": 40,
+      "stats": {
+        "files": 0,
+        "lines": 0
+      }
+    },
+    {
+      "id": "fixture-repo",
+      "name": "fixture-repo",
+      "dirName": "fixture-repo",
+      "description": "TODO: 填写项目简介",
+      "language": "Python",
+      "chapterCount": 1,
+      "writtenCount": 1,
+      "lastUpdated": "2026-04-06T10:46:40Z",
+      "score": 40,
+      "stats": {
+        "files": 6,
+        "lines": 263
+      }
+    },
+    {
+      "id": "get-shit-done-cc",
+      "name": "get-shit-done-cc",
+      "dirName": "get-shit-done-cc",
+      "description": "TODO: 填写项目简介",
+      "language": "TypeScript",
+      "chapterCount": 12,
+      "writtenCount": 0,
+      "lastUpdated": "",
+      "score": 40,
+      "stats": {
+        "files": 516,
+        "lines": 23613
+      }
+    },
+    {
+      "id": "minbpe-minimal-byte-pair-encoding",
+      "name": "minBPE: Minimal Byte Pair Encoding",
+      "dirName": "minBPE: Minimal Byte Pair Encoding",
+      "description": "A clean, educational implementation of the BPE algorithm that powers modern LLM tokenizers",
+      "language": "Python",
+      "chapterCount": 10,
+      "writtenCount": 0,
+      "lastUpdated": "",
+      "score": 40,
+      "stats": {
+        "files": 16,
+        "lines": 699
+      }
+    },
+    {
+      "id": "pretext",
+      "name": "pretext",
+      "dirName": "pretext",
+      "description": "TODO: 填写项目简介",
+      "language": "TypeScript",
+      "chapterCount": 2,
+      "writtenCount": 2,
+      "lastUpdated": "2026-04-06T13:18:21Z",
+      "score": 40,
+      "stats": {
+        "files": 10,
+        "lines": 6325
+      }
+    },
+    {
+      "id": "pydantic-ai",
+      "name": "Pydantic AI",
+      "dirName": "Pydantic AI",
+      "description": "基于 Pydantic 的类型安全 GenAI 代理框架，为 Python 开发者提供生产级的 AI 应用开发体验",
+      "language": "Python",
+      "chapterCount": 18,
+      "writtenCount": 18,
+      "lastUpdated": "2026-04-05T06:38:51Z",
+      "score": 40,
+      "stats": {
+        "files": 1703,
+        "lines": 242799
       }
     }
   ]

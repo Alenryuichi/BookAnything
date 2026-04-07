@@ -1,0 +1,13 @@
+--- web-app/app/api/books/route.ts
++++ web-app/app/api/books/route.ts
+@@ -49,4 +49,7 @@
+       return NextResponse.json({ 
+         error: "Failed to initialize book", 
+         details: execError.stderr || execError.message 
+-
++      }, { status: 500 });
++    }
++  } catch (error) {
++    return NextResponse.json({ error: "Failed to parse request" }, { status: 400 });
++  }
++}

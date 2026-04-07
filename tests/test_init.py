@@ -380,3 +380,97 @@ class TestYamlSpecialChars:
         config = load_project_config(path)
         assert config.name == 'The "Best" Project'
         assert config.chapters[0].title == '第1章："Hello" World'
+
+
+# ── generate_yaml: relative paths and remote_url ─────────────
+
+class TestGenerateYamlRelativePaths:
+    def _make_scan(self, repo_path: Path) -> ScanResult:
+        return ScanResult(
+            project_name="test-project",
+            repo_path=repo_path,
+            source_dir="src",
+            language="TypeScript",
+            file_count=10,
+            line_count=500,
+            dir_tree=[],
+            dir_stats=[],
+        )
+
+    def _make_plan(self) -> dict:
+        return {
+            "project_name": "Test",
+            "description": "desc",
+            "parts": [{
+                "part_num": 1,
+                "part_title": "Part 1",
+                "chapters": [{
+                    "id": "ch01-intro",
+                    "title": "Intro",
+                    "subtitle": "sub",
+                    "sources": "src",
+                    "prerequisites": [],
+                    "outline": "- intro",
+                }],
+            }],
+        }
+
+    def test_relative_path_when_under_harness_root(self, tmp_path: Path):
+        """Repo under output_dir's parent should produce a relative repo_path."""
+        harness_root = tmp_path / "harness"
+        projects_dir = harness_root / "projects"
+        projects_dir.mkdir(parents=True)
+        repo = harness_root / "repos" / "my-repo"
+        repo.mkdir(parents=True)
+
+        scan = self._make_scan(repo)
+        path = generate_yaml(scan, self._make_plan(), projects_dir)
+        text = path.read_text()
+        assert "repos/my-repo" in text
+        # Should NOT contain the absolute tmp_path prefix
+        repo_line = [l for l in text.splitlines() if 'repo_path:' in l][0]
+        assert str(tmp_path) not in repo_line
+
+    def test_absolute_path_when_external(self, tmp_path: Path):
+        """Repo outside harness root should keep absolute path."""
+        harness_root = tmp_path / "harness"
+        projects_dir = harness_root / "projects"
+        projects_dir.mkdir(parents=True)
+        repo = tmp_path / "external" / "repo"
+        repo.mkdir(parents=True)
+
+        scan = self._make_scan(repo)
+        path = generate_yaml(scan, self._make_plan(), projects_dir)
+        text = path.read_text()
+        assert str(repo.resolve()) in text
+
+    def test_remote_url_written_when_provided(self, tmp_path: Path):
+        harness_root = tmp_path / "harness"
+        projects_dir = harness_root / "projects"
+        projects_dir.mkdir(parents=True)
+        repo = harness_root / "repos" / "my-repo"
+        repo.mkdir(parents=True)
+
+        scan = self._make_scan(repo)
+        path = generate_yaml(scan, self._make_plan(), projects_dir, remote_url="https://github.com/org/repo.git")
+        text = path.read_text()
+        assert "remote_url" in text
+        assert "https://github.com/org/repo.git" in text
+
+        config = load_project_config(path)
+        assert config.remote_url == "https://github.com/org/repo.git"
+
+    def test_remote_url_absent_when_none(self, tmp_path: Path):
+        harness_root = tmp_path / "harness"
+        projects_dir = harness_root / "projects"
+        projects_dir.mkdir(parents=True)
+        repo = harness_root / "repos" / "my-repo"
+        repo.mkdir(parents=True)
+
+        scan = self._make_scan(repo)
+        path = generate_yaml(scan, self._make_plan(), projects_dir)
+        text = path.read_text()
+        assert "remote_url" not in text
+
+        config = load_project_config(path)
+        assert config.remote_url is None
