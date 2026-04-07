@@ -4,6 +4,7 @@ import Link from "next/link";
 import { GraphTriggerButton } from "@/components/GraphTriggerButton";
 import { StartGenerationButton } from "@/components/StartGenerationButton";
 import { CoverageDashboard } from "@/components/CoverageDashboard";
+import { DeleteBookButton } from "@/components/DeleteBookButton";
 
 export default async function BookPage({ params }: { params: Promise<{ bookId: string }> }) {
   const { bookId } = await params;
@@ -28,9 +29,12 @@ export default async function BookPage({ params }: { params: Promise<{ bookId: s
 
   return (
     <div className="max-w-3xl mx-auto">
-      <Link href="/books" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-        ← 返回书架
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/books" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          ← 返回书架
+        </Link>
+        <DeleteBookButton bookId={bookId} bookTitle={bookTitle} />
+      </div>
       
       <div className="text-center mb-16 pt-8">
         <h1 className="text-4xl font-extrabold tracking-tight leading-tight">{bookTitle}</h1>

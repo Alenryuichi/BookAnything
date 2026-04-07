@@ -25,8 +25,9 @@ first=true
 
 for yaml_file in "$PROJECTS_DIR"/*.yaml; do
   [ ! -f "$yaml_file" ] && continue
+  [ "$(basename "$yaml_file")" = "example.yaml" ] && continue
+  
   yaml_name=$(grep "^name:" "$yaml_file" | head -1 | sed 's/.*name: *//' | tr -d '"' | tr -d "'")
-  [ "$yaml_name" = "example" ] && continue
   
   proj_name="$yaml_name"
   proj_desc=$(grep "^description:" "$yaml_file" | head -1 | sed 's/.*description: *//' | tr -d '"' | tr -d "'")
@@ -44,6 +45,9 @@ for yaml_file in "$PROJECTS_DIR"/*.yaml; do
   fi
 
   slug=$(derive_slug "$proj_name")
+  if [ -z "$slug" ]; then
+    slug=$(basename "$yaml_file" .yaml)
+  fi
 
   newest=0
   if [ -d "$book_dir/chapters" ]; then
