@@ -15,14 +15,20 @@
 
 ![章节阅读示例](web-app/public/readme/screenshot-chapter.png)
 
-若你要更新配图：先 `cd web-app && npm run dev`，再执行：
+## 阅读站里都能做什么
 
-```bash
-npx playwright screenshot --channel=chrome --color-scheme=dark --viewport-size=1440,900 --wait-for-timeout=2500 \
-  http://127.0.0.1:3000/books public/readme/screenshot-books.png
-```
+不止「看书」：站点围绕 `knowledge/<bookId>/` 里的章节 JSON、大纲与图谱数据，把目录、检索、覆盖度与源码结构连在一起。
 
-阅读页同理，改 URL 与输出文件名即可。
+| 能力 | 路径 / 入口 | 说明 |
+|------|----------------|------|
+| 书架 | `/books` | 多本书的入口列表 |
+| 章节正文 | `/books/<bookId>/chapters/<章节 id>` | 交互式阅读已写入的章节 |
+| 搜索 | `/books/<bookId>/search` | 全书检索（基于章节与模块索引） |
+| 仪表盘 | `/books/<bookId>/dashboard` | 成书与覆盖度等统计视图 |
+| **知识图谱** | `/books/<bookId>/explore` | 读取 `knowledge-graph.json`（React Flow）。支持文件 / 模块视图切换、按分层筛选（如 api、service、data 等）、节点搜索、按「已覆盖 / 未覆盖」过滤；覆盖状态与 `chapter-outline.json` 中的大纲对齐。若尚无图谱，会检查目标仓库是否存在，并可通过 **Analyze**（`POST /api/books/<bookId>/analyze`）在后台生成，期间展示实时进度 |
+| **架构图（弹窗）** | 侧栏「架构图」 | 打开 `GraphModal`，经 `graph-data` 汇总模块依赖与架构分层，D3 绘制依赖图，便于总览（与 explore 的细粒度知识图谱互补） |
+
+**数据落盘**：分析结束后，`knowledge/<bookId>/knowledge-graph.json` 供 explore 使用；`chapter-outline.json`（若存在）用于标注节点是否已被某章覆盖。可用 `pyharness analyze --project ...` 或在站点里触发分析任务来生成或更新这些文件。
 
 ## 快速开始
 
